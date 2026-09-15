@@ -207,12 +207,79 @@ body {
   transform: scale(0.98);
 }
 
+.neo-inset-sm {
+  background: var(--neo-bg);
+  box-shadow:
+    inset 3px 3px 8px var(--neo-dark),
+    inset -3px -3px 8px var(--neo-light);
+}
+
+/* Neo input, used by sign-in / profile-setup forms */
+.neo-input {
+  background: var(--neo-bg);
+  border: none;
+  outline: none;
+  box-shadow:
+    inset 4px 4px 10px var(--neo-dark),
+    inset -4px -4px 10px var(--neo-light);
+  border-radius: 14px;
+  padding: 14px 18px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: var(--t-primary);
+  width: 100%;
+  transition: box-shadow 0.2s ease;
+}
+
+.neo-input:focus {
+  box-shadow:
+    inset 4px 4px 10px var(--neo-dark),
+    inset -4px -4px 10px var(--neo-light),
+    0 0 0 2px rgba(99, 102, 241, 0.35);
+}
+
+.neo-input::placeholder {
+  color: var(--t-dim);
+}
+
+/* OTP input, used by email verification */
+.otp-box {
+  width: 48px;
+  height: 56px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  background: var(--neo-bg);
+  border: none;
+  outline: none;
+  border-radius: 14px;
+  color: var(--t-primary);
+  box-shadow:
+    inset 4px 4px 10px var(--neo-dark),
+    inset -4px -4px 10px var(--neo-light);
+}
+
+.otp-box:focus {
+  box-shadow:
+    inset 4px 4px 10px var(--neo-dark),
+    inset -4px -4px 10px var(--neo-light),
+    0 0 0 2px rgba(99, 102, 241, 0.4);
+}
+
 /* Fonts, fed by next/font/google in layout.tsx */
 .font-display {
   font-family: var(--font-display);
 }
 .font-mono {
   font-family: var(--font-mono);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes fadeIn {
