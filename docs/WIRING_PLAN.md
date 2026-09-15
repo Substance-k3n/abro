@@ -28,9 +28,7 @@ What **is** worth keeping, faithfully:
   Next.js App Router routes (the routes are already specified per
   screen in `ABRO_FRONTEND_SPEC.md`).
 
-## Phase 1 — Foundation `[in progress]`
-
-Branch: `feature/ui-foundation`
+## Phase 1 — Foundation `[done, merged into main]`
 
 - [x] Port the token system into `apps/web/src/app/globals.css`
       (light + dark, matching the prototype's `[data-theme="dark"]`
@@ -50,7 +48,7 @@ Branch: `feature/ui-foundation`
 correct fonts/tokens in both light and dark; no fake status bar
 anywhere in the DOM.
 
-## Phase 2 — Auth flow `[todo]`
+## Phase 2 — Auth flow `[in progress]`
 
 Branch: `feature/auth-screens`
 
