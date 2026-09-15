@@ -48,19 +48,30 @@ What **is** worth keeping, faithfully:
 correct fonts/tokens in both light and dark; no fake status bar
 anywhere in the DOM.
 
-## Phase 2 — Auth flow `[in progress]`
+## Phase 2 — Auth flow `[built, awaiting review]`
 
-Branch: `feature/auth-screens`
+Branch: `feature/auth-screens` (pushed, not yet merged)
 
-Screens (`ABRO_FRONTEND_SPEC.md` §2, `AUTH-01`…`AUTH-06`): Splash,
-Onboarding (3 slides), Sign up, Sign in, Email OTP, Profile setup.
-Routes: `/`, `/onboarding`, `/auth/signup`, `/auth/signin`,
-`/auth/verify-email`, `/auth/setup-profile`.
+Screens (`ABRO_FRONTEND_SPEC.md` §2, `AUTH-01`…`AUTH-06`):
+
+- [x] `/` — Splash (Phase 1)
+- [x] `/onboarding` — 3-slide carousel
+- [x] `/auth/signin` — also stands in for sign-up (prototype converges
+      both into one screen; no separate `/auth/signup` route exists
+      because the design doesn't have one)
+- [x] `/auth/verify-email` — 6-digit OTP, auto-advance + auto-submit
+- [x] `/auth/setup-profile` — avatar picker + mock username check
 
 Wired against **mock state only** — real auth depends on
-`apps/api`'s `auth` module, which is still a stub. Use the prototype's
-own placeholder data/copy so the flow is clickable end to end before
-any backend exists.
+`apps/api`'s `auth` module, which is still a stub. Uses the
+prototype's own placeholder data/copy so the flow is clickable end to
+end before any backend exists.
+
+**Verified so far:** `pnpm lint`/`typecheck`/`build` all pass for every
+route. **Not yet verified:** an actual click-through in a browser — no
+browser tooling was connected this session, so "does it look and feel
+right" still needs a human (or a later session with browser access)
+before merging to `main`.
 
 **Acceptance:** every AUTH-0x route exists and the click-through
 Splash → Onboarding → Sign in → OTP → Profile setup works with mock
