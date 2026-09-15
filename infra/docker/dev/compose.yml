@@ -1,0 +1,23 @@
+name: abro-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: ${POSTGRES_CONTAINER_NAME:-abro-db}
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-abro}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-abro}
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-abro} -d ${POSTGRES_DB:-abro}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - '${POSTGRES_PORT:-5460}:5432'
+    volumes:
+      - database:/var/lib/postgresql/data
+
+volumes:
+  database:
