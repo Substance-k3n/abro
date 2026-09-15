@@ -1,1 +1,231 @@
 @import 'tailwindcss';
+
+/*
+ * Design tokens, ported from the Figma Make prototype
+ * (~/Downloads/Design Ultra Modern UI (1)/src/index.css) per
+ * docs/WIRING_PLAN.md Phase 1. Fonts are wired separately via
+ * next/font/google in layout.tsx, which feeds the same
+ * --font-display/--font-body/--font-mono variables used below.
+ *
+ * Only the primitives the Splash screen needs are ported so far
+ * (.neo-raised(-lg), .neo-flat, .neo-btn(-accent), .fade-in). The rest
+ * (inputs, toggles, badges, split-card, cat-pill, ...) land alongside
+ * the screens that use them — see docs/WIRING_PLAN.md.
+ */
+
+/* ===================== LIGHT THEME (default) ===================== */
+:root {
+  /* Neo-morphic shadow system */
+  --neo-bg: #dde1e7;
+  --neo-dark: #b8bec7;
+  --neo-light: #ffffff;
+  --neo-bg2: #e8ecf0;
+
+  /* Status colors */
+  --green-soft: #22c55e;
+  --green-bg: #dcfce7;
+  --red-soft: #ef4444;
+  --red-bg: #fee2e2;
+  --amber-soft: #f59e0b;
+  --accent: #6366f1;
+  --accent-light: #eef2ff;
+
+  /* Text hierarchy */
+  --t-primary: #1e2330;
+  --t-secondary: #3d4452;
+  --t-muted: #6b7280;
+  --t-dim: #9aa0ae;
+  --t-nav-inactive: #8a90a0;
+
+  /* Semantic colors */
+  --c-green: #16a34a;
+  --c-green-text: #15803d;
+  --c-red: #dc2626;
+  --c-red-text: #b91c1c;
+  --c-amber: #d97706;
+
+  /* Borders / surfaces */
+  --border-sub: rgba(0, 0, 0, 0.06);
+  --border-med: rgba(0, 0, 0, 0.1);
+  --overlay: rgba(0, 0, 0, 0.5);
+  --overlay-light: rgba(255, 255, 255, 0.85);
+
+  /* Page backdrop */
+  --page-bg: linear-gradient(135deg, #d8dce4 0%, #e4e8ef 50%, #dce0e8 100%);
+  --nav-shadow: 0 -4px 24px rgba(184, 190, 199, 0.55), 0 -1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* ===================== DARK THEME ===================== */
+/* Matches the app's [data-theme] toggle convention: unstamped root follows
+   the OS, an explicit stamp wins either way. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --neo-bg: #1e2130;
+    --neo-dark: #13151f;
+    --neo-light: #282c3f;
+    --neo-bg2: #22253a;
+
+    --green-soft: #4ade80;
+    --green-bg: rgba(74, 222, 128, 0.12);
+    --red-soft: #f87171;
+    --red-bg: rgba(248, 113, 113, 0.12);
+    --amber-soft: #fbbf24;
+    --accent: #818cf8;
+    --accent-light: rgba(129, 140, 248, 0.12);
+
+    --t-primary: #e8ecf5;
+    --t-secondary: #bcc4d8;
+    --t-muted: #8892a8;
+    --t-dim: #5a6478;
+    --t-nav-inactive: #6a728a;
+
+    --c-green: #4ade80;
+    --c-green-text: #86efac;
+    --c-red: #f87171;
+    --c-red-text: #fca5a5;
+    --c-amber: #fbbf24;
+
+    --border-sub: rgba(255, 255, 255, 0.07);
+    --border-med: rgba(255, 255, 255, 0.12);
+    --overlay: rgba(0, 0, 0, 0.75);
+    --overlay-light: rgba(30, 33, 48, 0.9);
+
+    --page-bg: linear-gradient(135deg, #0d0f18 0%, #161924 50%, #111420 100%);
+    --nav-shadow: 0 -4px 24px rgba(10, 12, 24, 0.7), 0 -1px 0 rgba(40, 44, 63, 0.9);
+  }
+}
+
+:root[data-theme='dark'] {
+  --neo-bg: #1e2130;
+  --neo-dark: #13151f;
+  --neo-light: #282c3f;
+  --neo-bg2: #22253a;
+
+  --green-soft: #4ade80;
+  --green-bg: rgba(74, 222, 128, 0.12);
+  --red-soft: #f87171;
+  --red-bg: rgba(248, 113, 113, 0.12);
+  --amber-soft: #fbbf24;
+  --accent: #818cf8;
+  --accent-light: rgba(129, 140, 248, 0.12);
+
+  --t-primary: #e8ecf5;
+  --t-secondary: #bcc4d8;
+  --t-muted: #8892a8;
+  --t-dim: #5a6478;
+  --t-nav-inactive: #6a728a;
+
+  --c-green: #4ade80;
+  --c-green-text: #86efac;
+  --c-red: #f87171;
+  --c-red-text: #fca5a5;
+  --c-amber: #fbbf24;
+
+  --border-sub: rgba(255, 255, 255, 0.07);
+  --border-med: rgba(255, 255, 255, 0.12);
+  --overlay: rgba(0, 0, 0, 0.75);
+  --overlay-light: rgba(30, 33, 48, 0.9);
+
+  --page-bg: linear-gradient(135deg, #0d0f18 0%, #161924 50%, #111420 100%);
+  --nav-shadow: 0 -4px 24px rgba(10, 12, 24, 0.7), 0 -1px 0 rgba(40, 44, 63, 0.9);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: var(--page-bg);
+  font-family: var(--font-body);
+  color: var(--t-secondary);
+}
+
+/* ===================== NEOMORPHIC PRIMITIVES ===================== */
+
+.neo-raised {
+  background: var(--neo-bg);
+  box-shadow:
+    8px 8px 18px var(--neo-dark),
+    -8px -8px 18px var(--neo-light);
+}
+
+.neo-raised-lg {
+  background: var(--neo-bg);
+  box-shadow:
+    12px 12px 28px var(--neo-dark),
+    -12px -12px 28px var(--neo-light);
+}
+
+.neo-flat {
+  background: var(--neo-bg);
+  box-shadow:
+    2px 2px 6px var(--neo-dark),
+    -2px -2px 6px var(--neo-light);
+}
+
+.neo-btn {
+  background: var(--neo-bg);
+  box-shadow:
+    6px 6px 14px var(--neo-dark),
+    -6px -6px 14px var(--neo-light);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+}
+
+.neo-btn:active {
+  box-shadow:
+    inset 4px 4px 10px var(--neo-dark),
+    inset -4px -4px 10px var(--neo-light);
+  transform: scale(0.98);
+}
+
+.neo-btn-accent {
+  background: linear-gradient(145deg, #7c7fff, #5558ee);
+  box-shadow:
+    6px 6px 14px rgba(99, 102, 241, 0.35),
+    -4px -4px 10px rgba(255, 255, 255, 0.18);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+  color: white;
+}
+
+:root[data-theme='dark'] .neo-btn-accent {
+  box-shadow:
+    6px 6px 14px rgba(99, 102, 241, 0.45),
+    -4px -4px 10px rgba(40, 44, 63, 0.6);
+}
+
+.neo-btn-accent:active {
+  box-shadow:
+    inset 4px 4px 10px rgba(60, 63, 200, 0.4),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.15);
+  transform: scale(0.98);
+}
+
+/* Fonts, fed by next/font/google in layout.tsx */
+.font-display {
+  font-family: var(--font-display);
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.25s ease forwards;
+}
