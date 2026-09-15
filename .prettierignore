@@ -1,0 +1,7 @@
+pnpm-lock.yaml
+.turbo
+.next
+dist
+coverage
+docs/ABRO_PRD.md
+docs/ABRO_FRONTEND_SPEC.md
