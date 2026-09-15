@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # ABRO
 
 > Remember every expense. Forget the confusion.
@@ -81,3 +82,7 @@ reserved for the design system that comes out of that porting work.
 - Every module under `apps/api/src/modules` maps to a PRD feature area
   (`docs/ABRO_PRD.md` §32): auth, users, friends, groups, expenses,
   balances, settlements, analytics, notifications, recurring.
+=======
+# FriendLedger
+A shared expense ledger for friend groups in Ethiopia — who paid, who owes whom, and how much everyone has actually spent together, month after month. Built as our own product, studying SplitPro, Spliit and similar tools as architectural reference — not forked from any of them.
+>>>>>>> e4cd6d1 (Initial commit)
