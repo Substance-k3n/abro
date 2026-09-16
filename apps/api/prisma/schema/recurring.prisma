@@ -1,0 +1,24 @@
+enum RecurringFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+// A schedule that regenerates a new Expense from templateExpenseId's shape
+// (participants, split, amount) each time nextRunAt is reached.
+model RecurringExpense {
+  id                String             @id @default(cuid())
+  templateExpenseId String             @unique
+  frequency         RecurringFrequency
+  nextRunAt         DateTime
+  enabled           Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  templateExpense Expense @relation(fields: [templateExpenseId], references: [id], onDelete: Restrict)
+
+  // Serves the scheduler's "what's due to run" query.
+  @@index([enabled, nextRunAt])
+  @@map("recurring_expenses")
+}

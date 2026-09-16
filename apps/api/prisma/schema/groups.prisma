@@ -1,0 +1,52 @@
+enum GroupType {
+  FRIENDS
+  TRIP
+  HOUSEHOLD
+  FAMILY
+  TEAM
+  OTHER
+}
+
+enum GroupMemberRole {
+  ADMIN
+  MEMBER
+}
+
+enum GroupMemberStatus {
+  INVITED
+  ACTIVE
+  LEFT
+}
+
+model Group {
+  id            String    @id @default(cuid())
+  name          String
+  type          GroupType @default(OTHER)
+  currency      String    @default("ETB")
+  simplifyDebts Boolean   @default(true)
+  createdById   String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  createdBy Profile       @relation("GroupCreatedBy", fields: [createdById], references: [id])
+  members   GroupMember[]
+  expenses  Expense[]
+
+  @@map("groups")
+}
+
+model GroupMember {
+  id       String            @id @default(cuid())
+  groupId  String
+  userId   String
+  role     GroupMemberRole   @default(MEMBER)
+  status   GroupMemberStatus @default(ACTIVE)
+  joinedAt DateTime          @default(now())
+
+  group Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@map("group_members")
+}

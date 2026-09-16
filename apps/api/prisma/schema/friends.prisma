@@ -1,0 +1,23 @@
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  BLOCKED
+}
+
+// A → B friendship request. Query both directions when resolving "is X my friend".
+// Unfriending hard-deletes the row — soft-delete-only is scoped to Expense
+// (ABRO_PRD.md §8.5), not Friendship.
+model Friendship {
+  id        String           @id @default(cuid())
+  userId    String
+  friendId  String
+  status    FriendshipStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+
+  user   Profile @relation("FriendshipUser", fields: [userId], references: [id])
+  friend Profile @relation("FriendshipFriend", fields: [friendId], references: [id])
+
+  @@unique([userId, friendId])
+  @@index([friendId])
+  @@map("friendships")
+}
