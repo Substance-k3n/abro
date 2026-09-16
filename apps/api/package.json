@@ -12,6 +12,9 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy"
   },
+  "prisma": {
+    "schema": "prisma/schema"
+  },
   "dependencies": {
     "@abro/types": "workspace:*",
     "@nestjs/common": "^10.4.15",

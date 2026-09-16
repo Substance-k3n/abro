@@ -32,6 +32,7 @@ model Profile {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
+<<<<<<< Updated upstream
   friendshipsInitiated Friendship[]          @relation("FriendshipUser")
   friendshipsReceived  Friendship[]          @relation("FriendshipFriend")
   groupMemberships     GroupMember[]
@@ -39,6 +40,15 @@ model Profile {
   expensesPaid         Expense[]             @relation("ExpensePaidBy")
   expensesDeleted      Expense[]             @relation("ExpenseDeletedBy")
   expensesUpdated      Expense[]             @relation("ExpenseUpdatedBy")
+=======
+  friendshipsInitiated Friendship[]         @relation("FriendshipUser")
+  friendshipsReceived  Friendship[]         @relation("FriendshipFriend")
+  groupMemberships     GroupMember[]
+  groupsCreated        Group[]              @relation("GroupCreatedBy")
+  expensesPaid         Expense[]            @relation("ExpensePaidBy")
+  expensesDeleted      Expense[]            @relation("ExpenseDeletedBy")
+  expensesUpdated      Expense[]            @relation("ExpenseUpdatedBy")
+>>>>>>> Stashed changes
   expenseParticipants  ExpenseParticipant[]
   expenseNotes         ExpenseNote[]
   notifications        Notification[]
