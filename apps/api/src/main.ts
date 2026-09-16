@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import './common/bigint-json';
 
 import cookieParser from 'cookie-parser';
 import { NestFactory } from '@nestjs/core';

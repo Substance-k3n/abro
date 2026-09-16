@@ -3,3 +3,6 @@ export * from './split';
 export * from './errors';
 export * from './profile';
 export * from './auth';
+export * from './friends';
+export * from './groups';
+export * from './expenses';

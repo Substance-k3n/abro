@@ -23,6 +23,7 @@ model Group {
   name          String
   type          GroupType @default(OTHER)
   currency      String    @default("ETB")
+  description   String?
   simplifyDebts Boolean   @default(true)
   createdById   String
   createdAt     DateTime  @default(now())
