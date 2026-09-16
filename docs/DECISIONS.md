@@ -7,6 +7,54 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-004: Auth mechanism — DB-backed sessions, Email OTP + Google OAuth
+
+**Status:** Accepted
+
+**Context:** ADR-001 deferred this explicitly ("still to be decided —
+email OTP vs. Google OAuth vs. both"). `ABRO_PRD.md` §30/§39 requires
+both Email OTP and Google Sign-In at MVP, originally via Supabase
+Auth; ADR-001/002 already ruled out Supabase, so both flows need a
+from-scratch implementation inside `apps/api`.
+
+**Decision:**
+
+- **Session strategy:** DB-backed sessions, not JWT. A `Session` row
+  (`apps/api/prisma/schema/auth.prisma`) stores only a SHA-256 hash of
+  the session token; the raw token lives in an httpOnly cookie. A
+  NestJS guard hashes the incoming cookie and looks up the row on each
+  request.
+- **Email OTP:** `OtpCode` table, one row per send, `codeHash` only
+  (never the plaintext code), `attempts` counter for rate limiting,
+  `expiresAt`/`consumedAt` for one-time use.
+- **Google OAuth:** `OAuthAccount` table linking a `provider` +
+  `providerAccountId` to a `Profile`. Scaffolded now against
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` env vars — real values are
+  a manual step (Google Cloud Console project) outside this repo.
+- **Account linking:** both methods resolve to the same `Profile` by
+  matching `email` — a user who first signs in via OTP and later via
+  Google (same email) lands on one account, not two.
+
+**Why:** DB-backed sessions were chosen over stateless JWT because
+revocation (logout-everywhere, banning a device) needs a server-side
+record either way once you take it seriously — a JWT-plus-denylist
+ends up with the same DB dependency but two token formats to reason
+about instead of one. A hybrid JWT-access/refresh-token design was
+considered (better fit for a future mobile client) but rejected for
+now as unnecessary complexity while only a web client exists; revisit
+if/when a mobile client is actually planned.
+
+**Consequence:** `apps/api/.env.example` needs
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL` and an
+OTP-email-sending config (provider undecided — dev stub logs the code
+instead of sending it; picking a real provider, e.g. Resend/SES, is a
+separate follow-up before this can go to production). Every
+authenticated route depends on the session guard reading this table —
+until the `auth` module ships, no other module's endpoints can be
+wired to real authorization.
+
+---
+
 ## ADR-003: Settlements are Expense rows with `splitType: SETTLEMENT`
 
 **Status:** Accepted
@@ -101,9 +149,9 @@ the same pattern the team already knows from the SplitPro reference
 - Matches tooling the team has already exercised first-hand on
   SplitPro this week (Prisma migrate, docker compose dev stack).
 
-**Consequence:** Auth is NextAuth-or-equivalent inside `apps/api`, not
-Supabase Auth — still to be decided (email OTP vs. Google OAuth vs.
-both, per PRD §9). Receipts need object storage the team picks
+**Consequence:** Auth is a custom implementation inside `apps/api`, not
+Supabase Auth — mechanism decided in ADR-004 (DB-backed sessions,
+Email OTP + Google OAuth). Receipts need object storage the team picks
 explicitly (S3-compatible bucket, not "Supabase Storage" by default).
 Row-level security can still be added later in Postgres as defense in
 depth; it just isn't the primary boundary.

@@ -9,8 +9,8 @@
 //     Settlement. Do not add a stored "balance" column anywhere.
 //   - Soft-delete only: Expense.deletedAt, never a hard delete, per ABRO_PRD.md §8.5.
 //
-// Auth models (Session, OtpCode, OAuthAccount) are intentionally absent — ADR-001
-// leaves the auth mechanism undecided. Do not add them here without that decision.
+// Auth models live in auth.prisma (Session, OtpCode, OAuthAccount) — decided
+// 2026-09-16, see docs/DECISIONS.md ADR-004.
 
 generator client {
   provider = "prisma-client-js"
@@ -26,23 +26,27 @@ model Profile {
   displayName       String
   avatarUrl         String?
   phone             String?  @unique
+  // Both auth methods (Email OTP and Google OAuth) key off this — a sign-in
+  // via either method resolves to the same Profile when the email matches.
   email             String?  @unique
   preferredCurrency String   @default("ETB")
   locale            String   @default("en")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  friendshipsInitiated Friendship[]          @relation("FriendshipUser")
-  friendshipsReceived  Friendship[]          @relation("FriendshipFriend")
+  friendshipsInitiated Friendship[]         @relation("FriendshipUser")
+  friendshipsReceived  Friendship[]         @relation("FriendshipFriend")
   groupMemberships     GroupMember[]
-  groupsCreated        Group[]               @relation("GroupCreatedBy")
-  expensesPaid         Expense[]             @relation("ExpensePaidBy")
-  expensesDeleted      Expense[]             @relation("ExpenseDeletedBy")
-  expensesUpdated      Expense[]             @relation("ExpenseUpdatedBy")
+  groupsCreated        Group[]              @relation("GroupCreatedBy")
+  expensesPaid         Expense[]            @relation("ExpensePaidBy")
+  expensesDeleted      Expense[]            @relation("ExpenseDeletedBy")
+  expensesUpdated      Expense[]            @relation("ExpenseUpdatedBy")
   expenseParticipants  ExpenseParticipant[]
   expenseNotes         ExpenseNote[]
   notifications        Notification[]
   pushSubscriptions    PushSubscription[]
+  sessions             Session[]
+  oauthAccounts        OAuthAccount[]
 
   @@map("profiles")
 }
