@@ -218,7 +218,7 @@ CREATE INDEX "recurring_expenses_enabled_nextRunAt_idx" ON "recurring_expenses"(
 -- CreateIndex
 CREATE UNIQUE INDEX "profiles_phone_key" ON "profiles"("phone");
 
--- CreateIndex
+-- CreateIndexc
 CREATE UNIQUE INDEX "profiles_email_key" ON "profiles"("email");
 
 -- AddForeignKey
