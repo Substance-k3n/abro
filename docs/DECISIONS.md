@@ -81,6 +81,19 @@ set of indexes, one place the "never a stored balance" rule
 settlements get their own service/endpoint that enforces §19's rule
 (`settlement amount <= outstanding debt`) before writing the row.
 
+**Implementation (added 2026-09-17, `SettlementsService`):** this ADR was
+written before the balance engine existed, and "two `ExpenseParticipant`
+rows... summing to zero net effect on the payer" was ambiguous between a
+signed-amounts scheme and a non-negative one. Resolved in favor of
+non-negative: `{ paidById: settler, amount: settlementAmount }` with
+participants `[{settler, 0}, {recipient, settlementAmount}]`. This keeps
+every `ExpenseParticipant.amount` non-negative system-wide (matching every
+other split type), so `assertSharesMatchTotal` (`sum = total`) applies
+unchanged with no settlement-specific exception, and `BalancesService`
+needs exactly one netting rule — "a non-payer participant's amount is owed
+to the payer" — for every split type including `SETTLEMENT`, with zero
+`splitType` branches in the read path.
+
 ---
 
 ## ADR-002: NestJS over Go for the backend

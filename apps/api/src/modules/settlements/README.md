@@ -1,5 +1,5 @@
 # settlements
 
-Settlement recording, partial/full settlement validation. `docs/ABRO_PRD.md` §19.
+Settlement recording, validated against the live outstanding balance. `docs/ABRO_PRD.md` §19, §45. See `docs/DECISIONS.md` ADR-003 for why this is an `Expense` row (`splitType: SETTLEMENT`) rather than a separate table, and the addendum there for the exact `ExpenseParticipant` amount shape.
 
-Not yet implemented — this directory is reserved so the module boundary exists from the start.
+`POST /settlements` — the only entry point that may ever write `splitType: SETTLEMENT`; the general expense-create path structurally cannot (see `@abro/types`'s `createExpenseSchema`).
