@@ -8,6 +8,25 @@ on:
 jobs:
   ci:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: abro
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: abro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U abro -d abro"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # apps/api's integration tests hit this DB directly, matching how
+      # they're run and verified locally -- see docs/DECISIONS.md and each
+      # module's *.service.spec.ts (no mocked Prisma anywhere in this repo).
+      DATABASE_URL: postgresql://abro:password@localhost:5432/abro
     steps:
       - uses: actions/checkout@v4
 
@@ -20,6 +39,12 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Apply migrations
+        run: pnpm db:deploy
 
       - name: Format check
         run: pnpm format:check
