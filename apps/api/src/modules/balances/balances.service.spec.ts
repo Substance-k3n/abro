@@ -1,4 +1,5 @@
 import { PrismaService } from '../../prisma/prisma.service';
+import { ReceiptStorageService } from '../../common/storage/receipt-storage.service';
 import { FriendsService } from '../friends/friends.service';
 import { GroupsService } from '../groups/groups.service';
 import { ExpensesService } from '../expenses/expenses.service';
@@ -9,9 +10,16 @@ import { BalancesService } from './balances.service';
 describe('BalancesService (integration)', () => {
   const prisma = new PrismaService();
   const notifications = new NotificationsService(prisma);
+  const receiptStorage = new ReceiptStorageService();
   const friendsService = new FriendsService(prisma);
   const groupsService = new GroupsService(prisma, friendsService, notifications);
-  const expensesService = new ExpensesService(prisma, groupsService, friendsService, notifications);
+  const expensesService = new ExpensesService(
+    prisma,
+    groupsService,
+    friendsService,
+    notifications,
+    receiptStorage,
+  );
   const balances = new BalancesService(prisma);
 
   const createdProfileIds: string[] = [];

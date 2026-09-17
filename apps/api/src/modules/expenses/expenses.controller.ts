@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -10,8 +11,11 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   type AddExpenseNoteInput,
   type CreateExpenseInput,
@@ -92,5 +96,32 @@ export class ExpensesController {
     @Body(new ZodValidationPipe(addExpenseNoteSchema)) body: AddExpenseNoteInput,
   ) {
     return toAuthExpenseNote(await this.expenses.addNote(user.id, id, body.content));
+  }
+
+  @Post(':id/receipt')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadReceipt(
+    @CurrentUser() user: Profile,
+    @Param('id') id: string,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    if (!file) {
+      throw new BadRequestException({
+        code: 'RECEIPT_FILE_REQUIRED',
+        message: 'No file uploaded.',
+      });
+    }
+    return toAuthExpense(await this.expenses.uploadReceipt(user.id, id, file));
+  }
+
+  @Get(':id/receipt')
+  getReceiptUrl(@CurrentUser() user: Profile, @Param('id') id: string) {
+    return this.expenses.getReceiptUrl(user.id, id);
+  }
+
+  @Delete(':id/receipt')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeReceipt(@CurrentUser() user: Profile, @Param('id') id: string) {
+    return this.expenses.deleteReceipt(user.id, id);
   }
 }

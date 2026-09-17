@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { ReceiptStorageService } from '../../common/storage/receipt-storage.service';
 import { FriendsService } from '../friends/friends.service';
 import { GroupsService } from '../groups/groups.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -15,13 +16,21 @@ import { ExpensesService } from './expenses.service';
 describe('ExpensesService (integration)', () => {
   const prisma = new PrismaService();
   const notifications = new NotificationsService(prisma);
+  const receiptStorage = new ReceiptStorageService();
   const friendsService = new FriendsService(prisma);
   const groupsService = new GroupsService(prisma, friendsService, notifications);
-  const expenses = new ExpensesService(prisma, groupsService, friendsService, notifications);
+  const expenses = new ExpensesService(
+    prisma,
+    groupsService,
+    friendsService,
+    notifications,
+    receiptStorage,
+  );
 
   const createdProfileIds: string[] = [];
   const createdGroupIds: string[] = [];
   const createdExpenseIds: string[] = [];
+  const createdReceiptKeys: string[] = [];
 
   const makeProfile = async (label: string) => {
     const profile = await prisma.profile.create({
@@ -48,6 +57,7 @@ describe('ExpensesService (integration)', () => {
   });
 
   afterAll(async () => {
+    await Promise.all(createdReceiptKeys.map((key) => receiptStorage.delete(key).catch(() => {})));
     await prisma.expenseParticipant.deleteMany({ where: { expenseId: { in: createdExpenseIds } } });
     await prisma.expense.deleteMany({ where: { id: { in: createdExpenseIds } } });
     await prisma.groupMember.deleteMany({ where: { groupId: { in: createdGroupIds } } });
@@ -389,6 +399,128 @@ describe('ExpensesService (integration)', () => {
       expect(
         await prisma.notification.count({ where: { userId: friend.id, type: 'EXPENSE_DELETED' } }),
       ).toBe(1);
+    });
+  });
+
+  describe('receipts (ABRO_PRD.md §36)', () => {
+    const makeExpense = async (payerId: string, participantIds: string[]) =>
+      track(
+        await expenses.create(payerId, {
+          splitType: 'EQUAL',
+          name: 'Receipt test expense',
+          category: 'Food',
+          amount: '100',
+          expenseDate: new Date(),
+          participants: [payerId, ...participantIds].map((userId) => ({ userId })),
+        }),
+      );
+
+    it('uploads a receipt, and a second upload replaces it', async () => {
+      const payer = await makeProfile('ReceiptPayer');
+      const expense = await makeExpense(payer.id, []);
+
+      const first = await expenses.uploadReceipt(payer.id, expense.id, {
+        buffer: Buffer.from('first-image'),
+        mimetype: 'image/jpeg',
+        size: 11,
+      });
+      createdReceiptKeys.push(first.receiptPath!);
+      expect(first.receiptPath).toMatch(new RegExp(`^receipts/${expense.id}/.+\\.jpg$`));
+
+      const second = await expenses.uploadReceipt(payer.id, expense.id, {
+        buffer: Buffer.from('second-image'),
+        mimetype: 'image/png',
+        size: 12,
+      });
+      createdReceiptKeys.push(second.receiptPath!);
+
+      expect(second.receiptPath).not.toBe(first.receiptPath);
+      expect(second.receiptPath).toMatch(/\.png$/);
+
+      // The old object is gone -- getPresignedGetUrl for the old key 404s.
+      const oldUrl = await receiptStorage.getPresignedGetUrl(first.receiptPath!);
+      const oldResponse = await fetch(oldUrl);
+      expect(oldResponse.ok).toBe(false);
+    });
+
+    it('rejects an unsupported mimetype and an oversized file', async () => {
+      const payer = await makeProfile('ReceiptPayer');
+      const expense = await makeExpense(payer.id, []);
+
+      await expect(
+        expenses.uploadReceipt(payer.id, expense.id, {
+          buffer: Buffer.from('pdf'),
+          mimetype: 'application/pdf',
+          size: 3,
+        }),
+      ).rejects.toThrow(BadRequestException);
+
+      await expect(
+        expenses.uploadReceipt(payer.id, expense.id, {
+          buffer: Buffer.alloc(11 * 1024 * 1024),
+          mimetype: 'image/jpeg',
+          size: 11 * 1024 * 1024,
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('lets a visible participant read the receipt URL, but only the payer/admin upload or delete it', async () => {
+      const payer = await makeProfile('ReceiptPayer');
+      const friend = await makeProfile('ReceiptFriend');
+      const stranger = await makeProfile('ReceiptStranger');
+      await makeFriends(payer.id, friend.id);
+      const expense = await makeExpense(payer.id, [friend.id]);
+
+      const uploaded = await expenses.uploadReceipt(payer.id, expense.id, {
+        buffer: Buffer.from('img'),
+        mimetype: 'image/webp',
+        size: 3,
+      });
+      createdReceiptKeys.push(uploaded.receiptPath!);
+
+      const { url } = await expenses.getReceiptUrl(friend.id, expense.id);
+      expect(url).toContain(uploaded.receiptPath);
+
+      await expect(expenses.getReceiptUrl(stranger.id, expense.id)).rejects.toThrow(
+        ForbiddenException,
+      );
+      await expect(
+        expenses.uploadReceipt(friend.id, expense.id, {
+          buffer: Buffer.from('img'),
+          mimetype: 'image/webp',
+          size: 3,
+        }),
+      ).rejects.toThrow(ForbiddenException);
+      await expect(expenses.deleteReceipt(friend.id, expense.id)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('deletes a receipt, clearing receiptPath and the stored object', async () => {
+      const payer = await makeProfile('ReceiptPayer');
+      const expense = await makeExpense(payer.id, []);
+      const uploaded = await expenses.uploadReceipt(payer.id, expense.id, {
+        buffer: Buffer.from('img'),
+        mimetype: 'image/png',
+        size: 3,
+      });
+
+      await expenses.deleteReceipt(payer.id, expense.id);
+
+      const refreshed = await expenses.findById(payer.id, expense.id);
+      expect(refreshed.receiptPath).toBeNull();
+
+      const url = await receiptStorage.getPresignedGetUrl(uploaded.receiptPath!);
+      const response = await fetch(url);
+      expect(response.ok).toBe(false);
+    });
+
+    it('rejects reading/deleting a receipt that does not exist', async () => {
+      const payer = await makeProfile('ReceiptPayer');
+      const expense = await makeExpense(payer.id, []);
+
+      await expect(expenses.getReceiptUrl(payer.id, expense.id)).rejects.toThrow(NotFoundException);
+      await expect(expenses.deleteReceipt(payer.id, expense.id)).rejects.toThrow(NotFoundException);
     });
   });
 });

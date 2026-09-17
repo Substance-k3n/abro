@@ -190,6 +190,58 @@ pre-existing classes — intentional sequential `await`-in-loop and one
 `no-extend-native`/`no-unused-vars` pair predating this pass), `nest
 build` succeeds.
 
+## 6. Receipt attachments — MinIO (PRD §36) `[done]`
+
+Not part of the original 5-item backlog (added 2026-09-17 once the
+backlog was cleared and the user asked to close this specific known
+gap). `Expense.receiptPath` had been a placeholder column with no
+storage behind it since the schema was first written. Design decided
+in `docs/DECISIONS.md` ADR-006, resolving ADR-001's long-open "object
+storage the team picks explicitly" item.
+
+- [x] `infra/docker/dev/compose.yml`: `minio` service +
+      `minio-createbuckets` one-shot init step that provisions the
+      receipts bucket on `docker compose up`. (`minio/minio` and
+      `minio/mc` no longer exist on Docker Hub — uses `quay.io/minio/*`,
+      MinIO's own registry now.)
+- [x] `apps/api/.env.example` + `.env`: `S3_ENDPOINT`/`S3_REGION`/
+      `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`/`RECEIPTS_BUCKET`.
+- [x] `ReceiptStorageService` (`apps/api/src/common/storage/`): thin
+      S3-compatible client wrapper (AWS SDK v3, not MinIO's own SDK —
+      an endpoint/credentials change swaps to real S3/R2/B2 later, not
+      a code change) with `upload`/`getPresignedGetUrl`/`delete` and an
+      `isConfigured()` gate matching `GoogleOAuthService`'s pattern.
+- [x] `ExpensesService`: `uploadReceipt`/`getReceiptUrl`/`deleteReceipt`,
+      reusing the existing `requireVisible`/`requireEditAuthority`
+      checks rather than a parallel permission system for files. One
+      receipt per expense — a new upload replaces the old object only
+      _after_ the new one succeeds.
+- [x] `ExpensesController`: `POST /expenses/:id/receipt` (multipart via
+      `FileInterceptor`, JPG/PNG/WebP only, 10MB cap),
+      `GET /expenses/:id/receipt` (presigned URL), `DELETE
+    /expenses/:id/receipt`.
+- [x] Integration tests against real MinIO (9 new: `ReceiptStorageService`
+      itself — upload/presigned-GET-fetchable/expiry/delete — plus
+      `ExpensesService`'s upload-replaces-old-object, mimetype/size
+      rejection, visibility-vs-edit-authority split, delete, and
+      not-found cases).
+- [x] `.github/workflows/ci.yml`: starts MinIO via an explicit `docker
+    run` + `mc` step, not a `services:` container (the `minio/minio`
+      image's default `CMD` has no arguments, and GitHub Actions'
+      `services:` block has no way to override `CMD`, only `options`).
+- [x] `turbo.json`'s `test` task `env` array extended with the new
+      `S3_*`/`RECEIPTS_BUCKET` vars — same strict-env-mode gotcha as
+      `DATABASE_URL` (see the project overview memory / earlier commits):
+      Turborepo silently strips any env var not declared here from the
+      task's actual runtime environment.
+
+**Acceptance:** a receipt can be uploaded, read back via a working
+presigned URL, replaced, and deleted, all against real MinIO in dev;
+authorization matches the expense's own visibility/edit rules exactly;
+CI's Postgres-service pattern extended to also run MinIO for the
+integration suite. 112/112 `apps/api` tests passing (156 total with
+`packages/types`), typecheck/lint/build clean.
+
 ## Where backend meets frontend
 
 Frontend work is tracked separately in `docs/WIRING_PLAN.md` (currently

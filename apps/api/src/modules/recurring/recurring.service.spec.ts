@@ -1,6 +1,7 @@
 import { ForbiddenException } from '@nestjs/common';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { ReceiptStorageService } from '../../common/storage/receipt-storage.service';
 import { FriendsService } from '../friends/friends.service';
 import { GroupsService } from '../groups/groups.service';
 import { ExpensesService } from '../expenses/expenses.service';
@@ -11,9 +12,16 @@ import { RecurringService } from './recurring.service';
 describe('RecurringService (integration)', () => {
   const prisma = new PrismaService();
   const notifications = new NotificationsService(prisma);
+  const receiptStorage = new ReceiptStorageService();
   const friendsService = new FriendsService(prisma);
   const groupsService = new GroupsService(prisma, friendsService, notifications);
-  const expensesService = new ExpensesService(prisma, groupsService, friendsService, notifications);
+  const expensesService = new ExpensesService(
+    prisma,
+    groupsService,
+    friendsService,
+    notifications,
+    receiptStorage,
+  );
   const recurring = new RecurringService(prisma, expensesService, notifications);
 
   const createdProfileIds: string[] = [];

@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  NotImplementedException,
 } from '@nestjs/common';
 import {
   type CreateExpenseInput,
@@ -14,8 +15,10 @@ import {
   splitEqually,
 } from '@abro/types';
 import type { Expense } from '@prisma/client';
+import { randomUUID } from 'crypto';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { ReceiptStorageService } from '../../common/storage/receipt-storage.service';
 import { FriendsService } from '../friends/friends.service';
 import { GroupsService } from '../groups/groups.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -28,6 +31,14 @@ interface PreparedWrite {
 
 const EXPENSE_INCLUDE = { participants: { include: { user: true } }, paidBy: true } as const;
 
+/** ABRO_PRD.md §36 "Supported initially". */
+const RECEIPT_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+};
+const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
+
 @Injectable()
 export class ExpensesService {
   constructor(
@@ -35,6 +46,7 @@ export class ExpensesService {
     private readonly groups: GroupsService,
     private readonly friends: FriendsService,
     private readonly notifications: NotificationsService,
+    private readonly receiptStorage: ReceiptStorageService,
   ) {}
 
   async create(actorId: string, input: CreateExpenseInput) {
@@ -189,6 +201,89 @@ export class ExpensesService {
       include: { author: true },
       orderBy: { createdAt: 'asc' },
     });
+  }
+
+  /**
+   * ABRO_PRD.md §36. Replaces any existing receipt -- one per expense,
+   * matching the schema's singular `receiptPath`. Uploads the new object
+   * before deleting the old one, so a failed upload never destroys a
+   * working receipt.
+   */
+  async uploadReceipt(
+    actorId: string,
+    expenseId: string,
+    file: { buffer: Buffer; mimetype: string; size: number },
+  ) {
+    this.requireStorageConfigured();
+    const expense = await this.requireVisible(actorId, expenseId);
+    await this.requireEditAuthority(actorId, expense);
+
+    const extension = RECEIPT_EXTENSION_BY_MIME_TYPE[file.mimetype];
+    if (!extension) {
+      throw new BadRequestException({
+        code: 'UNSUPPORTED_RECEIPT_TYPE',
+        message: 'Receipts must be JPG, PNG, or WebP.',
+      });
+    }
+    if (file.size > MAX_RECEIPT_BYTES) {
+      throw new BadRequestException({
+        code: 'RECEIPT_TOO_LARGE',
+        message: `Receipt must be ${MAX_RECEIPT_BYTES / (1024 * 1024)}MB or smaller.`,
+      });
+    }
+
+    const key = `receipts/${expenseId}/${randomUUID()}.${extension}`;
+    await this.receiptStorage.upload(key, file.buffer, file.mimetype);
+
+    const updated = await this.prisma.expense.update({
+      where: { id: expenseId },
+      data: { receiptPath: key },
+      include: EXPENSE_INCLUDE,
+    });
+
+    if (expense.receiptPath) {
+      await this.receiptStorage.delete(expense.receiptPath);
+    }
+
+    return updated;
+  }
+
+  /** A short-lived presigned URL -- the caller must already be authorized to view the expense, same as any other read. */
+  async getReceiptUrl(actorId: string, expenseId: string): Promise<{ url: string }> {
+    this.requireStorageConfigured();
+    const expense = await this.requireVisible(actorId, expenseId);
+    if (!expense.receiptPath) {
+      throw new NotFoundException({
+        code: 'RECEIPT_NOT_FOUND',
+        message: 'This expense has no receipt.',
+      });
+    }
+    return { url: await this.receiptStorage.getPresignedGetUrl(expense.receiptPath) };
+  }
+
+  async deleteReceipt(actorId: string, expenseId: string): Promise<void> {
+    this.requireStorageConfigured();
+    const expense = await this.requireVisible(actorId, expenseId);
+    await this.requireEditAuthority(actorId, expense);
+    if (!expense.receiptPath) {
+      throw new NotFoundException({
+        code: 'RECEIPT_NOT_FOUND',
+        message: 'This expense has no receipt.',
+      });
+    }
+
+    await this.receiptStorage.delete(expense.receiptPath);
+    await this.prisma.expense.update({ where: { id: expenseId }, data: { receiptPath: null } });
+  }
+
+  /** Same pattern as GoogleOAuthService.isConfigured()'s controller-side gate, applied here instead since receipts have no dedicated controller check of their own. */
+  private requireStorageConfigured(): void {
+    if (!this.receiptStorage.isConfigured()) {
+      throw new NotImplementedException({
+        code: 'RECEIPT_STORAGE_NOT_CONFIGURED',
+        message: 'Receipt storage is not configured on this server.',
+      });
+    }
   }
 
   /** Shared by create/update: resolves payer + currency, checks membership/friendship invariants, computes shares. */

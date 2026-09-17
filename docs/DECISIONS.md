@@ -7,6 +7,58 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-006: Receipt storage — MinIO (S3-compatible), upload-through-API, presigned reads
+
+**Status:** Accepted
+
+**Context:** `docs/ABRO_PRD.md` §36 specifies receipts (JPG/PNG/WebP,
+authenticated access, expense-level authorization, private storage)
+via Supabase Storage — superseded by ADR-001, which explicitly left
+"the team picks explicitly, S3-compatible bucket" as an **Open** item.
+Nothing in `Expense.receiptPath` (a placeholder string column) is
+backed by an actual storage integration yet.
+
+**Decision:**
+
+- **MinIO**, self-hosted, added to `infra/docker/dev/compose.yml`
+  alongside Postgres — matches ADR-001's self-hosted-first direction.
+- Accessed via `@aws-sdk/client-s3` (AWS SDK v3) against MinIO's
+  S3-compatible endpoint, not MinIO's own SDK — so swapping to real
+  AWS S3, Cloudflare R2, Backblaze B2, etc. in production later is an
+  endpoint/credentials change, not a code change.
+- **Uploads go through the API**, not a client-presigned PUT straight
+  to storage: `POST /expenses/:id/receipt` (multipart, `multer`
+  memory storage, no disk write) validates auth + expense-edit
+  authority + mimetype (JPG/PNG/WebP only, per §36) + a size cap
+  before ever touching MinIO. Credentials never reach the client.
+- **Reads use a short-lived presigned GET URL**
+  (`GET /expenses/:id/receipt`, 5-minute expiry) instead of proxying
+  bytes through the API — avoids the API becoming a bandwidth
+  bottleneck for images, while still enforcing the same
+  expense-visibility check as every other expense read before a URL
+  is ever issued.
+- One receipt per expense (matches the schema's singular
+  `receiptPath`, not an array) — a new upload replaces the old object
+  after the new one succeeds, so a failed upload never destroys the
+  previous receipt.
+
+**Why:** Mirrors the codebase's existing "server stays authoritative,
+never trust the client" posture (same reasoning as ADR-003's
+settlement-amount validation) — every access, read or write, is
+re-checked against the same authorization rules `ExpensesService`
+already enforces for the expense itself, not a separate parallel
+permission system for files.
+
+**Consequence:** New env vars (`S3_ENDPOINT`/`S3_REGION`/
+`S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`/`RECEIPTS_BUCKET`) join
+`apps/api/.env.example`. Dev requires `docker compose up -d` to also
+bring up MinIO now, not just Postgres. Production still needs a real
+bucket provisioned and credentials issued — same category of "code
+is done, real infra isn't" gap as OTP email/Google OAuth (see ADR-004's
+Consequence section).
+
+---
+
 ## ADR-005: Recurring expense generation trigger — manual endpoint, not a scheduler
 
 **Status:** Accepted (MVP), revisit before production

@@ -19,5 +19,45 @@ services:
     volumes:
       - database:/var/lib/postgresql/data
 
+  # docs/DECISIONS.md ADR-006: receipt storage, S3-compatible, self-hosted.
+  minio:
+    # Docker Hub's minio/minio and minio/mc images are gone (org policy
+    # change) -- quay.io is MinIO's own registry now.
+    image: quay.io/minio/minio:latest
+    container_name: ${MINIO_CONTAINER_NAME:-abro-minio}
+    restart: always
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-abro-minio}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-password123}
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - '${MINIO_API_PORT:-9460}:9000'
+      - '${MINIO_CONSOLE_PORT:-9461}:9001'
+    volumes:
+      - minio-data:/data
+
+  # One-shot: provisions the receipts bucket on `docker compose up`, then
+  # exits -- so apps/api never has to create-bucket-if-missing at runtime.
+  minio-createbuckets:
+    image: quay.io/minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-abro-minio}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-password123}
+      - RECEIPTS_BUCKET=${RECEIPTS_BUCKET:-abro-receipts}
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
+      mc mb --ignore-existing local/$$RECEIPTS_BUCKET
+      "
+
 volumes:
   database:
+  minio-data:
