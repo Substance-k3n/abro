@@ -229,4 +229,68 @@ describe('BalancesService (integration)', () => {
       expect(byUser[third.id]).toBe(-300n);
     });
   });
+
+  describe('getSimplifiedGroupDebts', () => {
+    it("collapses a chain of expenses (PRD §18's own example) into a single transaction", async () => {
+      const a = await makeProfile('A');
+      const b = await makeProfile('B');
+      const c = await makeProfile('C');
+      const d = await makeProfile('D');
+      await makeFriends(b.id, a.id);
+      await makeFriends(b.id, c.id);
+      await makeFriends(b.id, d.id);
+
+      const group = await groupsService.create(b.id, {
+        name: 'Chain',
+        type: 'OTHER',
+        currency: 'ETB',
+        simplifyDebts: true,
+        memberIds: [a.id, c.id, d.id],
+      });
+      createdGroupIds.push(group.id);
+      await groupsService.acceptInvite(a.id, group.id);
+      await groupsService.acceptInvite(c.id, group.id);
+      await groupsService.acceptInvite(d.id, group.id);
+
+      // A owes B 100 (B pays, A is the sole participant).
+      track(
+        await expensesService.create(b.id, {
+          splitType: 'EQUAL',
+          name: 'Leg 1',
+          category: 'Misc',
+          amount: '100',
+          groupId: group.id,
+          expenseDate: new Date(),
+          participants: [{ userId: a.id }],
+        }),
+      );
+      // B owes C 100.
+      track(
+        await expensesService.create(c.id, {
+          splitType: 'EQUAL',
+          name: 'Leg 2',
+          category: 'Misc',
+          amount: '100',
+          groupId: group.id,
+          expenseDate: new Date(),
+          participants: [{ userId: b.id }],
+        }),
+      );
+      // C owes D 100.
+      track(
+        await expensesService.create(d.id, {
+          splitType: 'EQUAL',
+          name: 'Leg 3',
+          category: 'Misc',
+          amount: '100',
+          groupId: group.id,
+          expenseDate: new Date(),
+          participants: [{ userId: c.id }],
+        }),
+      );
+
+      const simplified = await balances.getSimplifiedGroupDebts(group.id);
+      expect(simplified).toEqual([{ fromUserId: a.id, toUserId: d.id, amount: 100n }]);
+    });
+  });
 });

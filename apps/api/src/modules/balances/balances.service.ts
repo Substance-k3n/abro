@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { type LedgerEntry, netBalance } from '@abro/types';
+import {
+  type LedgerEntry,
+  type SimplifiedTransaction,
+  netBalance,
+  simplifyDebts,
+} from '@abro/types';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -42,10 +47,10 @@ export class BalancesService {
   /**
    * Each user's net position within a group: what they paid across the
    * group's expenses minus what they owe as a participant. Positive => the
-   * group owes them; negative => they owe the group. Not pairwise -- see
-   * ABRO_PRD.md §18 (debt simplification), a deliberate follow-up, not
-   * built here. Includes anyone with paid/owed activity, even a member who
-   * has since left, so a departed member's outstanding balance is never
+   * group owes them; negative => they owe the group. Not pairwise -- feeds
+   * getSimplifiedGroupDebts() below for the pairwise minimum-transaction
+   * view. Includes anyone with paid/owed activity, even a member who has
+   * since left, so a departed member's outstanding balance is never
    * silently hidden (ABRO_PRD.md §20: "settling a debt must never erase its
    * history").
    */
@@ -71,5 +76,19 @@ export class BalancesService {
       userId,
       netBalance: (paidByUser.get(userId) ?? 0n) - (owedByUser.get(userId) ?? 0n),
     }));
+  }
+
+  /**
+   * ABRO_PRD.md §18: the pairwise minimum-transaction settlement plan for a
+   * group, derived from getGroupSummary()'s net positions -- see
+   * @abro/types' simplifyDebts() for the algorithm and its determinism/
+   * optimality caveats. This is a display-time projection, not a new source
+   * of truth: it's never persisted, and Group.simplifyDebts (whether the
+   * client should default to showing this vs. the raw summary) is a
+   * frontend presentation choice this method doesn't need to know about.
+   */
+  async getSimplifiedGroupDebts(groupId: string): Promise<SimplifiedTransaction[]> {
+    const summary = await this.getGroupSummary(groupId);
+    return simplifyDebts(summary);
   }
 }

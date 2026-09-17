@@ -25,4 +25,10 @@ export class BalancesController {
     await this.groups.requireActiveMembership(groupId, user.id);
     return this.balances.getGroupSummary(groupId);
   }
+
+  @Get('groups/:groupId/simplified')
+  async simplifiedGroupDebts(@CurrentUser() user: Profile, @Param('groupId') groupId: string) {
+    await this.groups.requireActiveMembership(groupId, user.id);
+    return this.balances.getSimplifiedGroupDebts(groupId);
+  }
 }
