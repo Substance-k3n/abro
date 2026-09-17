@@ -5,11 +5,24 @@
 // auto-submits once all 6 digits are filled.
 
 import { Mail } from 'lucide-react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useRef, useState } from 'react';
 
 export default function VerifyEmailPage() {
+  return (
+    <Suspense>
+      <VerifyEmailForm />
+    </Suspense>
+  );
+}
+
+function VerifyEmailForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // No email in the query string when arriving via "Sign up" (which skips
+  // straight to this screen, per AUTH-05's prototype behavior) -- fall back
+  // to generic copy rather than a fake address in that case.
+  const email = searchParams.get('email');
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -59,7 +72,7 @@ export default function VerifyEmailPage() {
       >
         We sent a 6-digit code to
         <br />
-        <strong style={{ color: 'var(--t-secondary)' }}>you@example.com</strong>
+        <strong style={{ color: 'var(--t-secondary)' }}>{email || 'your email'}</strong>
       </p>
 
       <div className="mb-8 flex gap-2.5">

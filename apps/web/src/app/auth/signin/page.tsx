@@ -20,7 +20,7 @@ export default function SignInPage() {
 
   const continueToOtp = (event: React.FormEvent) => {
     event.preventDefault();
-    router.push('/auth/verify-email');
+    router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`);
   };
 
   return (
