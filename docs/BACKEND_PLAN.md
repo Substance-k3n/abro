@@ -219,14 +219,14 @@ storage the team picks explicitly" item.
 - [x] `ExpensesController`: `POST /expenses/:id/receipt` (multipart via
       `FileInterceptor`, JPG/PNG/WebP only, 10MB cap),
       `GET /expenses/:id/receipt` (presigned URL), `DELETE
-    /expenses/:id/receipt`.
+/expenses/:id/receipt`.
 - [x] Integration tests against real MinIO (9 new: `ReceiptStorageService`
       itself — upload/presigned-GET-fetchable/expiry/delete — plus
       `ExpensesService`'s upload-replaces-old-object, mimetype/size
       rejection, visibility-vs-edit-authority split, delete, and
       not-found cases).
 - [x] `.github/workflows/ci.yml`: starts MinIO via an explicit `docker
-    run` + `mc` step, not a `services:` container (the `minio/minio`
+run` + `mc` step, not a `services:` container (the `minio/minio`
       image's default `CMD` has no arguments, and GitHub Actions'
       `services:` block has no way to override `CMD`, only `options`).
 - [x] `turbo.json`'s `test` task `env` array extended with the new
