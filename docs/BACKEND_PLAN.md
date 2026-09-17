@@ -17,7 +17,7 @@ Auth (DB-backed sessions, Email OTP, Google OAuth), `users`, `friends`,
 (`feature/friends-groups-expenses` → `dev`) for the full history. This
 plan starts from there.
 
-## 1. Auth/users tests `[todo]`
+## 1. Auth/users tests `[done]`
 
 `auth`/`users` are the only implemented modules with zero automated
 tests — everything since (friends onward) established the pattern of
@@ -25,17 +25,24 @@ pure-logic unit tests in `packages/types` + real-Postgres integration
 tests per service in `apps/api/src/modules/*/*.service.spec.ts`. Close
 that gap before adding more untested surface area on top.
 
-- [ ] Unit tests for anything pure-logic in `auth`/`users` (token hashing,
-      OTP code generation determinism/entropy, session TTL math).
-- [ ] Integration tests for `AuthService`: OTP request/verify/lockout/
+- [x] Unit tests for anything pure-logic in `auth`/`users` (token hashing,
+      OTP code generation determinism/entropy, session TTL math) —
+      `crypto.util.spec.ts`, plus `google-oauth.service.spec.ts` for the
+      pure `isConfigured`/`buildAuthUrl` parts.
+- [x] Integration tests for `AuthService`: OTP request/verify/lockout/
       cooldown, Google sign-in linking-by-email (including the
       case-normalization fix from PR #2), session issuance/guard/
       revocation.
-- [ ] Integration tests for `UsersService`: profile get/update.
-- [ ] `GoogleOAuthService.exchangeCode` calls out to Google's real API —
-      needs a decision on how to test it (mock the HTTP call vs. skip;
-      no existing pattern in this repo for mocking external HTTP, so
-      this is a small design choice of its own, not just "add tests").
+- [x] Integration tests for `UsersService`: profile update (get is a thin
+      `toAuthProfile` pass-through in the controller, nothing to unit
+      test independently).
+- [x] `GoogleOAuthService.exchangeCode` calls out to Google's real API —
+      design decision made: `AuthService`'s integration tests substitute
+      a hand-written `FakeGoogleOAuthService` subclass overriding
+      `exchangeCode()` with a canned profile (no HTTP-mocking library,
+      no real network call). `exchangeCode`'s actual HTTP logic itself
+      stays untested — no fetch-mocking seam exists in this repo yet;
+      flagged as a known gap, not silently skipped.
 
 **Acceptance:** `pnpm --filter @abro/api test` covers `auth`/`users` at
 the same level of rigor as every other module; CI green.
