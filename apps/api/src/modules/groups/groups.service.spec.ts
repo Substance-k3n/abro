@@ -201,4 +201,27 @@ describe('GroupsService (integration)', () => {
     const stillListed = await groups.listMine(owner.id);
     expect(stillListed.map((g) => g.id)).not.toContain(group.id);
   });
+
+  it('re-inviting a member who left refreshes joinedAt, so listMyInvites shows the new invite, not the stale one', async () => {
+    const owner = await makeProfile('Owner');
+    const friend = await makeProfile('Friend');
+    await makeFriends(owner.id, friend.id);
+
+    const group = await groups.create(owner.id, {
+      name: 'Trip',
+      type: 'TRIP',
+      currency: 'ETB',
+      simplifyDebts: true,
+      memberIds: [friend.id],
+    });
+    createdGroupIds.push(group.id);
+    const firstInvite = (await groups.listMyInvites(friend.id))[0]!;
+
+    await groups.acceptInvite(friend.id, group.id);
+    await groups.removeMember(friend.id, group.id, friend.id);
+    await groups.addMember(owner.id, group.id, friend.id);
+
+    const secondInvite = (await groups.listMyInvites(friend.id))[0]!;
+    expect(secondInvite.invitedAt.getTime()).toBeGreaterThan(firstInvite.invitedAt.getTime());
+  });
 });

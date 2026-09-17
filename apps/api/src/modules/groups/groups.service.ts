@@ -108,9 +108,12 @@ export class GroupsService {
     }
 
     if (existing) {
+      // joinedAt doubles as invitedAt for listMyInvites -- reset it so a
+      // re-invite after leaving shows up as a fresh invite, not the stale
+      // timestamp/ordering from their original membership.
       return this.prisma.groupMember.update({
         where: { id: existing.id },
-        data: { status: 'INVITED', role: 'MEMBER' },
+        data: { status: 'INVITED', role: 'MEMBER', joinedAt: new Date() },
       });
     }
 

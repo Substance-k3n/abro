@@ -99,6 +99,12 @@ export class AuthService {
       });
     }
 
+    // Must match the OTP schemas' z.string().trim().toLowerCase().email()
+    // normalization (packages/types/src/auth.ts) -- the email unique index
+    // is case-sensitive, and ADR-004's account-linking-by-email only works
+    // if both sign-in paths agree on one canonical casing.
+    const email = googleProfile.email.trim().toLowerCase();
+
     const existingAccount = await this.prisma.oAuthAccount.findUnique({
       where: {
         provider_providerAccountId: { provider: 'GOOGLE', providerAccountId: googleProfile.sub },
@@ -113,11 +119,11 @@ export class AuthService {
     // Links to an existing Profile by email (e.g. one created via OTP
     // earlier) instead of creating a duplicate — see ADR-004.
     const profile = await this.prisma.profile.upsert({
-      where: { email: googleProfile.email },
+      where: { email },
       update: {},
       create: {
-        email: googleProfile.email,
-        displayName: googleProfile.name ?? googleProfile.email.split('@')[0] ?? googleProfile.email,
+        email,
+        displayName: googleProfile.name ?? email.split('@')[0] ?? email,
         avatarUrl: googleProfile.picture,
       },
     });
