@@ -13,6 +13,7 @@ import { BalancesModule } from './modules/balances/balances.module';
 import { SettlementsModule } from './modules/settlements/settlements.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { RecurringModule } from './modules/recurring/recurring.module';
 
 @Module({
   imports: [
@@ -29,9 +30,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     SettlementsModule,
     AnalyticsModule,
     NotificationsModule,
-    // Remaining feature modules land here as they're built: RecurringModule
-    // — one per src/modules/* directory, per docs/ABRO_PRD.md §32 and
-    // docs/DECISIONS.md (ADR-002).
+    RecurringModule,
   ],
   controllers: [AppController],
   providers: [AppService],

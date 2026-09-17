@@ -7,6 +7,46 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-005: Recurring expense generation trigger — manual endpoint, not a scheduler
+
+**Status:** Accepted (MVP), revisit before production
+
+**Context:** `docs/ABRO_PRD.md` §35 says every generated occurrence
+becomes an independent `Expense` row but doesn't say what causes
+generation to run. `docs/BACKEND_PLAN.md` item 4 flagged this
+explicitly as an infra decision, not something to pick silently. No
+scheduler infra (`@nestjs/schedule`, an external cron hitting an
+endpoint, a hosted scheduler like a Postgres `pg_cron` job) exists
+anywhere in this repo yet.
+
+**Decision:** `RecurringService.generateDue()` is the trigger-agnostic
+core (finds every `enabled` `RecurringExpense` with `nextRunAt <= now`,
+generates one `Expense` per due row, advances `nextRunAt`), exposed as
+`POST /recurring/generate-due` behind the normal `SessionGuard` — same
+authentication as every other route, no separate service/cron secret.
+Nothing in this repo calls it automatically yet.
+
+**Why:** Building real scheduler infra (in-process cron, a hosted
+scheduler, or a authenticated-service-account pattern for an external
+caller) is a deployment-target decision this project hasn't made yet
+(see ADR-001's "Open" note on self-hosted vs. managed). Shipping a
+manual/externally-triggerable endpoint now means the generation logic
+itself is written, tested, and reusable regardless of which scheduling
+answer comes later — swapping in a real trigger later means adding a
+caller, not rewriting `generateDue()`.
+
+**Consequence:** Recurring expenses do not generate on their own in
+any deployed environment today — something (a person, a manual `curl`,
+a script) has to call the endpoint. Any authenticated user can trigger
+it, not just an admin or the affected users, which is a known
+over-broad-access gap (harmless in effect, since it only ever
+generates rows that are genuinely due) to close in a hardening pass
+once a real trigger mechanism and, if needed, a service-role concept
+exist. **Open:** pick a real scheduler once the deployment target
+(ADR-001's "Open" note) is decided.
+
+---
+
 ## ADR-004: Auth mechanism — DB-backed sessions, Email OTP + Google OAuth
 
 **Status:** Accepted

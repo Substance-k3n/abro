@@ -92,7 +92,7 @@ notification-emission calls into the **already-built** `groups` and
       `PATCH /notifications/read-all`.
 - [x] Retrofit: `ExpensesService.create/update/softDelete`,
       `SettlementsService.create`, `GroupsService.create/addMember/
-    acceptInvite/removeMember/updateMemberRole/update` all emit now —
+  acceptInvite/removeMember/updateMemberRole/update` all emit now —
       full event-to-trigger mapping documented in
       `apps/api/src/modules/notifications/README.md`.
       `RECURRING_EXPENSE` is defined in the shared `NotificationType` union
@@ -106,7 +106,7 @@ notification-emission calls into the **already-built** `groups` and
 **Acceptance:** every PRD §34 event actually produces a notification in
 practice (verified by test, not just by reading the code); CI green.
 
-## 4. Recurring expenses `[todo]`
+## 4. Recurring expenses `[done]`
 
 PRD §35. Template (amount/split/participants shape) + frequency + next
 execution + enabled; each generated occurrence becomes an independent
@@ -115,15 +115,33 @@ retroactively change past occurrences). Sequenced after notifications so
 "recurring expense generated" can emit its event immediately instead of
 leaving a TODO.
 
-- [ ] `RecurringService`: CRUD on templates, generation logic (calls
-      `ExpensesService.create` under the hood — reuse, don't duplicate
-      split computation).
-- [ ] Decide and document the trigger mechanism (cron job / scheduled
-      task runner / manual "generate due" endpoint for MVP) — this is an
-      infrastructure decision, flag it rather than picking silently.
-- [ ] Integration tests: generation produces a correct, independent
-      `Expense`; disabling a template stops generation; editing a
-      template doesn't touch past occurrences.
+- [x] `RecurringService`: `create`/`listMine`/`setEnabled`/`generateDue`.
+      The template is a real `Expense` created via
+      `ExpensesService.create` (reused, not duplicated — split
+      computation, friend/group authorization, currency resolution all
+      come from there). `RecurringExpense` wraps its id with
+      frequency/nextRunAt/enabled. `POST /recurring`, `GET /recurring`,
+      `PATCH /recurring/:id/enabled`, `POST /recurring/generate-due`.
+- [x] Trigger mechanism decided and documented: `docs/DECISIONS.md`
+      ADR-005 — a plain `SessionGuard`-protected endpoint
+      (`POST /recurring/generate-due`) for MVP, not an automatic
+      scheduler (none exists in this repo yet); flagged as a known
+      over-broad-access gap to close once a real trigger/service-role
+      concept exists.
+- [x] Integration tests (7 new): template creation computes `nextRunAt`
+      correctly, visibility for participants, `setEnabled` authorization
+      (payer/group-admin only), generation produces an independent
+      `Expense` and advances `nextRunAt` by one period, disabled/
+      not-yet-due templates don't generate, a post-generation template
+      edit never touches the already-generated row's amount, and
+      generation emits `RECURRING_EXPENSE` notifications to participants
+      except the payer.
+
+Two documented Assumptions (in `apps/api/src/modules/recurring/README.md`):
+generation always reproduces the template's exact amounts (not its
+original split weights, which aren't retained once resolved), and each
+`generateDue()` call catches up at most one missed occurrence per
+template, not the full backlog.
 
 **Acceptance:** generation is deterministic and tested; trigger mechanism
 decision documented in `docs/DECISIONS.md` if it has infra consequences;

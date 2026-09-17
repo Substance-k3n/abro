@@ -11,5 +11,6 @@ import { ExpensesService } from './expenses.service';
   imports: [AuthModule, FriendsModule, GroupsModule, NotificationsModule],
   controllers: [ExpensesController],
   providers: [ExpensesService],
+  exports: [ExpensesService],
 })
 export class ExpensesModule {}
