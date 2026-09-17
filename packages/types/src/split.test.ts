@@ -33,10 +33,14 @@ describe('expenseParticipantSchema', () => {
     expect(expenseParticipantSchema.safeParse({ userId: 'u1', amount: '1050' }).success).toBe(true);
   });
 
-  it('accepts a negative integer string (e.g. a settlement leg)', () => {
+  it('rejects a negative integer string -- every ExpenseParticipant.amount is non-negative, including for settlements (ADR-003)', () => {
     expect(expenseParticipantSchema.safeParse({ userId: 'u1', amount: '-1050' }).success).toBe(
-      true,
+      false,
     );
+  });
+
+  it("accepts a zero amount (e.g. a settler's own zero-share row in a settlement)", () => {
+    expect(expenseParticipantSchema.safeParse({ userId: 'u1', amount: '0' }).success).toBe(true);
   });
 
   it('rejects a decimal amount string', () => {

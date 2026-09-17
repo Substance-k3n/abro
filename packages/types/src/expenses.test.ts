@@ -36,7 +36,7 @@ describe('createExpenseSchema', () => {
     expect(result.success).toBe(false);
   });
 
-  it('rejects EQUAL participants that carry an amount field (wrong shape for the split type)', () => {
+  it('rejects EXACT participants missing the required amount field', () => {
     const result = createExpenseSchema.safeParse({
       ...base,
       splitType: 'EXACT',
