@@ -11,6 +11,7 @@ import { GroupsModule } from './modules/groups/groups.module';
 import { ExpensesModule } from './modules/expenses/expenses.module';
 import { BalancesModule } from './modules/balances/balances.module';
 import { SettlementsModule } from './modules/settlements/settlements.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -25,9 +26,10 @@ import { SettlementsModule } from './modules/settlements/settlements.module';
     ExpensesModule,
     BalancesModule,
     SettlementsModule,
-    // Remaining feature modules land here as they're built: AnalyticsModule,
-    // NotificationsModule, RecurringModule — one per src/modules/*
-    // directory, per docs/ABRO_PRD.md §32 and docs/DECISIONS.md (ADR-002).
+    AnalyticsModule,
+    // Remaining feature modules land here as they're built: NotificationsModule,
+    // RecurringModule — one per src/modules/* directory, per
+    // docs/ABRO_PRD.md §32 and docs/DECISIONS.md (ADR-002).
   ],
   controllers: [AppController],
   providers: [AppService],

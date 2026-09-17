@@ -47,7 +47,7 @@ that gap before adding more untested surface area on top.
 **Acceptance:** `pnpm --filter @abro/api test` covers `auth`/`users` at
 the same level of rigor as every other module; CI green.
 
-## 2. Analytics `[todo]`
+## 2. Analytics `[done]`
 
 PRD §26. Monthly/yearly spending insights: total expenses, amount paid,
 personal share, amount owed, amount received, settlements, category
@@ -57,13 +57,23 @@ aggregation over `Expense`/`ExpenseParticipant` — no dependency on
 notifications or recurring, and doesn't require touching any existing
 module. Lowest-risk pick, hence first.
 
-- [ ] Define the exact response shapes per PRD's definitions (Total
-      Spending / Your Contribution / Your Share / Net Position must stay
-      consistent with how `balances` already defines these).
-- [ ] `AnalyticsService` + `GET /analytics/monthly`, `GET /analytics/yearly`
-      (exact routes TBD at implementation time).
-- [ ] Unit tests for any extracted pure aggregation logic; integration
-      tests against real Postgres for the full queries.
+- [x] Defined the exact response shapes per PRD's definitions (Total
+      Spending / Your Contribution / Your Share / Net Position kept
+      consistent with `BalancesService`'s existing `netBalance` formula)
+      — see `apps/api/src/modules/analytics/README.md` for every field's
+      definition, including the two Assumptions made where the PRD
+      doesn't pin the shape down exactly (overall scope spans all of a
+      user's groups, not one at a time; settlements excluded from
+      general spending totals and reported separately).
+- [x] `AnalyticsService` + `GET /analytics/monthly?year=&month=`,
+      `GET /analytics/yearly?year=`.
+- [x] Integration tests against real Postgres for both queries (11 new
+      tests): contribution/share/net-position/owed math, month/year
+      boundary exclusion, category breakdown, settlement separation,
+      double-counting guard (payer who's also a participant), yearly
+      monthly-trend/group-spending/personal-contribution aggregation,
+      zero-activity groups omitted. No pure-logic extraction needed —
+      the aggregation is Prisma queries, not standalone math.
 
 **Acceptance:** matches PRD §26's field list exactly; tested; CI green.
 

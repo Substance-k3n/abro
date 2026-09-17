@@ -9,3 +9,4 @@ export * from './expenses';
 export * from './balances';
 export * from './settlements';
 export * from './debt-simplification';
+export * from './analytics';
