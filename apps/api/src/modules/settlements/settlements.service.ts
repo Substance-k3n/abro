@@ -9,6 +9,7 @@ import type { CreateSettlementInput } from '@abro/types';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GroupsService } from '../groups/groups.service';
 import { BalancesService } from '../balances/balances.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const SETTLEMENT_INCLUDE = { participants: { include: { user: true } }, paidBy: true } as const;
 
@@ -31,6 +32,7 @@ export class SettlementsService {
     private readonly prisma: PrismaService,
     private readonly balances: BalancesService,
     private readonly groups: GroupsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(actorId: string, input: CreateSettlementInput) {
@@ -70,7 +72,7 @@ export class SettlementsService {
       });
     }
 
-    return this.prisma.expense.create({
+    const settlement = await this.prisma.expense.create({
       data: {
         groupId: input.groupId,
         name: 'Settlement',
@@ -89,6 +91,18 @@ export class SettlementsService {
       },
       include: SETTLEMENT_INCLUDE,
     });
+
+    // ABRO_PRD.md §34 SETTLEMENT event -- only the recipient, the actor
+    // already knows they just recorded this.
+    const actor = await this.prisma.profile.findUnique({ where: { id: actorId } });
+    await this.notifications.notify(
+      input.toUserId,
+      'SETTLEMENT',
+      'Settlement recorded',
+      `${actor?.displayName ?? 'Someone'} recorded a settlement of ${amount} ${currency}.`,
+    );
+
+    return settlement;
   }
 
   /** Also enforces group-membership authorization as a side effect, matching how expenses.service.ts resolves currency. */

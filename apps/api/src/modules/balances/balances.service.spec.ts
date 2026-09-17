@@ -2,14 +2,16 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { FriendsService } from '../friends/friends.service';
 import { GroupsService } from '../groups/groups.service';
 import { ExpensesService } from '../expenses/expenses.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { BalancesService } from './balances.service';
 
 /** Hits the real dev Postgres — see friends.service.spec.ts for why. */
 describe('BalancesService (integration)', () => {
   const prisma = new PrismaService();
+  const notifications = new NotificationsService(prisma);
   const friendsService = new FriendsService(prisma);
-  const groupsService = new GroupsService(prisma, friendsService);
-  const expensesService = new ExpensesService(prisma, groupsService, friendsService);
+  const groupsService = new GroupsService(prisma, friendsService, notifications);
+  const expensesService = new ExpensesService(prisma, groupsService, friendsService, notifications);
   const balances = new BalancesService(prisma);
 
   const createdProfileIds: string[] = [];
@@ -50,6 +52,7 @@ describe('BalancesService (integration)', () => {
         OR: [{ userId: { in: createdProfileIds } }, { friendId: { in: createdProfileIds } }],
       },
     });
+    await prisma.notification.deleteMany({ where: { userId: { in: createdProfileIds } } });
     await prisma.profile.deleteMany({ where: { id: { in: createdProfileIds } } });
     await prisma.$disconnect();
   });

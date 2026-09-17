@@ -77,24 +77,31 @@ module. Lowest-risk pick, hence first.
 
 **Acceptance:** matches PRD §26's field list exactly; tested; CI green.
 
-## 3. Notifications `[todo]`
+## 3. Notifications `[done]`
 
 PRD §34. In-app only for MVP (web push/email/Telegram are later).
 Different in kind from the modules built so far: its event list (expense
 added/edited/deleted, settlement, group invitation, group membership
 changes, recurring expense, debt simplification changes) means this
 isn't just a new module — it requires going back and adding
-notification-emission calls into the **already-built** `friends`,
-`groups`, `expenses`, and `settlements` services. Do this as one
-deliberate pass, not picked at piecemeal later.
+notification-emission calls into the **already-built** `groups` and
+`expenses`/`settlements` services (not `friends` — see below).
 
-- [ ] `NotificationsService` (list, mark-read) + `GET /notifications`,
-      `PATCH /notifications/:id/read` (or similar).
-- [ ] Retrofit: each event in the PRD's list gets a notification created
-      at the point it happens — audit every existing service method
-      that PRD §34 says should notify.
-- [ ] Integration tests: creating an expense/settlement/etc. produces the
-      expected notification row for the expected recipient(s).
+- [x] `NotificationsService` (`notify`/`notifyMany`/`list`/`markRead`/
+      `markAllRead`) + `GET /notifications`, `PATCH /notifications/:id/read`,
+      `PATCH /notifications/read-all`.
+- [x] Retrofit: `ExpensesService.create/update/softDelete`,
+      `SettlementsService.create`, `GroupsService.create/addMember/
+    acceptInvite/removeMember/updateMemberRole/update` all emit now —
+      full event-to-trigger mapping documented in
+      `apps/api/src/modules/notifications/README.md`.
+      `RECURRING_EXPENSE` is defined in the shared `NotificationType` union
+      but not emitted yet — deferred to item 4, whose module doesn't exist.
+      `FriendsService` is untouched: the PRD's 8-item list has no
+      friend-request entry.
+- [x] Integration tests: 90/90 passing, including dedicated
+      "notifications (ABRO_PRD.md §34)" blocks per retrofit target
+      verifying the right recipients get notified and the actor doesn't.
 
 **Acceptance:** every PRD §34 event actually produces a notification in
 practice (verified by test, not just by reading the code); CI green.

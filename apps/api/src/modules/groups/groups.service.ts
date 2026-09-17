@@ -8,12 +8,14 @@ import type { CreateGroupInput, UpdateGroupInput } from '@abro/types';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { FriendsService } from '../friends/friends.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class GroupsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly friends: FriendsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(userId: string, input: CreateGroupInput) {
@@ -26,7 +28,7 @@ export class GroupsService {
       }
     }
 
-    return this.prisma.group.create({
+    const group = await this.prisma.group.create({
       data: {
         name: input.name,
         type: input.type,
@@ -47,6 +49,15 @@ export class GroupsService {
       },
       include: { members: { include: { user: true } } },
     });
+
+    await this.notifications.notifyMany(
+      input.memberIds ?? [],
+      'GROUP_INVITATION',
+      'Group invitation',
+      `You've been invited to join "${group.name}".`,
+    );
+
+    return group;
   }
 
   async listMine(userId: string) {
@@ -80,14 +91,35 @@ export class GroupsService {
 
   async update(userId: string, groupId: string, input: UpdateGroupInput) {
     await this.requireActiveAdmin(groupId, userId);
+    const before = await this.prisma.group.findUniqueOrThrow({ where: { id: groupId } });
 
-    return this.prisma.group.update({
+    const updated = await this.prisma.group.update({
       where: { id: groupId },
       data: input,
     });
+
+    // ABRO_PRD.md §34 DEBT_SIMPLIFICATION_CHANGE (Assumption: the only
+    // concrete trigger for this event, since simplification itself is a
+    // computed view, not stored data -- see analytics.ts's sibling note
+    // in docs/BACKEND_PLAN.md item 3 for the same kind of scope call).
+    if (input.simplifyDebts !== undefined && input.simplifyDebts !== before.simplifyDebts) {
+      const others = await this.prisma.groupMember.findMany({
+        where: { groupId, status: 'ACTIVE', userId: { not: userId } },
+        select: { userId: true },
+      });
+      await this.notifications.notifyMany(
+        others.map((m) => m.userId),
+        'DEBT_SIMPLIFICATION_CHANGE',
+        'Debt simplification setting changed',
+        `Debt simplification is now ${updated.simplifyDebts ? 'on' : 'off'} for "${updated.name}".`,
+      );
+    }
+
+    return updated;
   }
 
   async addMember(actorId: string, groupId: string, targetUserId: string) {
+    const group = await this.requireGroup(groupId);
     await this.requireActiveAdmin(groupId, actorId);
 
     if (!(await this.friends.areFriends(actorId, targetUserId))) {
@@ -107,19 +139,26 @@ export class GroupsService {
       });
     }
 
-    if (existing) {
-      // joinedAt doubles as invitedAt for listMyInvites -- reset it so a
-      // re-invite after leaving shows up as a fresh invite, not the stale
-      // timestamp/ordering from their original membership.
-      return this.prisma.groupMember.update({
-        where: { id: existing.id },
-        data: { status: 'INVITED', role: 'MEMBER', joinedAt: new Date() },
-      });
-    }
+    const membership = existing
+      ? // joinedAt doubles as invitedAt for listMyInvites -- reset it so a
+        // re-invite after leaving shows up as a fresh invite, not the stale
+        // timestamp/ordering from their original membership.
+        await this.prisma.groupMember.update({
+          where: { id: existing.id },
+          data: { status: 'INVITED', role: 'MEMBER', joinedAt: new Date() },
+        })
+      : await this.prisma.groupMember.create({
+          data: { groupId, userId: targetUserId, role: 'MEMBER', status: 'INVITED' },
+        });
 
-    return this.prisma.groupMember.create({
-      data: { groupId, userId: targetUserId, role: 'MEMBER', status: 'INVITED' },
-    });
+    await this.notifications.notify(
+      targetUserId,
+      'GROUP_INVITATION',
+      'Group invitation',
+      `You've been invited to join "${group.name}".`,
+    );
+
+    return membership;
   }
 
   async acceptInvite(userId: string, groupId: string) {
@@ -130,10 +169,13 @@ export class GroupsService {
         message: 'No pending invite for this group.',
       });
     }
-    return this.prisma.groupMember.update({
+    const updated = await this.prisma.groupMember.update({
       where: { id: membership.id },
       data: { status: 'ACTIVE' },
     });
+
+    await this.notifyOtherActiveMembers(groupId, userId, 'joined the group');
+    return updated;
   }
 
   async removeMember(actorId: string, groupId: string, targetUserId: string): Promise<void> {
@@ -156,6 +198,7 @@ export class GroupsService {
     }
 
     await this.prisma.groupMember.update({ where: { id: target.id }, data: { status: 'LEFT' } });
+    await this.notifyOtherActiveMembers(groupId, targetUserId, 'left the group');
   }
 
   async updateMemberRole(
@@ -183,7 +226,26 @@ export class GroupsService {
       }
     }
 
-    return this.prisma.groupMember.update({ where: { id: target.id }, data: { role } });
+    const updated = await this.prisma.groupMember.update({
+      where: { id: target.id },
+      data: { role },
+    });
+
+    // ABRO_PRD.md §34 GROUP_MEMBERSHIP_CHANGE (Assumption: only the
+    // affected member is notified of their own role change, not the whole
+    // group -- kept narrow deliberately, unlike join/leave which are
+    // group-wide news).
+    if (targetUserId !== actorId) {
+      const group = await this.prisma.group.findUniqueOrThrow({ where: { id: groupId } });
+      await this.notifications.notify(
+        targetUserId,
+        'GROUP_MEMBERSHIP_CHANGE',
+        'Role changed',
+        `Your role in "${group.name}" is now ${role}.`,
+      );
+    }
+
+    return updated;
   }
 
   /** Used by the expenses module to validate paidBy/participants are active group members. */
@@ -209,6 +271,37 @@ export class GroupsService {
       });
     }
     return membership;
+  }
+
+  private async requireGroup(groupId: string) {
+    const group = await this.prisma.group.findUnique({ where: { id: groupId } });
+    if (!group) {
+      throw new NotFoundException({ code: 'GROUP_NOT_FOUND', message: 'No such group.' });
+    }
+    return group;
+  }
+
+  /** ABRO_PRD.md §34 GROUP_MEMBERSHIP_CHANGE: tells everyone still active except the member who joined/left. */
+  private async notifyOtherActiveMembers(
+    groupId: string,
+    subjectUserId: string,
+    verb: string,
+  ): Promise<void> {
+    const [group, subject, others] = await Promise.all([
+      this.prisma.group.findUniqueOrThrow({ where: { id: groupId } }),
+      this.prisma.profile.findUnique({ where: { id: subjectUserId } }),
+      this.prisma.groupMember.findMany({
+        where: { groupId, status: 'ACTIVE', userId: { not: subjectUserId } },
+        select: { userId: true },
+      }),
+    ]);
+
+    await this.notifications.notifyMany(
+      others.map((m) => m.userId),
+      'GROUP_MEMBERSHIP_CHANGE',
+      'Group membership changed',
+      `${subject?.displayName ?? 'Someone'} ${verb} in "${group.name}".`,
+    );
   }
 
   private async requireMembership(groupId: string, userId: string) {

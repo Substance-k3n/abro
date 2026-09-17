@@ -10,16 +10,18 @@ import { FriendsService } from '../friends/friends.service';
 import { GroupsService } from '../groups/groups.service';
 import { ExpensesService } from '../expenses/expenses.service';
 import { BalancesService } from '../balances/balances.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { SettlementsService } from './settlements.service';
 
 /** Hits the real dev Postgres — see friends.service.spec.ts for why. */
 describe('SettlementsService (integration)', () => {
   const prisma = new PrismaService();
+  const notifications = new NotificationsService(prisma);
   const friendsService = new FriendsService(prisma);
-  const groupsService = new GroupsService(prisma, friendsService);
-  const expensesService = new ExpensesService(prisma, groupsService, friendsService);
+  const groupsService = new GroupsService(prisma, friendsService, notifications);
+  const expensesService = new ExpensesService(prisma, groupsService, friendsService, notifications);
   const balances = new BalancesService(prisma);
-  const settlements = new SettlementsService(prisma, balances, groupsService);
+  const settlements = new SettlementsService(prisma, balances, groupsService, notifications);
 
   const createdProfileIds: string[] = [];
   const createdGroupIds: string[] = [];
@@ -59,6 +61,7 @@ describe('SettlementsService (integration)', () => {
         OR: [{ userId: { in: createdProfileIds } }, { friendId: { in: createdProfileIds } }],
       },
     });
+    await prisma.notification.deleteMany({ where: { userId: { in: createdProfileIds } } });
     await prisma.profile.deleteMany({ where: { id: { in: createdProfileIds } } });
     await prisma.$disconnect();
   });
@@ -211,5 +214,32 @@ describe('SettlementsService (integration)', () => {
     await expect(
       settlements.create(a.id, { toUserId: 'does-not-exist', amount: '10' }),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('notifies the recipient of a settlement, not the actor (ABRO_PRD.md §34)', async () => {
+    const settler = await makeProfile('Settler');
+    const recipient = await makeProfile('Recipient');
+    await makeFriends(settler.id, recipient.id);
+
+    track(
+      await expensesService.create(settler.id, {
+        splitType: 'EQUAL',
+        name: 'Dinner',
+        category: 'Food',
+        amount: '100',
+        expenseDate: new Date(),
+        participants: [{ userId: settler.id }, { userId: recipient.id }],
+        paidById: recipient.id,
+      }),
+    );
+
+    track(await settlements.create(settler.id, { toUserId: recipient.id, amount: '50' }));
+
+    expect(
+      await prisma.notification.count({ where: { userId: recipient.id, type: 'SETTLEMENT' } }),
+    ).toBe(1);
+    expect(
+      await prisma.notification.count({ where: { userId: settler.id, type: 'SETTLEMENT' } }),
+    ).toBe(0);
   });
 });

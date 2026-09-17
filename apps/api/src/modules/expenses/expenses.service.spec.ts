@@ -8,14 +8,16 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { FriendsService } from '../friends/friends.service';
 import { GroupsService } from '../groups/groups.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ExpensesService } from './expenses.service';
 
 /** Hits the real dev Postgres — see friends.service.spec.ts for why. */
 describe('ExpensesService (integration)', () => {
   const prisma = new PrismaService();
+  const notifications = new NotificationsService(prisma);
   const friendsService = new FriendsService(prisma);
-  const groupsService = new GroupsService(prisma, friendsService);
-  const expenses = new ExpensesService(prisma, groupsService, friendsService);
+  const groupsService = new GroupsService(prisma, friendsService, notifications);
+  const expenses = new ExpensesService(prisma, groupsService, friendsService, notifications);
 
   const createdProfileIds: string[] = [];
   const createdGroupIds: string[] = [];
@@ -55,6 +57,7 @@ describe('ExpensesService (integration)', () => {
         OR: [{ userId: { in: createdProfileIds } }, { friendId: { in: createdProfileIds } }],
       },
     });
+    await prisma.notification.deleteMany({ where: { userId: { in: createdProfileIds } } });
     await prisma.profile.deleteMany({ where: { id: { in: createdProfileIds } } });
     await prisma.$disconnect();
   });
@@ -320,6 +323,72 @@ describe('ExpensesService (integration)', () => {
       await groupsService.removeMember(observer.id, group.id, observer.id);
 
       await expect(expenses.findById(observer.id, expense.id)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('notifications (ABRO_PRD.md §34)', () => {
+    it('notifies the other participant on create, not the actor', async () => {
+      const payer = await makeProfile('NotifyPayer');
+      const friend = await makeProfile('NotifyFriend');
+      await makeFriends(payer.id, friend.id);
+
+      track(
+        await expenses.create(payer.id, {
+          splitType: 'EQUAL',
+          name: 'Coffee',
+          category: 'Food',
+          amount: '100',
+          expenseDate: new Date(),
+          participants: [{ userId: payer.id }, { userId: friend.id }],
+        }),
+      );
+
+      const payerNotifications = await prisma.notification.findMany({
+        where: { userId: payer.id, type: 'EXPENSE_ADDED' },
+      });
+      expect(payerNotifications).toHaveLength(0);
+
+      const friendNotifications = await prisma.notification.findMany({
+        where: { userId: friend.id, type: 'EXPENSE_ADDED' },
+      });
+      expect(friendNotifications).toHaveLength(1);
+      expect(friendNotifications[0]!.body).toContain('Coffee');
+    });
+
+    it('notifies participants on edit and on soft delete', async () => {
+      const payer = await makeProfile('NotifyEditPayer');
+      const friend = await makeProfile('NotifyEditFriend');
+      await makeFriends(payer.id, friend.id);
+
+      const expense = track(
+        await expenses.create(payer.id, {
+          splitType: 'EQUAL',
+          name: 'Groceries',
+          category: 'Food',
+          amount: '100',
+          expenseDate: new Date(),
+          participants: [{ userId: payer.id }, { userId: friend.id }],
+        }),
+      );
+
+      await expenses.update(payer.id, expense.id, {
+        splitType: 'EQUAL',
+        name: 'Groceries (updated)',
+        category: 'Food',
+        amount: '120',
+        expenseDate: new Date(),
+        participants: [{ userId: payer.id }, { userId: friend.id }],
+      });
+
+      expect(
+        await prisma.notification.count({ where: { userId: friend.id, type: 'EXPENSE_EDITED' } }),
+      ).toBe(1);
+
+      await expenses.softDelete(payer.id, expense.id);
+
+      expect(
+        await prisma.notification.count({ where: { userId: friend.id, type: 'EXPENSE_DELETED' } }),
+      ).toBe(1);
     });
   });
 });

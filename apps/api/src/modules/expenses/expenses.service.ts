@@ -12,6 +12,7 @@ import type { Expense } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { FriendsService } from '../friends/friends.service';
 import { GroupsService } from '../groups/groups.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 interface PreparedWrite {
   paidById: string;
@@ -27,12 +28,13 @@ export class ExpensesService {
     private readonly prisma: PrismaService,
     private readonly groups: GroupsService,
     private readonly friends: FriendsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async create(actorId: string, input: CreateExpenseInput) {
     const { paidById, currency, participantAmounts } = await this.prepareWrite(actorId, input);
 
-    return this.prisma.expense.create({
+    const expense = await this.prisma.expense.create({
       data: {
         groupId: input.groupId,
         name: input.name,
@@ -48,6 +50,16 @@ export class ExpensesService {
       },
       include: EXPENSE_INCLUDE,
     });
+
+    await this.notifyParties(
+      actorId,
+      expense,
+      'EXPENSE_ADDED',
+      (actor) =>
+        `${actor} added an expense: "${expense.name}" (${expense.amount} ${expense.currency}).`,
+    );
+
+    return expense;
   }
 
   async update(actorId: string, expenseId: string, input: UpdateExpenseInput) {
@@ -56,7 +68,7 @@ export class ExpensesService {
 
     const { paidById, currency, participantAmounts } = await this.prepareWrite(actorId, input);
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       await tx.expenseParticipant.deleteMany({ where: { expenseId } });
       return tx.expense.update({
         where: { id: expenseId },
@@ -77,6 +89,16 @@ export class ExpensesService {
         include: EXPENSE_INCLUDE,
       });
     });
+
+    await this.notifyParties(
+      actorId,
+      updated,
+      'EXPENSE_EDITED',
+      (actor) =>
+        `${actor} edited an expense: "${updated.name}" (${updated.amount} ${updated.currency}).`,
+    );
+
+    return updated;
   }
 
   async softDelete(actorId: string, expenseId: string): Promise<void> {
@@ -87,6 +109,19 @@ export class ExpensesService {
       where: { id: expenseId },
       data: { deletedAt: new Date(), deletedById: actorId },
     });
+
+    // Participant rows survive a soft delete (only Expense.deletedAt changes),
+    // so the pre-delete audience is still queryable here.
+    const full = await this.prisma.expense.findUniqueOrThrow({
+      where: { id: expenseId },
+      include: EXPENSE_INCLUDE,
+    });
+    await this.notifyParties(
+      actorId,
+      full,
+      'EXPENSE_DELETED',
+      (actor) => `${actor} deleted an expense: "${full.name}" (${full.amount} ${full.currency}).`,
+    );
   }
 
   async findById(actorId: string, expenseId: string) {
@@ -252,6 +287,34 @@ export class ExpensesService {
         return input.participants.map((p, i) => ({ userId: p.userId, amount: amounts[i]! }));
       }
     }
+  }
+
+  /** ABRO_PRD.md §34: EXPENSE_ADDED/EDITED/DELETED to everyone involved (payer + participants) except the actor. */
+  private async notifyParties(
+    actorId: string,
+    expense: { paidById: string; participants: { userId: string }[] },
+    type: 'EXPENSE_ADDED' | 'EXPENSE_EDITED' | 'EXPENSE_DELETED',
+    body: (actorName: string) => string,
+  ): Promise<void> {
+    const recipients = new Set([expense.paidById, ...expense.participants.map((p) => p.userId)]);
+    recipients.delete(actorId);
+    if (recipients.size === 0) {
+      return;
+    }
+
+    const actor = await this.prisma.profile.findUnique({ where: { id: actorId } });
+    const title =
+      type === 'EXPENSE_ADDED'
+        ? 'New expense'
+        : type === 'EXPENSE_EDITED'
+          ? 'Expense updated'
+          : 'Expense deleted';
+    await this.notifications.notifyMany(
+      Array.from(recipients),
+      type,
+      title,
+      body(actor?.displayName ?? 'Someone'),
+    );
   }
 
   private async requireVisible(actorId: string, expenseId: string): Promise<Expense> {
