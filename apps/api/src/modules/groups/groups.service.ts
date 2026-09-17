@@ -19,7 +19,13 @@ export class GroupsService {
   ) {}
 
   async create(userId: string, input: CreateGroupInput) {
-    for (const memberId of input.memberIds ?? []) {
+    // Deduped once and reused everywhere below -- a duplicate memberId
+    // would otherwise both re-check the same friendship redundantly and
+    // (worse) hit GroupMember's [groupId, userId] unique constraint when
+    // creating members.
+    const memberIds = [...new Set(input.memberIds ?? [])];
+
+    for (const memberId of memberIds) {
       if (!(await this.friends.areFriends(userId, memberId))) {
         throw new ConflictException({
           code: 'NOT_FRIENDS',
@@ -39,7 +45,7 @@ export class GroupsService {
         members: {
           create: [
             { userId, role: 'ADMIN', status: 'ACTIVE' },
-            ...(input.memberIds ?? []).map((memberId) => ({
+            ...memberIds.map((memberId) => ({
               userId: memberId,
               role: 'MEMBER' as const,
               status: 'INVITED' as const,
@@ -51,7 +57,7 @@ export class GroupsService {
     });
 
     await this.notifications.notifyMany(
-      input.memberIds ?? [],
+      memberIds,
       'GROUP_INVITATION',
       'Group invitation',
       `You've been invited to join "${group.name}".`,

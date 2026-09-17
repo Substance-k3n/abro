@@ -12,6 +12,7 @@ import {
 import type { Profile } from '@prisma/client';
 
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { toAuthGroup } from '../../common/mappers/to-auth-group';
 import { SessionGuard } from '../auth/session.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { GroupsService } from './groups.service';
@@ -22,11 +23,11 @@ export class GroupsController {
   constructor(private readonly groups: GroupsService) {}
 
   @Post()
-  create(
+  async create(
     @CurrentUser() user: Profile,
     @Body(new ZodValidationPipe(createGroupSchema)) body: CreateGroupInput,
   ) {
-    return this.groups.create(user.id, body);
+    return toAuthGroup(await this.groups.create(user.id, body));
   }
 
   @Get()
@@ -40,8 +41,8 @@ export class GroupsController {
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: Profile, @Param('id') id: string) {
-    return this.groups.findById(user.id, id);
+  async findOne(@CurrentUser() user: Profile, @Param('id') id: string) {
+    return toAuthGroup(await this.groups.findById(user.id, id));
   }
 
   @Patch(':id')

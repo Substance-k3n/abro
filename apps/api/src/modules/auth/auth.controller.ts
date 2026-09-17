@@ -75,6 +75,7 @@ export class AuthController {
     const state = generateOAuthState();
     res.cookie(OAUTH_STATE_COOKIE, state, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 5 * 60 * 1000,
     });

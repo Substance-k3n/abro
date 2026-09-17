@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -24,6 +25,9 @@ import {
 import type { Profile } from '@prisma/client';
 
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { toAuthExpense } from '../../common/mappers/to-auth-expense';
+import { toAuthExpenseNote } from '../../common/mappers/to-auth-expense-note';
+import { IdempotencyService } from '../../common/idempotency/idempotency.service';
 import { SessionGuard } from '../auth/session.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ExpensesService } from './expenses.service';
@@ -31,36 +35,42 @@ import { ExpensesService } from './expenses.service';
 @Controller('expenses')
 @UseGuards(SessionGuard)
 export class ExpensesController {
-  constructor(private readonly expenses: ExpensesService) {}
+  constructor(
+    private readonly expenses: ExpensesService,
+    private readonly idempotency: IdempotencyService,
+  ) {}
 
   @Post()
   create(
     @CurrentUser() user: Profile,
     @Body(new ZodValidationPipe(createExpenseSchema)) body: CreateExpenseInput,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.expenses.create(user.id, body);
+    return this.idempotency.run(user.id, idempotencyKey, 'POST /expenses', async () =>
+      toAuthExpense(await this.expenses.create(user.id, body)),
+    );
   }
 
   @Get()
-  list(
+  async list(
     @CurrentUser() user: Profile,
     @Query(new ZodValidationPipe(listExpensesQuerySchema)) query: ListExpensesQuery,
   ) {
-    return this.expenses.list(user.id, query);
+    return (await this.expenses.list(user.id, query)).map(toAuthExpense);
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: Profile, @Param('id') id: string) {
-    return this.expenses.findById(user.id, id);
+  async findOne(@CurrentUser() user: Profile, @Param('id') id: string) {
+    return toAuthExpense(await this.expenses.findById(user.id, id));
   }
 
   @Patch(':id')
-  update(
+  async update(
     @CurrentUser() user: Profile,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(updateExpenseSchema)) body: UpdateExpenseInput,
   ) {
-    return this.expenses.update(user.id, id, body);
+    return toAuthExpense(await this.expenses.update(user.id, id, body));
   }
 
   @Delete(':id')
@@ -70,17 +80,17 @@ export class ExpensesController {
   }
 
   @Get(':id/notes')
-  listNotes(@CurrentUser() user: Profile, @Param('id') id: string) {
-    return this.expenses.listNotes(user.id, id);
+  async listNotes(@CurrentUser() user: Profile, @Param('id') id: string) {
+    return (await this.expenses.listNotes(user.id, id)).map(toAuthExpenseNote);
   }
 
   @Post(':id/notes')
   @HttpCode(HttpStatus.CREATED)
-  addNote(
+  async addNote(
     @CurrentUser() user: Profile,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(addExpenseNoteSchema)) body: AddExpenseNoteInput,
   ) {
-    return this.expenses.addNote(user.id, id, body.content);
+    return toAuthExpenseNote(await this.expenses.addNote(user.id, id, body.content));
   }
 }

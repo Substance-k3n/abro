@@ -92,7 +92,7 @@ notification-emission calls into the **already-built** `groups` and
       `PATCH /notifications/read-all`.
 - [x] Retrofit: `ExpensesService.create/update/softDelete`,
       `SettlementsService.create`, `GroupsService.create/addMember/
-  acceptInvite/removeMember/updateMemberRole/update` all emit now —
+acceptInvite/removeMember/updateMemberRole/update` all emit now —
       full event-to-trigger mapping documented in
       `apps/api/src/modules/notifications/README.md`.
       `RECURRING_EXPENSE` is defined in the shared `NotificationType` union
@@ -147,26 +147,48 @@ template, not the full backlog.
 decision documented in `docs/DECISIONS.md` if it has infra consequences;
 CI green.
 
-## 5. Backend hardening pass `[todo]`
+## 5. Backend hardening pass `[done]`
 
 The known-limitations list PR #2 shipped with, closed out in one
 dedicated pass once all domain modules exist, matching PRD §76's
 Production Quality Gate rather than being picked at ad hoc:
 
-- [ ] Idempotency keys on financial-record-creating POSTs (expenses,
-      settlements) — a request that fails at response serialization
-      currently still commits its DB write, with the client seeing a 500
-      and no way to know the create succeeded.
-- [ ] Run nested `Profile` objects in all responses through
-      `toAuthProfile` consistently.
-- [ ] Fix the pre-existing duplicate-import lint warning in
-      `expenses.service.ts`.
-- [ ] Fix `groups.create`'s friend-check loop doing redundant queries on
-      duplicate `memberIds`.
-- [ ] Set the OAuth state cookie's `secure` flag based on `NODE_ENV`.
+- [x] Idempotency keys on financial-record-creating POSTs (expenses,
+      settlements). New `IdempotencyKey` model + `IdempotencyService`
+      (`apps/api/src/common/idempotency/`), reserve-then-fill: a row is
+      created (response still `null`) _before_ the guarded operation
+      runs, so a genuinely concurrent duplicate request fails fast on
+      the `[userId, key, endpoint]` unique constraint instead of racing
+      to run it twice; on failure the reservation is deleted so a
+      legitimate retry isn't permanently blocked; on success the row is
+      filled with the exact JSON-plain wire shape (BigInt -> string) a
+      replay should return. Wired into `POST /expenses` and
+      `POST /settlements` via an optional `Idempotency-Key` header — no
+      key means unguarded, same as before. 6 new integration tests.
+- [x] Nested `Profile` objects in all responses now go through
+      `toAuthProfile` consistently — added `toAuthExpense`/`toAuthGroup`/
+      `toAuthExpenseNote` mappers (`apps/api/src/common/mappers/`) for
+      the spots that weren't already covered (`friends`/`auth`/`users`
+      controllers already did this), wired into the expenses, groups,
+      and settlements controllers.
+- [x] Fixed the pre-existing duplicate-import lint warning in
+      `expenses.service.ts` (merged the two `@abro/types` imports).
+- [x] Fixed `groups.create`'s friend-check loop doing redundant queries
+      on duplicate `memberIds` — deduped once via `Set` and reused for
+      both the friend-check loop and member creation (a duplicate
+      `memberId` would previously also have hit `GroupMember`'s
+      `[groupId, userId]` unique constraint on create, a real latent bug
+      beyond just redundant queries).
+- [x] Set the OAuth state cookie's `secure` flag based on `NODE_ENV` in
+      `AuthController.googleStart` (the session cookie already had this;
+      the OAuth state cookie didn't).
 
 **Acceptance:** PRD §76's checklist (TypeScript/Lint/Unit/Integration/
-Build all PASS) is genuinely clean, no asterisks.
+Build all PASS) is genuinely clean, no asterisks. 103/103 tests passing,
+`tsc --noEmit` clean on both packages, `oxlint` 0 errors (9 warnings, all
+pre-existing classes — intentional sequential `await`-in-loop and one
+`no-extend-native`/`no-unused-vars` pair predating this pass), `nest
+build` succeeds.
 
 ## Where backend meets frontend
 

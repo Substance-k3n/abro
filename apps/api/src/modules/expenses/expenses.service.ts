@@ -5,8 +5,14 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { assertSharesMatchTotal, splitByWeights, splitEqually } from '@abro/types';
-import type { CreateExpenseInput, ListExpensesQuery, UpdateExpenseInput } from '@abro/types';
+import {
+  type CreateExpenseInput,
+  type ListExpensesQuery,
+  type UpdateExpenseInput,
+  assertSharesMatchTotal,
+  splitByWeights,
+  splitEqually,
+} from '@abro/types';
 import type { Expense } from '@prisma/client';
 
 import { PrismaService } from '../../prisma/prisma.service';
