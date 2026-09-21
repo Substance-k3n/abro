@@ -7,6 +7,72 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-007: Backend rewrite — Go, superseding ADR-002
+
+**Status:** Accepted
+
+**Context:** ADR-002 chose NestJS specifically so `apps/web` and
+`apps/api` could share `packages/types` (`Money`/`SplitType`/Zod
+schemas) verbatim, on the reasoning that one language across the stack
+is faster for a small team and keeps client/server math from silently
+drifting apart. That NestJS backend was fully built and tested (backend
+plan items 1-6: auth, users, friends, groups, expenses, balances,
+settlements, debt simplification, analytics, notifications, recurring
+expenses, MinIO receipts — 100+ tests, CI green, merged to `dev`).
+
+**Decision:** Rewrite the backend from scratch in Go
+(`apps/api`, replacing the NestJS implementation), explicitly requested
+by the user. Stack: `chi` router, `pgx/v5` + `sqlc` for typed Postgres
+access (no ORM), `golang-migrate` for schema migrations (plain SQL,
+translated from the Prisma schema), stdlib `crypto/sha256`+`crypto/rand`
+for session/OTP hashing (same approach as ADR-004, just not
+Prisma-mediated), `golang.org/x/oauth2` for Google OAuth,
+`minio-go/v7` for receipt storage (still S3-protocol-compatible, so
+ADR-006's "swap to real S3 later is a config change" still holds).
+Every domain module is rebuilt in the same order the original backend
+was built (`docs/BACKEND_PLAN.md`'s history), each with its own tests
+run against a real Postgres/MinIO — no mocking library, matching the
+convention the NestJS backend established.
+
+**Why:** Explicit user decision, not driven by a discovered technical
+problem with NestJS — the previous backend was working, tested, and
+CI-green at the time of this rewrite.
+
+**Consequence:**
+
+- ADR-002's core rationale (one shared `packages/types` module across
+  both sides) no longer holds for the backend. `packages/types` still
+  exists and is still used by `apps/web` (Phase 4+ split-validation
+  UI per `docs/WIRING_PLAN.md`), but the Go backend has its own
+  independent port of the same money/split/debt-simplification logic
+  (`apps/api/internal/money`), test-ported case-for-case from
+  `packages/types/src/{money,split,debt-simplification}.test.ts` to
+  keep both sides' behavior verified equivalent at rewrite time — but
+  nothing mechanically keeps them in sync going forward. A future
+  change to a split/rounding/debt-simplification rule must be applied
+  in both places by hand, and reviewed as such.
+- One simplification the rewrite gets for free: Go's `int64` covers
+  ABRO's realistic minor-units range and serializes through
+  `encoding/json` without precision loss, unlike JS `bigint` (not
+  JSON-safe). The `common/bigint-json.ts` response-shape shim and its
+  `toAuthProfile`-style mappers have no Go equivalent requirement —
+  though the _wire format_ for amounts is kept as a numeric string on
+  requests (`internal/money.ParseAmount`), matching what `apps/web`'s
+  still-bigint-based `packages/types` will send once Phase 8 wires the
+  frontend to this API, so the two sides don't need to renegotiate the
+  contract later.
+- The entire NestJS implementation (`apps/api`'s previous contents,
+  Prisma schema, 100+ Jest tests) is removed from the working tree.
+  Fully recoverable from git history — it shipped and was merged to
+  `dev` before this rewrite (see the `feature/friends-groups-expenses`
+  → `dev` PR) — but no longer live code.
+- CI (`.github/workflows/ci.yml`) needs a Go job (build/vet/test against
+  real Postgres/MinIO services) replacing the Node/Jest one for `apps/api`.
+- `docs/BACKEND_PLAN.md` described the NestJS build order; a parallel
+  tracking doc for the Go rewrite exists at `docs/GO_BACKEND_PLAN.md`.
+
+---
+
 ## ADR-006: Receipt storage — MinIO (S3-compatible), upload-through-API, presigned reads
 
 **Status:** Accepted
@@ -190,7 +256,7 @@ to the payer" — for every split type including `SETTLEMENT`, with zero
 
 ## ADR-002: NestJS over Go for the backend
 
-**Status:** Accepted
+**Status:** Superseded by ADR-007 (backend rewritten in Go)
 
 **Context:** `ABRO_PRD.md` §33 recommends Supabase (Auth + Storage +
 Edge Functions) with no separate backend service. We're deviating
