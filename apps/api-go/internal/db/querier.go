@@ -13,7 +13,10 @@ import (
 type Querier interface {
 	AcceptFriendship(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	ConsumeOtpCode(ctx context.Context, id pgtype.UUID) error
+	CountActiveAdminsExcept(ctx context.Context, arg CountActiveAdminsExceptParams) (int64, error)
 	CreateFriendship(ctx context.Context, arg CreateFriendshipParams) (Friendship, error)
+	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
+	CreateGroupMember(ctx context.Context, arg CreateGroupMemberParams) (GroupMember, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	// Fans the same event out to several recipients in one statement.
 	CreateNotificationsBulk(ctx context.Context, arg CreateNotificationsBulkParams) ([]Notification, error)
@@ -23,6 +26,8 @@ type Querier interface {
 	DeleteFriendship(ctx context.Context, id pgtype.UUID) error
 	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
 	GetFriendshipByID(ctx context.Context, id pgtype.UUID) (Friendship, error)
+	GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, error)
+	GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMember, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
 	GetNotificationByID(ctx context.Context, id pgtype.UUID) (Notification, error)
 	GetOAuthAccountByProvider(ctx context.Context, arg GetOAuthAccountByProviderParams) (OauthAccount, error)
@@ -32,8 +37,12 @@ type Querier interface {
 	GetRecentOtpCode(ctx context.Context, arg GetRecentOtpCodeParams) (OtpCode, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (Session, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
+	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
 	ListFriendships(ctx context.Context, userID pgtype.UUID) ([]ListFriendshipsRow, error)
+	ListGroupMembersWithProfiles(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersWithProfilesRow, error)
 	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
+	ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([]Group, error)
+	ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]ListMyInvitesRow, error)
 	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
 	// true, and a no-op (all rows) when false, in one query.
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
@@ -41,11 +50,18 @@ type Querier interface {
 	// Preserves the original read_at if already read, rather than bumping it to
 	// now() on every call -- matches the "no-op if already read" behavior.
 	MarkNotificationRead(ctx context.Context, id pgtype.UUID) (Notification, error)
+	// joined_at doubles as invitedAt for ListMyInvites -- reset it so a
+	// re-invite after leaving shows up as a fresh invite, not the stale
+	// timestamp/ordering from the original membership.
+	ReinviteGroupMember(ctx context.Context, id pgtype.UUID) (GroupMember, error)
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
 	// Exact match only -- never a fuzzy name search, so you can't browse the
 	// user directory.
 	SearchFriendByEmailOrPhone(ctx context.Context, arg SearchFriendByEmailOrPhoneParams) (Profile, error)
 	TouchSessionLastUsed(ctx context.Context, id pgtype.UUID) error
+	UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group, error)
+	UpdateGroupMemberRole(ctx context.Context, arg UpdateGroupMemberRoleParams) (GroupMember, error)
+	UpdateGroupMemberStatus(ctx context.Context, arg UpdateGroupMemberStatusParams) (GroupMember, error)
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (Profile, error)
 	// Mirrors Prisma's `upsert({ where: { email }, update: {}, create: {...} })`
 	// -- a genuine no-op on conflict (the "id = profiles.id" self-assignment),

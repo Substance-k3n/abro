@@ -16,6 +16,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/dbpool"
 	"github.com/Substance-k3n/abro/apps/api/internal/friends"
+	"github.com/Substance-k3n/abro/apps/api/internal/groups"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 	"github.com/Substance-k3n/abro/apps/api/internal/users"
@@ -52,6 +53,9 @@ func main() {
 	notificationsSvc := notifications.NewService(queries)
 	notificationsHandler := notifications.NewHandler(notificationsSvc, queries)
 
+	groupsSvc := groups.NewService(queries, friendsSvc, notificationsSvc)
+	groupsHandler := groups.NewHandler(groupsSvc, queries)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -62,6 +66,7 @@ func main() {
 	r.Route("/users", usersHandler.Mount)
 	r.Route("/friends", friendsHandler.Mount)
 	r.Route("/notifications", notificationsHandler.Mount)
+	r.Route("/groups", groupsHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

@@ -60,9 +60,11 @@ test cases + 11 unit test cases, all passing against real Postgres.
 Friend search, requests, accept, unfriend. 7 integration test cases
 passing against real Postgres.
 
-## 4. Groups `[todo]`
+## 4. Groups `[done]`
 
-Create/list/detail/update, members, invites.
+Create/list/detail/update, members, invites. 13 integration test cases
+(including all 4 notification-emission tests) passing against real
+Postgres.
 
 ## 5. Expenses `[todo]`
 
