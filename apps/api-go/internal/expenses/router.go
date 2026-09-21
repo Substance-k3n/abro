@@ -57,7 +57,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
 		if err != nil {
 			return nil, err
 		}
-		return toAuthExpense(expense), nil
+		return ToAuthExpense(expense), nil
 	})
 	if err != nil {
 		return err
@@ -83,7 +83,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 	}
 	out := make([]apitypes.AuthExpense, len(rows))
 	for i, row := range rows {
-		out[i] = toAuthExpense(row)
+		out[i] = ToAuthExpense(row)
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
@@ -99,7 +99,7 @@ func (h *Handler) findOne(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	httpx.WriteJSON(w, http.StatusOK, toAuthExpense(expense))
+	httpx.WriteJSON(w, http.StatusOK, ToAuthExpense(expense))
 	return nil
 }
 
@@ -121,7 +121,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	httpx.WriteJSON(w, http.StatusOK, toAuthExpense(updated))
+	httpx.WriteJSON(w, http.StatusOK, ToAuthExpense(updated))
 	return nil
 }
 
@@ -198,7 +198,7 @@ func (h *Handler) uploadReceipt(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	httpx.WriteJSON(w, http.StatusOK, toAuthExpense(updated))
+	httpx.WriteJSON(w, http.StatusOK, ToAuthExpense(updated))
 	return nil
 }
 

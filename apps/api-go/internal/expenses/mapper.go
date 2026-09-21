@@ -8,7 +8,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
 )
 
-func toAuthExpense(e Expense) apitypes.AuthExpense {
+func ToAuthExpense(e Expense) apitypes.AuthExpense {
 	out := apitypes.AuthExpense{
 		ID: idutil.String(e.ID), Name: e.Name, Category: e.Category,
 		Amount: strconv.FormatInt(e.Amount, 10), Currency: e.Currency,

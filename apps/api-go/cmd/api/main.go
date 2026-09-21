@@ -22,6 +22,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idempotency"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
+	"github.com/Substance-k3n/abro/apps/api/internal/settlements"
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
 	"github.com/Substance-k3n/abro/apps/api/internal/users"
 )
@@ -71,6 +72,9 @@ func main() {
 	balancesSvc := balances.NewService(queries)
 	balancesHandler := balances.NewHandler(balancesSvc, groupsSvc, queries)
 
+	settlementsSvc := settlements.NewService(queries, balancesSvc, groupsSvc, notificationsSvc, expensesSvc)
+	settlementsHandler := settlements.NewHandler(settlementsSvc, idempotencySvc, queries)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -84,6 +88,7 @@ func main() {
 	r.Route("/groups", groupsHandler.Mount)
 	r.Route("/expenses", expensesHandler.Mount)
 	r.Route("/balances", balancesHandler.Mount)
+	r.Route("/settlements", settlementsHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

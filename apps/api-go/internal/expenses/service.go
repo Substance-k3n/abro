@@ -577,6 +577,14 @@ func (s *Service) requireEditAuthority(ctx context.Context, actorID pgtype.UUID,
 	return httpx.Forbidden("NOT_EDIT_AUTHORIZED", "Only the payer or a group admin can edit this expense.")
 }
 
+// LoadExpense assembles the full Expense (participants + payer) for a raw
+// db.Expense row. Exported for settlements, which builds its own Expense
+// row directly (per ADR-003, never through Service.Create) but wants the
+// same response shape once it has.
+func (s *Service) LoadExpense(ctx context.Context, expense db.Expense) (Expense, error) {
+	return s.loadExpense(ctx, expense)
+}
+
 func (s *Service) loadExpense(ctx context.Context, expense db.Expense) (Expense, error) {
 	expenses, err := s.loadExpenses(ctx, []db.Expense{expense})
 	if err != nil {

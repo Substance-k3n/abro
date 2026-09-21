@@ -87,9 +87,10 @@ Pairwise + group summary + simplified group debts
 test cases (personal, group, conservation invariant, chain
 simplification) passing against real Postgres.
 
-## 7. Settlements `[todo]`
+## 7. Settlements `[done]`
 
 `POST /settlements` — the only path allowed to write `SplitType.SETTLEMENT`.
+9 integration test cases passing against real Postgres.
 
 ## 8. Analytics `[todo]`
 
