@@ -16,6 +16,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/dbpool"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
+	"github.com/Substance-k3n/abro/apps/api/internal/users"
 )
 
 func main() {
@@ -40,6 +41,9 @@ func main() {
 	authSvc := auth.NewService(queries, google, auth.ConsoleOTPMailer{}, cfg.SessionTTLDays)
 	authHandler := auth.NewHandler(authSvc, google, queries, cfg.IsProduction(), cfg.WebOrigin)
 
+	usersSvc := users.NewService(queries)
+	usersHandler := users.NewHandler(usersSvc, queries)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -47,6 +51,7 @@ func main() {
 	r.Use(httpx.Recoverer)
 
 	r.Route("/auth", authHandler.Mount)
+	r.Route("/users", usersHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
