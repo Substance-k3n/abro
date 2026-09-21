@@ -66,10 +66,18 @@ Create/list/detail/update, members, invites. 13 integration test cases
 (including all 4 notification-emission tests) passing against real
 Postgres.
 
-## 5. Expenses `[todo]`
+## 5. Expenses `[done]`
 
 Create/list/detail/update/soft-delete, notes, receipt upload/read/delete
-(MinIO via `minio-go/v7`), idempotency keys on financial POSTs.
+(MinIO via `minio-go/v7`), idempotency keys on the create POST. Also
+shipped `internal/idempotency` (reserve-then-fill, same as the NestJS
+version but replaying raw JSON bytes instead of a BigInt-aware
+JSON-plain shim — Go's `int64` needs no such shim) and
+`internal/storage` (MinIO receipt storage) as dependencies.
+
+17 expenses integration test cases (personal + group expenses,
+notifications, receipts against real MinIO) + 6 idempotency + 4 receipt
+storage test cases, all passing against real Postgres/MinIO.
 
 ## 6. Balances `[todo]`
 

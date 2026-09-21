@@ -15,10 +15,13 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/config"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/dbpool"
+	"github.com/Substance-k3n/abro/apps/api/internal/expenses"
 	"github.com/Substance-k3n/abro/apps/api/internal/friends"
 	"github.com/Substance-k3n/abro/apps/api/internal/groups"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
+	"github.com/Substance-k3n/abro/apps/api/internal/idempotency"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
+	"github.com/Substance-k3n/abro/apps/api/internal/storage"
 	"github.com/Substance-k3n/abro/apps/api/internal/users"
 )
 
@@ -56,6 +59,14 @@ func main() {
 	groupsSvc := groups.NewService(queries, friendsSvc, notificationsSvc)
 	groupsHandler := groups.NewHandler(groupsSvc, queries)
 
+	receiptStore, err := storage.NewReceiptStorage(cfg.S3Endpoint, cfg.S3Region, cfg.S3AccessKeyID, cfg.S3SecretAccessKey, cfg.ReceiptsBucket)
+	if err != nil {
+		log.Fatalf("receipt storage: %v", err)
+	}
+	idempotencySvc := idempotency.NewService(queries)
+	expensesSvc := expenses.NewService(queries, groupsSvc, friendsSvc, notificationsSvc, receiptStore)
+	expensesHandler := expenses.NewHandler(expensesSvc, idempotencySvc, queries)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -67,6 +78,7 @@ func main() {
 	r.Route("/friends", friendsHandler.Mount)
 	r.Route("/notifications", notificationsHandler.Mount)
 	r.Route("/groups", groupsHandler.Mount)
+	r.Route("/expenses", expensesHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

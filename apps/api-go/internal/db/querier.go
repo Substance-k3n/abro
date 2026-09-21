@@ -14,20 +14,32 @@ type Querier interface {
 	AcceptFriendship(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	ConsumeOtpCode(ctx context.Context, id pgtype.UUID) error
 	CountActiveAdminsExcept(ctx context.Context, arg CountActiveAdminsExceptParams) (int64, error)
+	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
+	CreateExpenseNote(ctx context.Context, arg CreateExpenseNoteParams) (ExpenseNote, error)
+	CreateExpenseParticipant(ctx context.Context, arg CreateExpenseParticipantParams) (ExpenseParticipant, error)
 	CreateFriendship(ctx context.Context, arg CreateFriendshipParams) (Friendship, error)
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreateGroupMember(ctx context.Context, arg CreateGroupMemberParams) (GroupMember, error)
+	// Reservation, written before the guarded operation runs -- a concurrent
+	// duplicate request fails fast on the unique constraint instead of racing
+	// to run the operation twice.
+	CreateIdempotencyKey(ctx context.Context, arg CreateIdempotencyKeyParams) (IdempotencyKey, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
 	// Fans the same event out to several recipients in one statement.
 	CreateNotificationsBulk(ctx context.Context, arg CreateNotificationsBulkParams) ([]Notification, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreateOtpCode(ctx context.Context, arg CreateOtpCodeParams) (OtpCode, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	DeleteExpenseParticipants(ctx context.Context, expenseID pgtype.UUID) error
 	DeleteFriendship(ctx context.Context, id pgtype.UUID) error
+	DeleteIdempotencyKey(ctx context.Context, id pgtype.UUID) error
 	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
+	GetExpenseByID(ctx context.Context, id pgtype.UUID) (Expense, error)
+	GetExpenseParticipant(ctx context.Context, arg GetExpenseParticipantParams) (ExpenseParticipant, error)
 	GetFriendshipByID(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, error)
 	GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMember, error)
+	GetIdempotencyKeyByUserKeyEndpoint(ctx context.Context, arg GetIdempotencyKeyByUserKeyEndpointParams) (IdempotencyKey, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
 	GetNotificationByID(ctx context.Context, id pgtype.UUID) (Notification, error)
 	GetOAuthAccountByProvider(ctx context.Context, arg GetOAuthAccountByProviderParams) (OauthAccount, error)
@@ -38,10 +50,19 @@ type Querier interface {
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (Session, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
+	ListExpenseNotesWithAuthor(ctx context.Context, expenseID pgtype.UUID) ([]ListExpenseNotesWithAuthorRow, error)
+	ListExpenseParticipantsForExpenseIDs(ctx context.Context, expenseIds []pgtype.UUID) ([]ListExpenseParticipantsForExpenseIDsRow, error)
+	ListExpensesByGroup(ctx context.Context, arg ListExpensesByGroupParams) ([]Expense, error)
+	// Personal (non-group) expenses shared between the actor and a specific
+	// friend -- ABRO_PRD.md §22 "Friend Balance" history list.
+	ListExpensesWithFriend(ctx context.Context, arg ListExpensesWithFriendParams) ([]Expense, error)
 	ListFriendships(ctx context.Context, userID pgtype.UUID) ([]ListFriendshipsRow, error)
 	ListGroupMembersWithProfiles(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersWithProfilesRow, error)
 	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
 	ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([]Group, error)
+	// Personal (non-group) expenses the actor participates in, plus every
+	// expense in a group the actor is an ACTIVE member of.
+	ListMyExpenses(ctx context.Context, arg ListMyExpensesParams) ([]Expense, error)
 	ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]ListMyInvitesRow, error)
 	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
 	// true, and a no-op (all rows) when false, in one query.
@@ -58,7 +79,13 @@ type Querier interface {
 	// Exact match only -- never a fuzzy name search, so you can't browse the
 	// user directory.
 	SearchFriendByEmailOrPhone(ctx context.Context, arg SearchFriendByEmailOrPhoneParams) (Profile, error)
+	SetIdempotencyKeyResponse(ctx context.Context, arg SetIdempotencyKeyResponseParams) error
+	SoftDeleteExpense(ctx context.Context, arg SoftDeleteExpenseParams) error
 	TouchSessionLastUsed(ctx context.Context, id pgtype.UUID) error
+	// Editing an expense resubmits the whole thing -- a full overwrite, not a
+	// partial COALESCE update (see updateExpenseSchema == createExpenseSchema).
+	UpdateExpense(ctx context.Context, arg UpdateExpenseParams) (Expense, error)
+	UpdateExpenseReceiptPath(ctx context.Context, arg UpdateExpenseReceiptPathParams) (Expense, error)
 	UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group, error)
 	UpdateGroupMemberRole(ctx context.Context, arg UpdateGroupMemberRoleParams) (GroupMember, error)
 	UpdateGroupMemberStatus(ctx context.Context, arg UpdateGroupMemberStatusParams) (GroupMember, error)

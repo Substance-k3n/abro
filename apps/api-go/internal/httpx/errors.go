@@ -101,6 +101,17 @@ func WriteJSON(w http.ResponseWriter, status int, body any) {
 	}
 }
 
+// WriteRawJSON writes pre-marshaled JSON bytes with the given status code
+// -- for handlers that already have a json.RawMessage (e.g. an idempotent
+// endpoint's cached-or-fresh response).
+func WriteRawJSON(w http.ResponseWriter, status int, body []byte) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	if _, err := w.Write(body); err != nil {
+		log.Printf("ERROR writing response: %v", err)
+	}
+}
+
 // DecodeJSON parses the request body into v, returning a BadRequest
 // *APIError on malformed JSON.
 func DecodeJSON(r *http.Request, v any) error {
