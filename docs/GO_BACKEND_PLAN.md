@@ -92,9 +92,12 @@ simplification) passing against real Postgres.
 `POST /settlements` — the only path allowed to write `SplitType.SETTLEMENT`.
 9 integration test cases passing against real Postgres.
 
-## 8. Analytics `[todo]`
+## 8. Analytics `[done]`
 
-Monthly/yearly spending insights.
+Monthly/yearly spending insights. Written as pure SQL aggregation
+(window-free scalar subqueries + GROUP BY) rather than the N+1
+Promise.all round-trips the Prisma version used. 8 integration test
+cases passing against real Postgres.
 
 ## 9. Notifications `[todo]`
 

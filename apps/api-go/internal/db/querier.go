@@ -34,6 +34,7 @@ type Querier interface {
 	DeleteFriendship(ctx context.Context, id pgtype.UUID) error
 	DeleteIdempotencyKey(ctx context.Context, id pgtype.UUID) error
 	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
+	GetCategoryBreakdown(ctx context.Context, arg GetCategoryBreakdownParams) ([]GetCategoryBreakdownRow, error)
 	GetExpenseByID(ctx context.Context, id pgtype.UUID) (Expense, error)
 	GetExpenseParticipant(ctx context.Context, arg GetExpenseParticipantParams) (ExpenseParticipant, error)
 	GetFriendshipByID(ctx context.Context, id pgtype.UUID) (Friendship, error)
@@ -41,8 +42,15 @@ type Querier interface {
 	GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMember, error)
 	GetGroupOwedSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupOwedSumsRow, error)
 	GetGroupPaidSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupPaidSumsRow, error)
+	// Only groups with actual matching spending appear (an INNER JOIN to
+	// expenses naturally excludes an active membership with zero spend in
+	// the period, same as the original's post-hoc "> 0" filter).
+	GetGroupSpending(ctx context.Context, arg GetGroupSpendingParams) ([]GetGroupSpendingRow, error)
 	GetIdempotencyKeyByUserKeyEndpoint(ctx context.Context, arg GetIdempotencyKeyByUserKeyEndpointParams) (IdempotencyKey, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
+	// Only months with matching spending are returned; the caller fills the
+	// other months of the year with zero.
+	GetMonthlyTrendRaw(ctx context.Context, arg GetMonthlyTrendRawParams) ([]GetMonthlyTrendRawRow, error)
 	GetNotificationByID(ctx context.Context, id pgtype.UUID) (Notification, error)
 	GetOAuthAccountByProvider(ctx context.Context, arg GetOAuthAccountByProviderParams) (OauthAccount, error)
 	GetPairwiseParticipantsInGroup(ctx context.Context, arg GetPairwiseParticipantsInGroupParams) ([]GetPairwiseParticipantsInGroupRow, error)
@@ -53,6 +61,19 @@ type Querier interface {
 	// Cooldown check: most recent OTP sent for this email since `since`.
 	GetRecentOtpCode(ctx context.Context, arg GetRecentOtpCodeParams) (OtpCode, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (Session, error)
+	// direction "paid": settlements the user initiated (paid_by_id = user).
+	GetSettlementsPaid(ctx context.Context, arg GetSettlementsPaidParams) (int64, error)
+	// direction "received": settlements where the user is the recipient
+	// participant (see settlements.Service -- recipient's amount carries the
+	// settled amount, payer's is always 0).
+	GetSettlementsReceived(ctx context.Context, arg GetSettlementsReceivedParams) (int64, error)
+	// Read-only aggregation over expenses/expense_participants -- ABRO_PRD.md
+	// §26. All queries exclude soft-deleted expenses and SETTLEMENT-type rows
+	// (settlements are reported separately, to avoid double-counting a debt
+	// transfer as new "spending").
+	// Total Spending / Your Contribution / Your Share / amount owed for the
+	// period.
+	GetUserTotals(ctx context.Context, arg GetUserTotalsParams) (GetUserTotalsRow, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
 	ListExpenseNotesWithAuthor(ctx context.Context, expenseID pgtype.UUID) ([]ListExpenseNotesWithAuthorRow, error)
