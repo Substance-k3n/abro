@@ -79,10 +79,13 @@ JSON-plain shim — Go's `int64` needs no such shim) and
 notifications, receipts against real MinIO) + 6 idempotency + 4 receipt
 storage test cases, all passing against real Postgres/MinIO.
 
-## 6. Balances `[todo]`
+## 6. Balances `[done]`
 
 Pairwise + group summary + simplified group debts
-(`internal/money.SimplifyDebts`).
+(`internal/money.SimplifyDebts`). Added `internal/money.NetBalance`
+(port of `packages/types/src/balances.ts`) alongside. 7 integration
+test cases (personal, group, conservation invariant, chain
+simplification) passing against real Postgres.
 
 ## 7. Settlements `[todo]`
 

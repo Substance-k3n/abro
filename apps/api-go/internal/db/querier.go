@@ -39,10 +39,15 @@ type Querier interface {
 	GetFriendshipByID(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, error)
 	GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMember, error)
+	GetGroupOwedSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupOwedSumsRow, error)
+	GetGroupPaidSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupPaidSumsRow, error)
 	GetIdempotencyKeyByUserKeyEndpoint(ctx context.Context, arg GetIdempotencyKeyByUserKeyEndpointParams) (IdempotencyKey, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
 	GetNotificationByID(ctx context.Context, id pgtype.UUID) (Notification, error)
 	GetOAuthAccountByProvider(ctx context.Context, arg GetOAuthAccountByProviderParams) (OauthAccount, error)
+	GetPairwiseParticipantsInGroup(ctx context.Context, arg GetPairwiseParticipantsInGroupParams) ([]GetPairwiseParticipantsInGroupRow, error)
+	// Personal-scope (group_id IS NULL) half of getPairwiseBalance's OR query.
+	GetPairwiseParticipantsPersonal(ctx context.Context, arg GetPairwiseParticipantsPersonalParams) ([]GetPairwiseParticipantsPersonalRow, error)
 	GetProfileByEmail(ctx context.Context, email pgtype.Text) (Profile, error)
 	GetProfileByID(ctx context.Context, id pgtype.UUID) (Profile, error)
 	// Cooldown check: most recent OTP sent for this email since `since`.

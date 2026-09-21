@@ -12,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/Substance-k3n/abro/apps/api/internal/auth"
+	"github.com/Substance-k3n/abro/apps/api/internal/balances"
 	"github.com/Substance-k3n/abro/apps/api/internal/config"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/dbpool"
@@ -67,6 +68,9 @@ func main() {
 	expensesSvc := expenses.NewService(queries, groupsSvc, friendsSvc, notificationsSvc, receiptStore)
 	expensesHandler := expenses.NewHandler(expensesSvc, idempotencySvc, queries)
 
+	balancesSvc := balances.NewService(queries)
+	balancesHandler := balances.NewHandler(balancesSvc, groupsSvc, queries)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -79,6 +83,7 @@ func main() {
 	r.Route("/notifications", notificationsHandler.Mount)
 	r.Route("/groups", groupsHandler.Mount)
 	r.Route("/expenses", expensesHandler.Mount)
+	r.Route("/balances", balancesHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
