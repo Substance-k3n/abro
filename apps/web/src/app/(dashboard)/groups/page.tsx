@@ -86,7 +86,7 @@ export default function GroupsPage() {
   const settledGroups = GROUPS.filter((g) => g.balance === 0n);
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:px-8 md:py-8">
+    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       <div className="mb-6 flex items-center justify-between">
         <h2
           className="font-display text-[1.5rem] font-extrabold tracking-tighter"
@@ -110,11 +110,11 @@ export default function GroupsPage() {
           description="Create a group to start splitting expenses with friends."
         />
       ) : (
-        <div className="flex max-w-xl flex-col gap-6">
+        <div className="flex flex-col gap-6">
           {activeGroups.length > 0 && (
             <div>
               <SectionLabel>Active</SectionLabel>
-              <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {activeGroups.map((g) => (
                   <GroupCard key={g.id} group={g} />
                 ))}
@@ -124,7 +124,7 @@ export default function GroupsPage() {
           {settledGroups.length > 0 && (
             <div>
               <SectionLabel>Settled</SectionLabel>
-              <div className="flex flex-col gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {settledGroups.map((g) => (
                   <GroupCard key={g.id} group={g} />
                 ))}

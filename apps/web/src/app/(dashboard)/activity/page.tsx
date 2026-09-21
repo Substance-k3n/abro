@@ -63,7 +63,7 @@ export default function ActivityPage() {
   });
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:px-8 md:py-8">
+    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <h2
         className="font-display mb-5 text-[1.5rem] font-extrabold tracking-tighter"
         style={{ color: 'var(--t-primary)' }}
@@ -72,7 +72,7 @@ export default function ActivityPage() {
       </h2>
 
       {/* Search */}
-      <div className="relative mb-4 max-w-xl">
+      <div className="relative mb-4">
         <Search
           size={16}
           className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
@@ -88,7 +88,7 @@ export default function ActivityPage() {
       </div>
 
       {/* Filter tabs */}
-      <div className="neo-inset-sm hide-scroll mb-5 flex max-w-xl gap-1 overflow-x-auto rounded-[14px] p-1">
+      <div className="neo-inset-sm hide-scroll mb-5 flex gap-1 overflow-x-auto rounded-[14px] p-1">
         {FILTERS.map((f) => (
           <button
             key={f.key}
@@ -109,7 +109,7 @@ export default function ActivityPage() {
           description="Try a different filter or search term."
         />
       ) : (
-        <div className="flex max-w-xl flex-col gap-2.5">
+        <div className="flex flex-col gap-2.5">
           {filtered.map((a) => (
             <ActivityItem
               key={a.id}

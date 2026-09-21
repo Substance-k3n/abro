@@ -47,7 +47,7 @@ export default function FriendsPage() {
   const isEmpty = owedToYou.length === 0 && youOwe.length === 0 && settled.length === 0;
 
   return (
-    <div className="fade-in px-5 py-6 md:px-8 md:py-8">
+    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <h2
@@ -66,7 +66,7 @@ export default function FriendsPage() {
       </div>
 
       {/* Search */}
-      <div className="relative mb-6 max-w-xl">
+      <div className="relative mb-6 max-w-md">
         <Search
           size={17}
           strokeWidth={2}
@@ -92,11 +92,11 @@ export default function FriendsPage() {
           }
         />
       ) : (
-        <div className="flex max-w-xl flex-col gap-6">
+        <div className="flex flex-col gap-6">
           {owedToYou.length > 0 && (
             <div>
               <SectionLabel>People who owe you</SectionLabel>
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 {owedToYou.map((f) => (
                   <PersonRow
                     key={f.id}
@@ -114,7 +114,7 @@ export default function FriendsPage() {
           {youOwe.length > 0 && (
             <div>
               <SectionLabel>People you owe</SectionLabel>
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 {youOwe.map((f) => (
                   <PersonRow
                     key={f.id}
@@ -148,7 +148,7 @@ export default function FriendsPage() {
                 )}
               </button>
               {settledOpen && (
-                <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                   {settled.map((f) => (
                     <PersonRow
                       key={f.id}

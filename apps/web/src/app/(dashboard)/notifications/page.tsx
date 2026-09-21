@@ -29,7 +29,7 @@ export default function NotificationsPage() {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
 
   return (
-    <div className="fade-in px-5 py-6 md:px-8 md:py-8">
+    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       <div className="mb-5 flex items-center justify-between">
         <h2
           className="font-display text-[1.5rem] font-extrabold tracking-tighter"
@@ -53,7 +53,7 @@ export default function NotificationsPage() {
           description="No notifications right now."
         />
       ) : (
-        <div className="flex max-w-xl flex-col gap-2.5">
+        <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
           {notifications.map((n) => {
             const Icon = ICONS[n.icon];
             return (

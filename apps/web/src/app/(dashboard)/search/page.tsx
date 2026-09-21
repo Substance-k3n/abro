@@ -257,10 +257,10 @@ export default function SearchPage() {
   const trimmedQuery = query.trim();
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:px-8 md:py-8">
+    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       {/* Header */}
       <BackButton onBack={() => router.push('/home')} />
-      <div className="relative mb-5 max-w-xl">
+      <div className="relative mb-5">
         <SearchIcon
           size={17}
           strokeWidth={2}
@@ -289,7 +289,7 @@ export default function SearchPage() {
       </div>
 
       {/* Tabs */}
-      <div className="neo-inset-sm hide-scroll mb-5 flex max-w-xl gap-1 overflow-x-auto rounded-[14px] p-1">
+      <div className="neo-inset-sm hide-scroll mb-5 flex gap-1 overflow-x-auto rounded-[14px] p-1">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -315,7 +315,7 @@ export default function SearchPage() {
           description={`Nothing matches "${trimmedQuery}".`}
         />
       ) : (
-        <div className="flex max-w-xl flex-col gap-6">
+        <div className="flex flex-col gap-6">
           {tab === 'all' && (
             <>
               {matchedPeople.length > 0 && (

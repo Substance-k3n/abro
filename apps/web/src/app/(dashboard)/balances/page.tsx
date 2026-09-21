@@ -95,7 +95,7 @@ export default function BalancesPage() {
   const isEmpty = visibleFriendCount + visibleGroupCount === 0;
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:px-8 md:py-8">
+    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       {/* Header */}
       <h2
         className="font-display mb-5 text-[1.5rem] font-extrabold tracking-tighter"
@@ -106,7 +106,7 @@ export default function BalancesPage() {
 
       {/* Filter tabs -- stands in for the spec's "Filter/Sort button" +
           filter sheet; see header comment. */}
-      <div className="neo-inset-sm hide-scroll mb-5 flex max-w-xl gap-1 overflow-x-auto rounded-[14px] p-1">
+      <div className="neo-inset-sm hide-scroll mb-5 flex gap-1 overflow-x-auto rounded-[14px] p-1">
         {FILTERS.map((f) => (
           <button
             key={f.key}
@@ -119,7 +119,7 @@ export default function BalancesPage() {
       </div>
 
       {/* Total Balance Card */}
-      <div className="mb-6 max-w-xl">
+      <div className="mb-6">
         <BalanceCard net={net} owedTotal={owedTotal} oweTotal={oweTotal} />
       </div>
 
@@ -133,13 +133,13 @@ export default function BalancesPage() {
           description="No outstanding balances to show for this filter."
         />
       ) : (
-        <div className="flex max-w-xl flex-col gap-6">
+        <div className="flex flex-col gap-6">
           {showFriends && (owedToYou.length > 0 || youOwe.length > 0) && (
             <div className="flex flex-col gap-4">
               {owedToYou.length > 0 && (
                 <div>
                   <SectionLabel>People who owe you</SectionLabel>
-                  <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                     {owedToYou.map((f) => (
                       <div key={f.id} className="flex items-center gap-2">
                         <div className="flex-1">
@@ -165,7 +165,7 @@ export default function BalancesPage() {
               {youOwe.length > 0 && (
                 <div>
                   <SectionLabel>People you owe</SectionLabel>
-                  <div className="flex flex-col gap-2">
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                     {youOwe.map((f) => (
                       <div key={f.id} className="flex items-center gap-2">
                         <div className="flex-1">
@@ -194,7 +194,7 @@ export default function BalancesPage() {
           {showGroups && groupsWithBalance.length > 0 && (
             <div>
               <SectionLabel>Groups</SectionLabel>
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                 {groupsWithBalance.map((g) => (
                   <div key={g.id} className="flex items-center gap-2">
                     <Link
