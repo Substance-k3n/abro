@@ -16,9 +16,6 @@
     "format:check": "prettier --check .",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "db:generate": "pnpm --filter @abro/api db:generate",
-    "db:migrate": "pnpm --filter @abro/api db:migrate",
-    "db:deploy": "pnpm --filter @abro/api db:deploy",
     "prepare": "husky"
   },
   "devDependencies": {
@@ -34,10 +31,6 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "@nestjs/core",
-      "@prisma/client",
-      "@prisma/engines",
-      "prisma",
       "sharp"
     ]
   }
