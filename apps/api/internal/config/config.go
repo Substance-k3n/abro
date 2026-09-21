@@ -7,6 +7,8 @@ package config
 import (
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -28,9 +30,15 @@ type Config struct {
 	ReceiptsBucket    string
 }
 
+// Load reads .env into the process environment if present (dev
+// convenience -- unlike Node, Go doesn't do this automatically; harmless,
+// silently skipped in prod/CI where the file doesn't exist and real env
+// vars are already set) and returns the resolved Config.
 func Load() Config {
+	_ = godotenv.Load()
+
 	return Config{
-		Port:        getEnv("PORT", "3000"),
+		Port:        getEnv("PORT", "3201"),
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 
 		SessionTTLDays: getEnvInt("SESSION_TTL_DAYS", 30),

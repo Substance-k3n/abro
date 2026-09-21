@@ -15,30 +15,35 @@ where this repo deviates from it.
 abro/
 ├── apps/
 │   ├── web/          Next.js (App Router) — the ABRO frontend, PWA
-│   └── api/           NestJS — auth, financial engine, REST API
+│   └── api/           Go — auth, financial engine, REST API
 ├── packages/
 │   ├── types/         Shared types: Money (integer minor units), split types, DTOs
 │   ├── config/        Shared tsconfig base
 │   └── ui/             Reserved: design system ported from the Figma Make prototype
 ├── infra/
-│   └── docker/dev/     Local Postgres for development
+│   └── docker/dev/     Local Postgres + MinIO for development
 └── docs/
     ├── ABRO_PRD.md              Product requirements (source of truth for scope)
     ├── ABRO_FRONTEND_SPEC.md    42-screen frontend inventory & phased plan
-    └── DECISIONS.md             Architecture decisions, incl. why NestJS not Go/Supabase
+    └── DECISIONS.md             Architecture decisions, incl. ADR-007 (Go rewrite)
 ```
+
+`apps/api`'s original TypeScript/NestJS/Prisma implementation (the
+first full backend build, merged to `dev`) was rewritten in Go per
+`docs/DECISIONS.md` ADR-007 — recoverable from git history if ever
+needed, just no longer the live implementation.
 
 ## Stack
 
-| Layer       | Choice                                 |
-| ----------- | -------------------------------------- |
-| Frontend    | Next.js, TypeScript, Tailwind CSS, PWA |
-| Backend     | NestJS, TypeScript                     |
-| Database    | PostgreSQL + Prisma                    |
-| Validation  | Zod (shared between web and api)       |
-| Monorepo    | pnpm workspaces + Turborepo            |
-| Lint/format | oxlint + Prettier                      |
-| Git hooks   | Husky + lint-staged + commitlint       |
+| Layer       | Choice                                                                 |
+| ----------- | ---------------------------------------------------------------------- |
+| Frontend    | Next.js, TypeScript, Tailwind CSS, PWA                                 |
+| Backend     | Go, `chi`, `pgx`/`sqlc`, `golang-migrate`                              |
+| Database    | PostgreSQL                                                             |
+| Storage     | MinIO (S3-compatible), `minio-go`                                      |
+| Monorepo    | pnpm workspaces + Turborepo (JS side); `apps/api` is a plain Go module |
+| Lint/format | oxlint + Prettier (JS); `gofmt`/`go vet` (Go)                          |
+| Git hooks   | Husky + lint-staged + commitlint                                       |
 
 Money is always an integer in the smallest currency unit (e.g. santim
 for ETB) — never a float — end to end, per `docs/ABRO_PRD.md` §28.
@@ -48,21 +53,25 @@ for ETB) — never a float — end to end, per `docs/ABRO_PRD.md` §28.
 ```bash
 pnpm install
 
-# start local Postgres
+# start local Postgres + MinIO
 docker compose -f infra/docker/dev/compose.yml up -d
 
-# generate the Prisma client + run migrations
-pnpm db:generate
-pnpm db:migrate
+# apply Go backend migrations (golang-migrate; install once with
+# `go install -tags postgres github.com/golang-migrate/migrate/v4/cmd/migrate@latest`)
+migrate -database "$DATABASE_URL" -path apps/api/migrations up
 
-# run both apps
+# run the frontend
 pnpm dev
 # web  → http://localhost:3200
+
+# run the backend, separately -- it's a plain Go module, not a pnpm workspace member
+cd apps/api && go run ./cmd/api
 # api  → http://localhost:3201
 ```
 
-Copy each app's `.env.example` to `.env` first (`apps/web/.env.example`,
-`apps/api/.env.example`).
+Copy `apps/web/.env.example` to `apps/web/.env` and
+`apps/api/.env.example` to `apps/api/.env` first — the Go binary loads
+`apps/api/.env` automatically in dev (see `internal/config`).
 
 ## Where the design comes from
 
@@ -78,6 +87,6 @@ reserved for the design system that comes out of that porting work.
   `fix(web): ...` — scopes: `web`, `api`, `types`, `ui`, `config`,
   `infra`, `docs`, `repo`).
 - Husky runs lint-staged (oxlint + Prettier) on every commit.
-- Every module under `apps/api/src/modules` maps to a PRD feature area
+- Every package under `apps/api/internal` maps to a PRD feature area
   (`docs/ABRO_PRD.md` §32): auth, users, friends, groups, expenses,
   balances, settlements, analytics, notifications, recurring.
