@@ -54,14 +54,7 @@
         "react-in-jsx-scope": "off",
         "no-console": ["warn", { "allow": ["info", "warn", "error", "debug", "trace"] }]
       }
-    },
-    {
-      "files": ["apps/api/**/*.ts"],
-      "rules": {
-        "typescript/no-extraneous-class": "off",
-        "no-console": ["warn", { "allow": ["info", "warn", "error", "debug", "trace"] }]
-      }
     }
   ],
-  "ignorePatterns": ["**/dist/**", "**/.next/**", "**/prisma/migrations/**", "packages/ui/src/**"]
+  "ignorePatterns": ["**/dist/**", "**/.next/**", "packages/ui/src/**"]
 }

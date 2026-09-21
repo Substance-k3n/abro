@@ -6,7 +6,37 @@ on:
     branches: [main]
 
 jobs:
-  ci:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  api:
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -25,8 +55,8 @@ jobs:
     env:
       # apps/api's integration tests hit this DB directly, matching how
       # they're run and verified locally -- see docs/DECISIONS.md and each
-      # module's *.service.spec.ts (no mocked Prisma anywhere in this repo).
-      DATABASE_URL: postgresql://abro:password@localhost:5432/abro
+      # module's *_integration_test.go (no mocked pgx anywhere in this repo).
+      DATABASE_URL: postgres://abro:password@localhost:5432/abro?sslmode=disable
       # docs/DECISIONS.md ADR-006 -- receipt storage tests hit real MinIO,
       # started below (not a `services:` container: the minio/minio image's
       # default CMD has no arguments, and GitHub Actions' `services:` block
@@ -39,21 +69,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-go@v5
         with:
-          node-version-file: '.nvmrc'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Generate Prisma client
-        run: pnpm db:generate
-
-      - name: Apply migrations
-        run: pnpm db:deploy
+          go-version-file: 'apps/api/go.mod'
 
       - name: Start MinIO and provision the receipts bucket
         run: |
@@ -70,16 +88,28 @@ jobs:
           docker exec minio mc mb --ignore-existing local/abro-receipts
 
       - name: Format check
-        run: pnpm format:check
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "$unformatted"
+            exit 1
+          fi
+        working-directory: apps/api
 
-      - name: Lint
-        run: pnpm lint
+      - name: Vet
+        run: go vet ./...
+        working-directory: apps/api
 
-      - name: Typecheck
-        run: pnpm typecheck
+      - name: Apply migrations
+        run: |
+          go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+          migrate -database "$DATABASE_URL" -path migrations up
+        working-directory: apps/api
 
       - name: Test
-        run: pnpm test
+        run: go test ./...
+        working-directory: apps/api
 
       - name: Build
-        run: pnpm build
+        run: go build ./...
+        working-directory: apps/api
