@@ -11,10 +11,15 @@ import (
 )
 
 type Querier interface {
+	AcceptFriendship(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	ConsumeOtpCode(ctx context.Context, id pgtype.UUID) error
+	CreateFriendship(ctx context.Context, arg CreateFriendshipParams) (Friendship, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreateOtpCode(ctx context.Context, arg CreateOtpCodeParams) (OtpCode, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	DeleteFriendship(ctx context.Context, id pgtype.UUID) error
+	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
+	GetFriendshipByID(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
 	GetOAuthAccountByProvider(ctx context.Context, arg GetOAuthAccountByProviderParams) (OauthAccount, error)
 	GetProfileByEmail(ctx context.Context, email pgtype.Text) (Profile, error)
@@ -23,7 +28,12 @@ type Querier interface {
 	GetRecentOtpCode(ctx context.Context, arg GetRecentOtpCodeParams) (OtpCode, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (Session, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
+	ListFriendships(ctx context.Context, userID pgtype.UUID) ([]ListFriendshipsRow, error)
+	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
+	// Exact match only -- never a fuzzy name search, so you can't browse the
+	// user directory.
+	SearchFriendByEmailOrPhone(ctx context.Context, arg SearchFriendByEmailOrPhoneParams) (Profile, error)
 	TouchSessionLastUsed(ctx context.Context, id pgtype.UUID) error
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (Profile, error)
 	// Mirrors Prisma's `upsert({ where: { email }, update: {}, create: {...} })`

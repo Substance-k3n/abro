@@ -55,9 +55,10 @@ test cases + 11 unit test cases, all passing against real Postgres.
 
 `GET/PATCH /users/me`. 3 integration test cases passing.
 
-## 3. Friends `[todo]`
+## 3. Friends `[done]`
 
-Friend search, requests, accept, unfriend.
+Friend search, requests, accept, unfriend. 7 integration test cases
+passing against real Postgres.
 
 ## 4. Groups `[todo]`
 

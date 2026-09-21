@@ -15,6 +15,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/config"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/dbpool"
+	"github.com/Substance-k3n/abro/apps/api/internal/friends"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/users"
 )
@@ -44,6 +45,9 @@ func main() {
 	usersSvc := users.NewService(queries)
 	usersHandler := users.NewHandler(usersSvc, queries)
 
+	friendsSvc := friends.NewService(queries)
+	friendsHandler := friends.NewHandler(friendsSvc, queries)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -52,6 +56,7 @@ func main() {
 
 	r.Route("/auth", authHandler.Mount)
 	r.Route("/users", usersHandler.Mount)
+	r.Route("/friends", friendsHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

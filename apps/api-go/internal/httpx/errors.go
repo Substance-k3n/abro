@@ -39,6 +39,10 @@ func Forbidden(code, message string) *APIError {
 	return NewAPIError(http.StatusForbidden, code, message)
 }
 
+func Conflict(code, message string) *APIError {
+	return NewAPIError(http.StatusConflict, code, message)
+}
+
 func NotFound(code, message string) *APIError {
 	return NewAPIError(http.StatusNotFound, code, message)
 }
