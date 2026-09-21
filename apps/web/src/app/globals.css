@@ -7,10 +7,12 @@
  * next/font/google in layout.tsx, which feeds the same
  * --font-display/--font-body/--font-mono variables used below.
  *
- * Only the primitives the Splash screen needs are ported so far
- * (.neo-raised(-lg), .neo-flat, .neo-btn(-accent), .fade-in). The rest
- * (inputs, toggles, badges, split-card, cat-pill, ...) land alongside
- * the screens that use them — see docs/WIRING_PLAN.md.
+ * Ported so far: .neo-raised(-lg/-sm), .neo-flat, .neo-btn(-accent/-green),
+ * .neo-card-accent, .neo-badge-green/red, .neo-avatar, .neo-inset(-sm),
+ * .neo-input, .otp-box, .neo-tab(.active), .hide-scroll, .notif-dot,
+ * .fade-in — everything Phase 1/2 (auth) and Phase 3 (dashboard) need.
+ * The rest (toggles, split-card, step indicators, cat-pill, ...) land
+ * alongside the screens that use them — see docs/WIRING_PLAN.md.
  */
 
 /* ===================== LIGHT THEME (default) ===================== */
@@ -152,11 +154,25 @@ body {
     -8px -8px 18px var(--neo-light);
 }
 
+.neo-raised-sm {
+  background: var(--neo-bg);
+  box-shadow:
+    4px 4px 10px var(--neo-dark),
+    -4px -4px 10px var(--neo-light);
+}
+
 .neo-raised-lg {
   background: var(--neo-bg);
   box-shadow:
     12px 12px 28px var(--neo-dark),
     -12px -12px 28px var(--neo-light);
+}
+
+.neo-inset {
+  background: var(--neo-bg);
+  box-shadow:
+    inset 5px 5px 12px var(--neo-dark),
+    inset -5px -5px 12px var(--neo-light);
 }
 
 .neo-flat {
@@ -212,6 +228,115 @@ body {
   box-shadow:
     inset 3px 3px 8px var(--neo-dark),
     inset -3px -3px 8px var(--neo-light);
+}
+
+.neo-btn-green {
+  background: linear-gradient(145deg, #34d874, #16a34a);
+  box-shadow:
+    6px 6px 14px rgba(34, 197, 94, 0.3),
+    -4px -4px 10px rgba(255, 255, 255, 0.18);
+  transition: all 0.15s ease;
+  cursor: pointer;
+  user-select: none;
+  color: white;
+}
+
+:root[data-theme='dark'] .neo-btn-green {
+  box-shadow:
+    6px 6px 14px rgba(34, 197, 94, 0.35),
+    -4px -4px 10px rgba(19, 21, 31, 0.6);
+}
+
+.neo-btn-green:active {
+  box-shadow:
+    inset 4px 4px 10px rgba(15, 100, 40, 0.4),
+    inset -2px -2px 6px rgba(255, 255, 255, 0.15);
+  transform: scale(0.98);
+}
+
+.neo-card-accent {
+  background: linear-gradient(145deg, #7c7fff, #5558ee);
+  box-shadow:
+    10px 10px 22px rgba(99, 102, 241, 0.35),
+    -6px -6px 14px rgba(255, 255, 255, 0.18);
+}
+
+:root[data-theme='dark'] .neo-card-accent {
+  box-shadow:
+    10px 10px 22px rgba(99, 102, 241, 0.5),
+    -6px -6px 14px rgba(19, 21, 31, 0.6);
+}
+
+.neo-badge-green {
+  background: var(--green-bg);
+  box-shadow:
+    inset 2px 2px 5px rgba(34, 197, 94, 0.2),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.25);
+  color: var(--c-green);
+}
+
+:root[data-theme='dark'] .neo-badge-green {
+  box-shadow:
+    inset 2px 2px 5px rgba(34, 197, 94, 0.15),
+    inset -2px -2px 5px rgba(40, 44, 63, 0.5);
+}
+
+.neo-badge-red {
+  background: var(--red-bg);
+  box-shadow:
+    inset 2px 2px 5px rgba(239, 68, 68, 0.15),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.25);
+  color: var(--c-red);
+}
+
+:root[data-theme='dark'] .neo-badge-red {
+  box-shadow:
+    inset 2px 2px 5px rgba(239, 68, 68, 0.12),
+    inset -2px -2px 5px rgba(40, 44, 63, 0.5);
+}
+
+.neo-avatar {
+  box-shadow:
+    4px 4px 10px var(--neo-dark),
+    -4px -4px 10px var(--neo-light);
+}
+
+/* Scrollbar hiding */
+.hide-scroll::-webkit-scrollbar {
+  display: none;
+}
+.hide-scroll {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Tab selector */
+.neo-tab {
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--t-nav-inactive);
+}
+
+.neo-tab.active {
+  background: var(--neo-bg);
+  box-shadow:
+    4px 4px 10px var(--neo-dark),
+    -4px -4px 10px var(--neo-light);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Notification dot */
+.notif-dot {
+  width: 8px;
+  height: 8px;
+  background: #ef4444;
+  border-radius: 50%;
+  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
 }
 
 /* Neo input, used by sign-in / profile-setup forms */
