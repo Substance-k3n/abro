@@ -29,6 +29,7 @@ type Querier interface {
 	CreateNotificationsBulk(ctx context.Context, arg CreateNotificationsBulkParams) ([]Notification, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreateOtpCode(ctx context.Context, arg CreateOtpCodeParams) (OtpCode, error)
+	CreateRecurringExpense(ctx context.Context, arg CreateRecurringExpenseParams) (RecurringExpense, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	DeleteExpenseParticipants(ctx context.Context, expenseID pgtype.UUID) error
 	DeleteFriendship(ctx context.Context, id pgtype.UUID) error
@@ -60,6 +61,7 @@ type Querier interface {
 	GetProfileByID(ctx context.Context, id pgtype.UUID) (Profile, error)
 	// Cooldown check: most recent OTP sent for this email since `since`.
 	GetRecentOtpCode(ctx context.Context, arg GetRecentOtpCodeParams) (OtpCode, error)
+	GetRecurringExpenseByID(ctx context.Context, id pgtype.UUID) (RecurringExpense, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (Session, error)
 	// direction "paid": settlements the user initiated (paid_by_id = user).
 	GetSettlementsPaid(ctx context.Context, arg GetSettlementsPaidParams) (int64, error)
@@ -76,6 +78,7 @@ type Querier interface {
 	GetUserTotals(ctx context.Context, arg GetUserTotalsParams) (GetUserTotalsRow, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
+	ListDueRecurringExpenses(ctx context.Context, nextRunAt pgtype.Timestamptz) ([]RecurringExpense, error)
 	ListExpenseNotesWithAuthor(ctx context.Context, expenseID pgtype.UUID) ([]ListExpenseNotesWithAuthorRow, error)
 	ListExpenseParticipantsForExpenseIDs(ctx context.Context, expenseIds []pgtype.UUID) ([]ListExpenseParticipantsForExpenseIDsRow, error)
 	ListExpensesByGroup(ctx context.Context, arg ListExpensesByGroupParams) ([]Expense, error)
@@ -90,6 +93,9 @@ type Querier interface {
 	// expense in a group the actor is an ACTIVE member of.
 	ListMyExpenses(ctx context.Context, arg ListMyExpensesParams) ([]Expense, error)
 	ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]ListMyInvitesRow, error)
+	// Every recurring template the user is involved in, same visibility rule
+	// as expenses.Service.List's default view.
+	ListMyRecurringExpenses(ctx context.Context, userID pgtype.UUID) ([]RecurringExpense, error)
 	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
 	// true, and a no-op (all rows) when false, in one query.
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
@@ -116,6 +122,8 @@ type Querier interface {
 	UpdateGroupMemberRole(ctx context.Context, arg UpdateGroupMemberRoleParams) (GroupMember, error)
 	UpdateGroupMemberStatus(ctx context.Context, arg UpdateGroupMemberStatusParams) (GroupMember, error)
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (Profile, error)
+	UpdateRecurringExpenseEnabled(ctx context.Context, arg UpdateRecurringExpenseEnabledParams) (RecurringExpense, error)
+	UpdateRecurringExpenseNextRunAt(ctx context.Context, arg UpdateRecurringExpenseNextRunAtParams) error
 	// Mirrors Prisma's `upsert({ where: { email }, update: {}, create: {...} })`
 	// -- a genuine no-op on conflict (the "id = profiles.id" self-assignment),
 	// so an existing profile's fields are never touched by a repeat OTP sign-in.

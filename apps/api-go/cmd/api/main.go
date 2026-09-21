@@ -23,6 +23,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idempotency"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
+	"github.com/Substance-k3n/abro/apps/api/internal/recurring"
 	"github.com/Substance-k3n/abro/apps/api/internal/settlements"
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
 	"github.com/Substance-k3n/abro/apps/api/internal/users"
@@ -79,6 +80,9 @@ func main() {
 	analyticsSvc := analytics.NewService(queries)
 	analyticsHandler := analytics.NewHandler(analyticsSvc, queries)
 
+	recurringSvc := recurring.NewService(queries, expensesSvc, notificationsSvc)
+	recurringHandler := recurring.NewHandler(recurringSvc, queries)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -94,6 +98,7 @@ func main() {
 	r.Route("/balances", balancesHandler.Mount)
 	r.Route("/settlements", settlementsHandler.Mount)
 	r.Route("/analytics", analyticsHandler.Mount)
+	r.Route("/recurring", recurringHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

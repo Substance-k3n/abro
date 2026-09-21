@@ -103,9 +103,17 @@ cases passing against real Postgres.
 
 List, mark-read, mark-all-read; retrofit into expenses/settlements/groups.
 
-## 10. Recurring expenses `[todo]`
+## 10. Recurring expenses `[done]`
 
-Create/list/toggle, `POST /recurring/generate-due`.
+Create/list/toggle, `POST /recurring/generate-due`. Template is a real
+Expense (created through `expenses.Service.Create`, not duplicated
+split logic); generation reuses `Create` with `SplitType: EXACT` and
+the template's already-resolved amounts. 7 integration test cases
+passing against real Postgres.
+
+**All 10 domain modules are now done.** Every endpoint the NestJS
+backend had is re-implemented, tested against real Postgres/MinIO.
+Next: §11 cutover.
 
 ## 11. Cutover `[todo]`
 
