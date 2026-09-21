@@ -88,19 +88,70 @@ Splash → Onboarding → Sign in → OTP → Profile setup works with mock
 data, on mobile width and desktop width. Met for desktop; mobile width
 assumed fine (unchanged mobile-first styles) but not tool-verified.
 
-## Phase 3 — Core dashboard `[todo]`
+## Phase 3 — Core dashboard `[done]`
 
 Branch: `feature/dashboard-screens`
 
 `DASH-01`…`DASH-08`: Home, Activity, Friends, Friend Detail, Groups,
 Balances, Notifications, Search. This is where `packages/ui`'s
-financial components earn their keep — `MoneyDisplay`, `BalanceCard`,
-`ActivityItem`, `EmptyState` (`ABRO_FRONTEND_SPEC.md` §12) get built
-for real here, backing them with `@abro/types`' `formatMoney`.
+financial components earn their keep — `MoneyDisplay`, `AmountBadge`,
+`BalanceCard`, `ActivityItem`, `PersonRow`, `EmptyState`, `Avatar`,
+`SectionLabel`, `BackButton`, `CategoryIcon`/`GroupIcon`
+(`ABRO_FRONTEND_SPEC.md` §12) were built for real here, all backed by
+`@abro/types`' `formatMoney` and `MinorUnits` (bigint) — no money value
+anywhere in this phase is a `Number`.
 
-**Acceptance:** all 8 routes render against mock data matching the
+Routes shipped, all under `apps/web/src/app/(dashboard)/`:
+
+- [x] `/home` — DASH-01. Balance card, quick actions, owed-to-you/
+      you-owe split, group summary, recent activity.
+- [x] `/activity` — DASH-02. Search + All/Expenses/Settlements/Groups
+      filter tabs over `ACTIVITIES`' real `type: 'expense'|'settlement'`
+      field; infinite scroll and date-range filter deferred (mock data
+      is a small fixed array with relative-time strings, not real
+      dates).
+- [x] `/friends` — DASH-03. Owed-to-you/you-owe/settled-up (collapsed
+      by default) sections, search.
+- [x] `/friends/[friendId]` — DASH-04. Balance card, Expenses/
+      Settlements tabs (split via `ACTIVITIES`' `type` field, matched
+      to the friend by name since mock `Activity` rows carry no
+      `friendId`), inline actions (add expense, settle up, view
+      all-time spending); remove-friend is a disabled placeholder
+      pending a confirm-dialog pattern and a real DELETE endpoint.
+- [x] `/groups` — DASH-05. Active/settled split, type badge, member
+      count, balance.
+- [x] `/balances` — DASH-06. No prototype reference (spec-only screen)
+      — total balance card combining friends + groups, All/Friends
+      only/Groups only filter, per-row quick-settle links. Currency
+      breakdown and per-currency filter omitted (app is ETB-only
+      today).
+- [x] `/notifications` — DASH-07. Mark-all-read/mark-read actually
+      mutate local state (an improvement over the prototype's inert
+      buttons).
+- [x] `/search` — DASH-08. No prototype reference (spec-only screen) —
+      auto-focused input, All/Expenses/People/Groups tabs, searches
+      across `FRIENDS`, `SEARCH_RESULTS`, `GROUPS`, `ACTIVITIES`.
+      Settlements category and recent-searches/suggestions omitted
+      (need a persistence layer that doesn't exist yet).
+
+Every tappable list row (`PersonRow`, `ActivityItem`) navigates via its
+own `onClick` + `useRouter().push(...)`, not by wrapping the component
+in a `<Link>` — both render internally as a `<button>`, and a `<Link>`
+wrapper would nest a button inside an anchor.
+
+**Verified:** `pnpm typecheck`/`lint`/`build` all pass clean across all
+8 routes (confirmed in `next build`'s route list). Click-through in a
+real browser (desktop width) confirmed: Groups' active/settled split
+and balance coloring, Activity's search + filter tabs, Friends' three
+sections, Friends→Friend Detail navigation and its Expenses/Settlements
+tabs, Balances' combined friends+groups total (owed 4,470 − owed
+6,080 = -1,610 "you owe", correct), and Search's live filtering and
+People-result→Friend Detail navigation — no console errors or React
+warnings on any of them.
+
+**Acceptance met:** all 8 routes render against mock data matching the
 prototype's `FRIENDS`/`GROUPS`/`ACTIVITIES` shape closely enough to
-swap for real API data later without a UI rewrite.
+swap for real API data later without a UI rewrite (Phase 8).
 
 ## Phase 4 — Expense management `[todo]`
 
