@@ -14,6 +14,9 @@ type Querier interface {
 	AcceptFriendship(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	ConsumeOtpCode(ctx context.Context, id pgtype.UUID) error
 	CreateFriendship(ctx context.Context, arg CreateFriendshipParams) (Friendship, error)
+	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
+	// Fans the same event out to several recipients in one statement.
+	CreateNotificationsBulk(ctx context.Context, arg CreateNotificationsBulkParams) ([]Notification, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreateOtpCode(ctx context.Context, arg CreateOtpCodeParams) (OtpCode, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
@@ -21,6 +24,7 @@ type Querier interface {
 	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
 	GetFriendshipByID(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
+	GetNotificationByID(ctx context.Context, id pgtype.UUID) (Notification, error)
 	GetOAuthAccountByProvider(ctx context.Context, arg GetOAuthAccountByProviderParams) (OauthAccount, error)
 	GetProfileByEmail(ctx context.Context, email pgtype.Text) (Profile, error)
 	GetProfileByID(ctx context.Context, id pgtype.UUID) (Profile, error)
@@ -30,6 +34,13 @@ type Querier interface {
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	ListFriendships(ctx context.Context, userID pgtype.UUID) ([]ListFriendshipsRow, error)
 	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
+	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
+	// true, and a no-op (all rows) when false, in one query.
+	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
+	MarkAllNotificationsRead(ctx context.Context, userID pgtype.UUID) error
+	// Preserves the original read_at if already read, rather than bumping it to
+	// now() on every call -- matches the "no-op if already read" behavior.
+	MarkNotificationRead(ctx context.Context, id pgtype.UUID) (Notification, error)
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
 	// Exact match only -- never a fuzzy name search, so you can't browse the
 	// user directory.
