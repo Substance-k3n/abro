@@ -48,7 +48,16 @@ func main() {
 		ClientSecret: cfg.GoogleClientSecret,
 		CallbackURL:  cfg.GoogleCallbackURL,
 	}
-	authSvc := auth.NewService(queries, google, auth.ConsoleOTPMailer{}, cfg.SessionTTLDays)
+
+	var otpMailer auth.OTPMailer = auth.ConsoleOTPMailer{}
+	resendMailer := auth.NewResendOTPMailer(cfg.ResendAPIKey, cfg.ResendFromEmail)
+	if resendMailer.IsConfigured() {
+		otpMailer = resendMailer
+	} else {
+		log.Println("RESEND_API_KEY/RESEND_FROM_EMAIL not set -- OTP codes will be logged to the console, not emailed")
+	}
+
+	authSvc := auth.NewService(queries, google, otpMailer, cfg.SessionTTLDays)
 	authHandler := auth.NewHandler(authSvc, google, queries, cfg.IsProduction(), cfg.WebOrigin)
 
 	usersSvc := users.NewService(queries)

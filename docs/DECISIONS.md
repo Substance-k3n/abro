@@ -203,13 +203,19 @@ now as unnecessary complexity while only a web client exists; revisit
 if/when a mobile client is actually planned.
 
 **Consequence:** `apps/api/.env.example` needs
-`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL` and an
-OTP-email-sending config (provider undecided — dev stub logs the code
-instead of sending it; picking a real provider, e.g. Resend/SES, is a
-separate follow-up before this can go to production). Every
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL`. Every
 authenticated route depends on the session guard reading this table —
 until the `auth` module ships, no other module's endpoints can be
 wired to real authorization.
+
+**OTP provider follow-up (resolved 2026-09-21):** Resend, via a plain
+HTTP POST (`internal/auth.ResendOTPMailer`, no SDK). Selected over SMTP
+(would need a relay/account already in hand) and SES (needs a verified
+AWS sending domain — more setup) for being the lowest-friction to get
+working in dev. Gated the same way as Google OAuth and MinIO —
+`RESEND_API_KEY`/`RESEND_FROM_EMAIL` unset means
+`internal/auth.ConsoleOTPMailer` stays in use (logs the code instead of
+emailing it), so dev/CI never needs a real Resend account.
 
 ---
 

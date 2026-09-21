@@ -23,6 +23,13 @@ type Config struct {
 	GoogleClientSecret string
 	GoogleCallbackURL  string
 
+	// docs/DECISIONS.md ADR-004's "pick a real OTP provider" follow-up --
+	// Resend. Empty ResendAPIKey means auth.ConsoleOTPMailer stays in use
+	// (see cmd/api/main.go), same IsConfigured()-gated pattern as Google
+	// OAuth and MinIO.
+	ResendAPIKey    string
+	ResendFromEmail string
+
 	S3Endpoint        string
 	S3Region          string
 	S3AccessKeyID     string
@@ -48,6 +55,9 @@ func Load() Config {
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleCallbackURL:  os.Getenv("GOOGLE_CALLBACK_URL"),
+
+		ResendAPIKey:    os.Getenv("RESEND_API_KEY"),
+		ResendFromEmail: os.Getenv("RESEND_FROM_EMAIL"),
 
 		S3Endpoint:        os.Getenv("S3_ENDPOINT"),
 		S3Region:          os.Getenv("S3_REGION"),
