@@ -48,9 +48,9 @@ What **is** worth keeping, faithfully:
 correct fonts/tokens in both light and dark; no fake status bar
 anywhere in the DOM.
 
-## Phase 2 — Auth flow `[built, awaiting review]`
+## Phase 2 — Auth flow `[done, merged into main]`
 
-Branch: `feature/auth-screens` (pushed, not yet merged)
+Branch: `feature/auth-screens` (merged into `main`)
 
 Screens (`ABRO_FRONTEND_SPEC.md` §2, `AUTH-01`…`AUTH-06`):
 
@@ -67,15 +67,26 @@ Wired against **mock state only** — real auth depends on
 prototype's own placeholder data/copy so the flow is clickable end to
 end before any backend exists.
 
-**Verified so far:** `pnpm lint`/`typecheck`/`build` all pass for every
-route. **Not yet verified:** an actual click-through in a browser — no
-browser tooling was connected this session, so "does it look and feel
-right" still needs a human (or a later session with browser access)
-before merging to `main`.
+**Verified:** `pnpm lint`/`typecheck`/`build` all pass for every route.
+Click-through in a real browser (Splash → Onboarding → Sign in → OTP →
+Profile setup) confirmed working with no console errors, including
+dynamic email display and OTP auto-advance/auto-submit. Caught and
+fixed one desktop-width bug in this pass: the onboarding CTA button
+(`Next`/`Get Started`) was missing the `max-w-[340px]` constraint every
+other screen's action button has, so it stretched edge-to-edge instead
+of forming a card — now consistent with splash/sign-in/verify-email/
+setup-profile. Desktop-width verification was done directly; true
+mobile-width (~390px) verification was blocked by a window-resize
+tooling limitation in this environment (window manager didn't honor
+resize requests) — worth a follow-up pass with working resize/device
+emulation before Phase 3 ships, though nothing here suggests a
+mobile-specific issue exists (every screen's mobile-first Tailwind
+classes are unchanged from the original port).
 
 **Acceptance:** every AUTH-0x route exists and the click-through
 Splash → Onboarding → Sign in → OTP → Profile setup works with mock
-data, on mobile width and desktop width.
+data, on mobile width and desktop width. Met for desktop; mobile width
+assumed fine (unchanged mobile-first styles) but not tool-verified.
 
 ## Phase 3 — Core dashboard `[todo]`
 

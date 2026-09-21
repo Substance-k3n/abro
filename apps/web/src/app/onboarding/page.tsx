@@ -87,7 +87,7 @@ export default function OnboardingPage() {
 
       <button
         onClick={advance}
-        className="neo-btn-accent font-display w-full rounded-[18px] px-4 py-4 text-base font-semibold"
+        className="neo-btn-accent font-display w-full max-w-[340px] rounded-[18px] px-4 py-4 text-base font-semibold"
       >
         {isLast ? 'Get Started' : 'Next'}
       </button>
