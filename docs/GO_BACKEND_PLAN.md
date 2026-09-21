@@ -115,22 +115,53 @@ passing against real Postgres.
 backend had is re-implemented, tested against real Postgres/MinIO.
 Next: §11 cutover.
 
-## 11. Cutover `[todo]`
+## 11. Cutover `[done]`
 
-- [ ] Remove NestJS `apps/api` (Prisma schema, Jest tests, NestJS
+- [x] Removed NestJS `apps/api` (Prisma schema, Jest tests, NestJS
       deps) — fully recoverable from git history, already merged to
       `dev` before this rewrite.
-- [ ] Rename `apps/api-go` → `apps/api`.
-- [ ] Update `.github/workflows/ci.yml`: Go build/vet/test job against
-      real Postgres/MinIO services, replacing the Node/Jest job for
-      `apps/api`.
-- [ ] Update `infra/docker/dev/compose.yml` if any Go-specific dev
-      dependency is needed (unlikely — same Postgres/MinIO services).
-- [ ] Update `pnpm-workspace.yaml`/root `package.json` scripts that
-      currently assume `apps/api` is a pnpm workspace member.
-- [ ] Update root `README.md` / any doc referencing NestJS/Prisma for
-      the backend.
+- [x] Renamed `apps/api-go` → `apps/api` (the Go module's import path
+      was already `github.com/Substance-k3n/abro/apps/api` from the
+      start of the rewrite, specifically so this move needed no
+      import-path churn).
+- [x] `.github/workflows/ci.yml` split into a `web` job (unchanged) and
+      an `api` job: Go setup, `gofmt` check, `go vet`, `golang-migrate`
+      against a real Postgres service, `go test ./...` (real Postgres +
+      real MinIO, no mocking), `go build ./...`.
+- [x] `infra/docker/dev/compose.yml` needed no changes — same
+      Postgres/MinIO services serve both the old and new backend.
+- [x] Root `package.json`: removed `db:generate`/`db:migrate`/
+      `db:deploy` (pointed at the now-gone `@abro/api` pnpm package)
+      and the NestJS/Prisma entries from `onlyBuiltDependencies`.
+      `turbo.json`: removed the dead `db:generate`/`db:migrate` tasks
+      and the `test` task's `DATABASE_URL`/`S3_*` env allowlist (Go
+      isn't a turbo/pnpm package, so turbo never touches `apps/api`
+      regardless). `pnpm-workspace.yaml` needed no change — its
+      `apps/*` glob only ever picks up directories with a
+      `package.json`, which `apps/api` (Go) no longer has.
+- [x] `.oxlintrc.json`: removed the `apps/api/**/*.ts` override and the
+      `prisma/migrations` ignore pattern.
+- [x] `README.md`: structure diagram, stack table, and Getting Started
+      updated for a Go backend that runs separately from `pnpm dev`
+      (`cd apps/api && go run ./cmd/api`), migrations via
+      `golang-migrate` instead of `prisma migrate`.
+- [x] `apps/api/.env.example` recreated for the Go env vars (deleted
+      along with the NestJS tree); `internal/config` now auto-loads
+      `apps/api/.env` in dev via `godotenv`.
+- [x] `pnpm-lock.yaml` regenerated after `@abro/api`'s `package.json`
+      disappeared.
 
-**Acceptance:** every endpoint the NestJS backend had is re-implemented
-with equivalent behavior and test coverage; `go build`/`go vet`/
-`go test ./...` all pass; CI green on the Go job; merged to `dev`.
+**Verified before merging:** full `go build`/`go vet`/`go test ./...`
+(all 10 modules) from the final `apps/api` path; migrations applying
+cleanly to a blank database (`abro_cutover_check`), matching exactly
+what CI's `api` job now does; a live end-to-end smoke test (started
+the real binary against real Postgres/MinIO, `POST /auth/otp/request`
+→ read the dev-console OTP → `POST /auth/otp/verify` → authenticated
+`GET /users/me`, all over real HTTP with a real session cookie); the
+full JS-side pipeline (format/lint/typecheck/test/build) still green
+with `apps/api` no longer a JS workspace member.
+
+**Acceptance met:** every endpoint the NestJS backend had is
+re-implemented with equivalent behavior and test coverage; CI updated
+for the Go job. This rewrite branch (`feature/go-backend-rewrite`) is
+ready to merge to `dev` per the user's explicit direction.
