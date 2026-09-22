@@ -204,12 +204,72 @@ the shared money utilities; the review step's total always matches
 `sum(participant shares)` (enforced via `isSplitValid`, which itself
 calls `assertSharesMatchTotal` for the Exact method).
 
-## Phase 5 — Groups `[todo]`
+## Phase 5 — Groups `[done]`
 
-Branch: `feature/group-screens`
+Branches: `feature/group-create-wizard`, `feature/group-detail`,
+`feature/group-expenses-balances`, `feature/group-members-settings`,
+`feature/group-simplified-debts` (five PRs, #11-#15, each merged into
+`dev` -- same per-PR pattern Phase 4 established).
 
 `GRP-01`…`GRP-08`: create group, add members, group detail/expenses/
 balances/members/settings, simplified debt view.
+
+Routes shipped, all under `apps/web/src/app/`:
+
+- [x] `groups/new` (GRP-01, Basic Info) + `groups/new/members` (GRP-02)
+      -- a routed 2-step wizard sharing state via `GroupDraftProvider`,
+      same pattern as the expense wizard. No separate review step,
+      unlike the prototype's 3-step flow -- the spec only describes two
+      screens.
+- [x] `(dashboard)/groups/[id]` (GRP-03, Detail) with Expenses/
+      Balances/Members tabs, correctly scoped to the real group (the
+      prototype hardcodes `GROUPS[0]` and scopes every tab to _all_ of
+      `FRIENDS` regardless of real membership -- fixed here).
+- [x] `groups/[id]/expenses` (GRP-04) and `groups/[id]/balances`
+      (GRP-05) -- full-page expansions of GRP-03's tab previews, with
+      filtering (GRP-04) and an Individual/Simplified toggle (GRP-05).
+      GRP-05's Simplified view is the first UI in this app to call
+      `@abro/types`' `simplifyDebts()` -- the same tested function
+      `apps/api` already uses server-side (`ABRO_PRD.md` §18).
+- [x] `groups/[id]/members` (GRP-06) -- includes a real (not
+      placeholder) Add Member flow backed by a new `addGroupMember()`
+      mock-data helper.
+- [x] `groups/[id]/settings` (GRP-07) -- Basic Info, Financial Settings
+      (including a real "currency locked once expenses exist"
+      validation and a Simplify-debts toggle that actually gates
+      GRP-05/GRP-08), Notifications (local UI state only, no real
+      event system to wire to), Danger Zone (disabled placeholders).
+- [x] `groups/[id]/simplified` (GRP-08) -- the standalone version of
+      GRP-05's Simplified view, with an inline algorithm-explanation
+      panel.
+
+Consistently deviated from spec in one way across GRP-05/GRP-08:
+"who owes whom (full network)" / "N payments instead of M" both
+assume a real pairwise expense/settlement graph this app doesn't
+model (only aggregate net positions, `GROUP_BALANCES` in
+`~/lib/mock-data.ts`) -- fabricating one just to fill those spec
+bullets would be invented data, which this project's workflow
+explicitly avoids. Both screens show the honest subset instead (net
+positions; the real simplified payment count with no "instead of"
+comparison).
+
+**Verified:** `pnpm typecheck`/`lint`/`build` all pass clean across
+all 16 screens. Manual browser click-through confirmed: the full
+create-group → real detail page → back-to-list loop (closing a gap
+PR1 couldn't verify on its own, since the detail page didn't exist
+yet); `GROUP_BALANCES` summing to exactly zero across every group;
+`simplifyDebts()` producing correct results on real group data;
+Group Expenses' category filter; a real Add Member mutation (caught
+and fixed one bug here -- a missing re-render trigger after a
+module-level mutation, see PR4); and Settings' currency-lock
+validation (disabled with expenses present, enabled without) plus its
+Save flow actually persisting via `updateGroup()`. No console errors
+on any screen.
+
+**Acceptance met:** all 8 screens work against mock data, scoped
+correctly to the group they belong to (not the prototype's
+hardcoded-first-group shortcut); the shared debt-simplification code
+`apps/api` already ships with is now exercised by the frontend too.
 
 ## Phase 6 — Settlement `[todo]`
 
