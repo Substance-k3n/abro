@@ -31,6 +31,14 @@ export const CATEGORIES = [
   { label: 'Other', icon: '📦' },
 ] as const;
 
+/** The logged-in user's mock identity -- reused wherever "you" needs an
+ * avatar/name (Home's greeting header, and Phase 4's add-expense wizard
+ * payer/participant selection). Noted, not fixed: this happens to share
+ * a name with FRIENDS id '3' ("Nesredin Haile") -- a pre-existing mock-
+ * data coincidence from Phase 3, not introduced here. UI copy always
+ * says "You" rather than the name to avoid confusion with that friend. */
+export const CURRENT_USER = { name: 'Nesredin', initials: 'NH', color: '#f59e0b' };
+
 export interface Friend {
   id: string;
   name: string;

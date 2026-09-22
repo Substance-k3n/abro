@@ -25,7 +25,7 @@ import {
 import { Bell, Handshake, Plus, Receipt, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
 
-import { ACTIVITIES, FRIENDS, GROUPS, NOTIFICATIONS } from '~/lib/mock-data';
+import { ACTIVITIES, CURRENT_USER, FRIENDS, GROUPS, NOTIFICATIONS } from '~/lib/mock-data';
 
 const QUICK_ACTIONS = [
   { label: 'Add Expense', href: '/expenses/new', icon: Plus, accent: true },
@@ -50,7 +50,7 @@ export default function HomePage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Avatar initials="NH" color="#f59e0b" size={44} />
+          <Avatar initials={CURRENT_USER.initials} color={CURRENT_USER.color} size={44} />
           <div>
             <p className="mb-0.5 text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
               Good morning
@@ -59,7 +59,7 @@ export default function HomePage() {
               className="font-display text-[1.3rem] font-bold tracking-tight"
               style={{ color: 'var(--t-primary)' }}
             >
-              Nesredin
+              {CURRENT_USER.name}
             </h2>
           </div>
         </div>
