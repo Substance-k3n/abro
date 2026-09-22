@@ -79,6 +79,31 @@ export const FRIENDS: Friend[] = [
   { id: '5', name: 'Dawit Alemu', initials: 'DA', color: '#8b5cf6', owes: etb(950), iOwe: etb(0) },
 ];
 
+export interface ParticipantIdentity {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+}
+
+/** Resolves a wizard participant id (the `ME` sentinel from
+ * ~/lib/expense-draft.tsx, or a FRIENDS id) to a display identity.
+ * Every add-expense split screen (EXP-04..EXP-08) needs this -- "you"
+ * can be a participant just like any friend, and needs the same
+ * avatar/name treatment in a shares list. Takes the id directly rather
+ * than importing `ME` from expense-draft.tsx to avoid mock-data.ts
+ * depending on wizard-specific state; callers compare against their own
+ * `ME` import. */
+export function resolveParticipants(ids: readonly string[]): ParticipantIdentity[] {
+  return ids.map((id) => {
+    const friend = FRIENDS.find((f) => f.id === id);
+    if (friend) {
+      return friend;
+    }
+    return { id, name: 'You', initials: CURRENT_USER.initials, color: CURRENT_USER.color };
+  });
+}
+
 export interface Group {
   id: string;
   name: string;
