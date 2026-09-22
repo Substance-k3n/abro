@@ -119,6 +119,9 @@ export interface Group {
    * `memberIds.length === members - 1` always holds. Used by the
    * add-expense wizard to pre-select a group expense's participants. */
   memberIds: string[];
+  /** Phase 5 addition, display-ready like ExpenseRecord.createdAt --
+   * GRP-03's Group Info Card wants a "Created date". */
+  createdAt: string;
 }
 
 export const GROUPS: Group[] = [
@@ -132,6 +135,7 @@ export const GROUPS: Group[] = [
     color: '#6366f1',
     lastActivity: '2h ago',
     memberIds: ['1', '2', '3', '5'],
+    createdAt: 'Aug 3, 2026',
   },
   {
     id: 'g2',
@@ -143,6 +147,7 @@ export const GROUPS: Group[] = [
     color: 'var(--c-amber)',
     lastActivity: 'Yesterday',
     memberIds: ['1', '2', '5'],
+    createdAt: 'Sep 10, 2026',
   },
   {
     id: 'g3',
@@ -154,6 +159,7 @@ export const GROUPS: Group[] = [
     color: '#14b8a6',
     lastActivity: '3 days ago',
     memberIds: ['2', '3'],
+    createdAt: 'Jun 1, 2026',
   },
 ];
 
@@ -176,7 +182,13 @@ export const GROUP_TYPES: { id: string; label: string; icon: string; color: stri
  * (~/lib/mock-data.ts), not a real backend. `memberIds` should not
  * include 'me' (implicit in every group, per Group.memberIds' own
  * doc comment). New groups start with a zero balance and no last
- * activity, since there's nothing to owe yet with zero expenses. */
+ * activity, since there's nothing to owe yet with zero expenses --
+ * also seeds GROUP_BALANCES with an all-zero row so every screen that
+ * reads it (GRP-03/05/06/08) doesn't need a "might be missing" guard
+ * for a freshly created group. References GROUP_BALANCES (defined
+ * below, in module source order) safely -- by the time this function
+ * is actually called from a click handler, module evaluation has long
+ * finished top to bottom. */
 export function createGroup(input: { name: string; type: string; memberIds: string[] }): Group {
   const groupType = GROUP_TYPES.find((t) => t.id === input.type) ?? GROUP_TYPES[0]!;
   const group: Group = {
@@ -189,10 +201,31 @@ export function createGroup(input: { name: string; type: string; memberIds: stri
     color: groupType.color,
     lastActivity: 'Just now',
     memberIds: input.memberIds,
+    createdAt: 'Just now',
   };
   GROUPS.push(group);
+  GROUP_BALANCES[group.id] = Object.fromEntries(['me', ...input.memberIds].map((id) => [id, 0n]));
   return group;
 }
+
+/**
+ * Phase 5 addition: every member's net position within a group (positive
+ * = owed, negative = owes, matching debt-simplification.ts's NetPosition
+ * convention), keyed by group id then participant id ('me' or a FRIENDS
+ * id). Each group's values sum to exactly zero, same ledger-conservation
+ * invariant real balances must hold -- money owed within a closed group
+ * always nets out, it doesn't appear or vanish. 'me''s entry always
+ * matches that group's Group.balance, for consistency with every other
+ * screen that already shows "your balance in this group".
+ *
+ * g3 (Apartment 12B) is deliberately all-zero -- the one worked example
+ * of GRP-05's "All settled up!" empty state.
+ */
+export const GROUP_BALANCES: Record<string, Record<string, MinorUnits>> = {
+  g1: { me: etb(1750), '1': etb(-700), '2': etb(-300), '3': etb(-350), '5': etb(-400) },
+  g2: { me: etb(-3200), '1': etb(1500), '2': etb(1000), '5': etb(700) },
+  g3: { me: etb(0), '2': etb(0), '3': etb(0) },
+};
 
 export interface Activity {
   id: string;

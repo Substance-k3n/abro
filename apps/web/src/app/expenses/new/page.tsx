@@ -18,9 +18,17 @@
 //  - Group selector is a flat list of pills (Personal + each GROUPS
 //    entry), not a dropdown/sheet -- GROUPS has only 3 mock entries, not
 //    enough to need a searchable picker yet.
+//  - Phase 5 addition: a `?groupId=` query param (used by Group Detail's
+//    and Group Expenses' "Add expense" quick actions, per GRP-03/GRP-04)
+//    pre-selects that group once, on mount, without overriding a group
+//    the user has already picked by navigating back to this step.
+//    useSearchParams() requires a Suspense boundary (Next.js opts a page
+//    using it out of full static rendering otherwise) -- the default
+//    export below just wraps the real page in one.
 
 import { ArrowRight, X } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect } from 'react';
 
 import { useExpenseDraft } from '~/lib/expense-draft';
 import { CATEGORIES, GROUPS } from '~/lib/mock-data';
@@ -28,8 +36,25 @@ import { CATEGORIES, GROUPS } from '~/lib/mock-data';
 const QUICK_NAMES = ['Lunch', 'Dinner', 'Coffee', 'Groceries'];
 
 export default function AddExpenseDetailsPage() {
+  return (
+    <Suspense>
+      <AddExpenseDetailsForm />
+    </Suspense>
+  );
+}
+
+function AddExpenseDetailsForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { draft, update } = useExpenseDraft();
+
+  useEffect(() => {
+    const groupId = searchParams.get('groupId');
+    if (groupId && draft.groupId === null && GROUPS.some((g) => g.id === groupId)) {
+      update({ groupId });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const amount = Number(draft.amountInput);
   const isValid = draft.name.trim().length > 0 && Number.isFinite(amount) && amount > 0;
