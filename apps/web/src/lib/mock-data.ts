@@ -13,6 +13,24 @@ import type { MinorUnits } from '@abro/types';
  * already in minor units. */
 const etb = (amount: number): MinorUnits => BigInt(Math.round(amount * 100));
 
+/** Expense categories, ported from the prototype's `CATEGORIES` constant
+ * (App.tsx:234) for Phase 4 (EXP-01's category selector). The frontend
+ * spec's category list also includes "Restaurant"; the prototype (what's
+ * actually wired) doesn't distinguish it from "Food", so it's treated as
+ * covered by "Food" here too -- documented, not a bug. */
+export const CATEGORIES = [
+  { label: 'Food', icon: '🍽️' },
+  { label: 'Coffee', icon: '☕' },
+  { label: 'Transport', icon: '🚗' },
+  { label: 'Groceries', icon: '🛒' },
+  { label: 'Rent', icon: '🏠' },
+  { label: 'Utilities', icon: '⚡' },
+  { label: 'Entertainment', icon: '🎬' },
+  { label: 'Shopping', icon: '🛍️' },
+  { label: 'Travel', icon: '✈️' },
+  { label: 'Other', icon: '📦' },
+] as const;
+
 export interface Friend {
   id: string;
   name: string;
@@ -63,6 +81,11 @@ export interface Group {
   icon: string;
   color: string;
   lastActivity: string;
+  /** Phase 4 addition: which FRIENDS this group's non-"you" members are.
+   * `members` (the count) predates this and already includes "you", so
+   * `memberIds.length === members - 1` always holds. Used by the
+   * add-expense wizard to pre-select a group expense's participants. */
+  memberIds: string[];
 }
 
 export const GROUPS: Group[] = [
@@ -75,6 +98,7 @@ export const GROUPS: Group[] = [
     icon: '👫',
     color: '#6366f1',
     lastActivity: '2h ago',
+    memberIds: ['1', '2', '3', '5'],
   },
   {
     id: 'g2',
@@ -85,6 +109,7 @@ export const GROUPS: Group[] = [
     icon: '✈️',
     color: 'var(--c-amber)',
     lastActivity: 'Yesterday',
+    memberIds: ['1', '2', '5'],
   },
   {
     id: 'g3',
@@ -95,6 +120,7 @@ export const GROUPS: Group[] = [
     icon: '🏠',
     color: '#14b8a6',
     lastActivity: '3 days ago',
+    memberIds: ['2', '3'],
   },
 ];
 
