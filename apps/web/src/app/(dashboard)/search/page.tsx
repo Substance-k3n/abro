@@ -68,11 +68,12 @@
 //    mock-data screen. A neutral prompt is shown instead.
 //  - Loading state is skipped: search runs synchronously over small
 //    in-memory arrays, nothing to await.
-//  - Expenses: ACTIVITIES stands in for a dedicated Expense mock array
-//    (none exists yet) -- `title`/`sub` are matched and rendered via
-//    ActivityItem, the same substitution Home/Activity already make.
-//    No expense detail route exists either, so expense rows link to
-//    `/activity` instead of a per-expense page.
+//  - Expenses: ACTIVITIES stands in for search purposes -- `title`/`sub`
+//    are matched and rendered via ActivityItem, the same substitution
+//    Home/Activity already make. Rows whose `type` is `'expense'` link
+//    to `/expenses/[id]` (EXP-09, added in Phase 4's last PR); a
+//    `'settlement'` row still links to `/activity` since there's no
+//    settlement detail route.
 //  - People: matched across both `FRIENDS` (has a real balance, shown
 //    via MoneyDisplay per spec) and `SEARCH_RESULTS` (a `SearchPerson`
 //    shape with no balance field -- these read as non-friend people
@@ -215,7 +216,9 @@ function ExpenseResultRow({ activity }: { activity: Activity }) {
       amount={activity.amount}
       dir={activity.dir}
       time={activity.time}
-      onClick={() => router.push('/activity')}
+      onClick={() =>
+        router.push(activity.type === 'expense' ? `/expenses/${activity.id}` : '/activity')
+      }
     />
   );
 }

@@ -153,20 +153,56 @@ warnings on any of them.
 prototype's `FRIENDS`/`GROUPS`/`ACTIVITIES` shape closely enough to
 swap for real API data later without a UI rewrite (Phase 8).
 
-## Phase 4 — Expense management `[todo]`
+## Phase 4 — Expense management `[done]`
 
-Branch: `feature/expense-screens`
+Branches: `feature/expense-wizard-foundation`, `feature/expense-payer-
+participants`, `feature/expense-split-methods`, `feature/expense-
+review`, `feature/expense-detail-edit` (five PRs, #6-#10, each merged
+into `dev` — this phase was split up per-PR rather than one branch, per
+the new `abro-git-workflow` skill).
 
 `EXP-01`…`EXP-10`: the add-expense wizard (basic details → payer →
 participants → split method → exact/percentage/shares → review),
 expense detail, edit. This is the first screen set that actually calls
-`@abro/types`' `assertSharesMatchTotal`/`splitEqually` client-side for
-live validation — the same functions `apps/api` uses server-side, per
-`docs/DECISIONS.md` ADR-002's whole reason for sharing `packages/types`.
+`@abro/types`' `assertSharesMatchTotal`/`splitEqually`/`splitByWeights`
+client-side for live validation — the same functions `apps/api` uses
+server-side, per `docs/DECISIONS.md` ADR-002's whole reason for sharing
+`packages/types`.
 
-**Acceptance:** all four split methods validate correctly against the
-shared money utilities; the review step's total always matches
-`sum(participant shares)`.
+Routes shipped, all under `apps/web/src/app/`:
+
+- [x] `expenses/new` (EXP-01, Details), `expenses/new/payer` (EXP-02),
+      `expenses/new/participants` (EXP-03), `expenses/new/split`
+      (EXP-04) + `.../exact`/`.../percentage`/`.../shares` (EXP-05/06/
+      07), `expenses/new/review` (EXP-08) — a routed multi-step wizard
+      (not the prototype's single collapsed screen — see
+      `expense-draft.tsx`'s header comment) sharing state via
+      `ExpenseDraftProvider`, outside the `(dashboard)` chrome per the
+      spec's "modal/sheet" framing for this flow.
+- [x] `(dashboard)/expenses/[id]` (EXP-09, Detail view) and
+      `expenses/[id]/edit` (EXP-10, Edit) — added in the last PR, along
+      with a new `EXPENSES` mock array (`~/lib/mock-data.ts`) and the
+      first real navigation from Home/Activity/Friend Detail/Search's
+      activity rows into a per-expense detail page (previously
+      display-only). EXP-10 is deliberately scoped down from a full
+      pre-filled wizard re-run — see its header comment for why.
+
+**Verified:** `pnpm typecheck`/`lint`/`build` all pass clean across all
+10 screens. Manual browser click-through of the full create flow
+(Details → Payer → Participants → Split → Review → Create, including a
+group expense with pre-selected members) and the detail/edit flow
+(opening a real expense, editing its amount and participants, and
+confirming the recalculated split persists) — both confirmed correct
+arithmetic and no console errors. Split-method math specifically
+verified with real numbers: Equal (333 ETB ÷ 3 → 111.00 each exactly),
+Exact (3-state balanced/over/under badge), Percentage (50/30/20 of 333
+→ 166.50/99.90/66.60, summing back to exactly 333.00), Shares (weights
+1/3/1 of 333 → 66.60/199.80/66.60, summing back to exactly 333.00).
+
+**Acceptance met:** all four split methods validate correctly against
+the shared money utilities; the review step's total always matches
+`sum(participant shares)` (enforced via `isSplitValid`, which itself
+calls `assertSharesMatchTotal` for the Exact method).
 
 ## Phase 5 — Groups `[todo]`
 

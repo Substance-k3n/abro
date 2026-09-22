@@ -162,6 +162,7 @@ export default function FriendDetailPage() {
                 amount={a.amount}
                 dir={a.dir}
                 time={a.time}
+                onClick={tab === 'expenses' ? () => router.push(`/expenses/${a.id}`) : undefined}
               />
             ))
           )}
