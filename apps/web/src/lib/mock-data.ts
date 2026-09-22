@@ -157,6 +157,43 @@ export const GROUPS: Group[] = [
   },
 ];
 
+/** Ported from the prototype's GROUP_TYPES constant (App.tsx:5141),
+ * plus "Other" (spec's GRP-01 lists 6 types; the prototype only has 5).
+ * `icon` values match packages/ui/src/icons.tsx's GROUP_ICONS map keys,
+ * so a newly created group's icon renders via the same GroupIcon
+ * component every existing group already uses. */
+export const GROUP_TYPES: { id: string; label: string; icon: string; color: string }[] = [
+  { id: 'Friends', label: 'Friends', icon: '👫', color: '#6366f1' },
+  { id: 'Trip', label: 'Trip', icon: '✈️', color: 'var(--c-amber)' },
+  { id: 'Household', label: 'Household', icon: '🏠', color: '#14b8a6' },
+  { id: 'Family', label: 'Family', icon: '👨‍👩‍👧', color: '#ec4899' },
+  { id: 'Team', label: 'Team', icon: '💼', color: '#8b5cf6' },
+  { id: 'Other', label: 'Other', icon: '💸', color: '#64748b' },
+];
+
+/** Creates a new group and appends it to the shared GROUPS array in
+ * place -- same module-level-mutation pattern as updateExpense
+ * (~/lib/mock-data.ts), not a real backend. `memberIds` should not
+ * include 'me' (implicit in every group, per Group.memberIds' own
+ * doc comment). New groups start with a zero balance and no last
+ * activity, since there's nothing to owe yet with zero expenses. */
+export function createGroup(input: { name: string; type: string; memberIds: string[] }): Group {
+  const groupType = GROUP_TYPES.find((t) => t.id === input.type) ?? GROUP_TYPES[0]!;
+  const group: Group = {
+    id: `g${GROUPS.length + 1}`,
+    name: input.name,
+    type: input.type,
+    members: input.memberIds.length + 1,
+    balance: 0n,
+    icon: groupType.icon,
+    color: groupType.color,
+    lastActivity: 'Just now',
+    memberIds: input.memberIds,
+  };
+  GROUPS.push(group);
+  return group;
+}
+
 export interface Activity {
   id: string;
   type: 'expense' | 'settlement';
