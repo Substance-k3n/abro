@@ -115,7 +115,11 @@ export default function FriendDetailPage() {
             className="font-display mb-4 block text-[2rem] font-extrabold tracking-tighter"
             style={{ color: balance < 0n ? 'var(--c-red)' : 'var(--c-green)' }}
           />
-          {balance !== 0n && (
+          {/* Only shown when you owe them: apps/api/internal/settlements/
+              service.go only lets the debtor record a settlement (ADR-003),
+              so "they owe you" has no valid settle action from this
+              session -- see settle/page.tsx's header comment. */}
+          {balance < 0n && (
             <Link
               href={`/settle?friendId=${friend.id}`}
               className="neo-btn-green font-display inline-block rounded-2xl px-7 py-3 text-[0.9rem] font-semibold"

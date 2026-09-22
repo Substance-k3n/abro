@@ -16,13 +16,15 @@
 //    button, not a full-screen backdrop modal -- consistent with this
 //    app's established pattern of inline reveals over a modal library
 //    (Expense Detail's "•••" menu, Group Members' "•••" menu, etc.).
-//  - "Mark as Settled" / "Record full settlement" are disabled
-//    placeholders, same reasoning as GRP-05's identical button and
-//    every other destructive/state-changing mock action in this app.
+//  - "Mark as Settled" links into the real /settle flow (Phase 6) only
+//    for payments where you're the payer -- same ADR-003 reasoning as
+//    GRP-05's identical button; a payment owed *to* you stays a
+//    disabled placeholder (no valid settle action from this session).
 
 import { ETB, type NetPosition, formatMoney, simplifyDebts } from '@abro/types';
 import { Avatar, EmptyState } from '@abro/ui';
 import { ArrowLeft, ArrowRight, Handshake, Info, Users } from 'lucide-react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -154,15 +156,24 @@ export default function SimplifiedDebtsPage() {
                       {formatMoney(tx.amount, ETB)}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    disabled
-                    title="Coming soon"
-                    className="neo-flat cursor-not-allowed rounded-xl py-2 text-[0.78rem] font-semibold opacity-50"
-                    style={{ color: 'var(--c-green)' }}
-                  >
-                    Mark as Settled
-                  </button>
+                  {tx.fromUserId === ME ? (
+                    <Link
+                      href={`/settle?groupId=${group.id}&toUserId=${tx.toUserId}`}
+                      className="neo-btn-green rounded-xl py-2 text-center text-[0.78rem] font-semibold"
+                    >
+                      Mark as Settled
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled
+                      title="They need to record this from their side"
+                      className="neo-flat cursor-not-allowed rounded-xl py-2 text-[0.78rem] font-semibold opacity-50"
+                      style={{ color: 'var(--c-green)' }}
+                    >
+                      Mark as Settled
+                    </button>
+                  )}
                 </div>
               );
             })}
