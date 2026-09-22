@@ -122,6 +122,21 @@ export interface Group {
   /** Phase 5 addition, display-ready like ExpenseRecord.createdAt --
    * GRP-03's Group Info Card wants a "Created date". */
   createdAt: string;
+  /** GRP-01 already collected this; createGroup() previously dropped
+   * it. GRP-07 (Settings) is the first screen to actually show/edit
+   * it, with the spec's own "not editable if expenses exist" rule. */
+  currency: string;
+  /** GRP-07's "Simplify debts" toggle -- gates whether GRP-05's
+   * Simplified view is offered for this group at all. */
+  simplifyDebts: boolean;
+  /** GRP-07's "Default split method" -- stored as a preference only;
+   * not yet read by the add-expense wizard (EXP-04 always defaults to
+   * 'equal' regardless). Wiring that through is a small follow-up, not
+   * a structural change, once there's a reason to prioritize it. */
+  defaultSplitMethod: 'equal' | 'exact' | 'percentage' | 'shares';
+  /** GRP-01 already collected this too; same drop-on-create gap as
+   * currency, fixed alongside it. */
+  description: string;
 }
 
 export const GROUPS: Group[] = [
@@ -136,6 +151,10 @@ export const GROUPS: Group[] = [
     lastActivity: '2h ago',
     memberIds: ['1', '2', '3', '5'],
     createdAt: 'Aug 3, 2026',
+    currency: 'ETB',
+    simplifyDebts: true,
+    defaultSplitMethod: 'equal',
+    description: 'Weekly hangouts and shared meals.',
   },
   {
     id: 'g2',
@@ -148,6 +167,10 @@ export const GROUPS: Group[] = [
     lastActivity: 'Yesterday',
     memberIds: ['1', '2', '5'],
     createdAt: 'Sep 10, 2026',
+    currency: 'ETB',
+    simplifyDebts: true,
+    defaultSplitMethod: 'equal',
+    description: '',
   },
   {
     id: 'g3',
@@ -160,6 +183,10 @@ export const GROUPS: Group[] = [
     lastActivity: '3 days ago',
     memberIds: ['2', '3'],
     createdAt: 'Jun 1, 2026',
+    currency: 'ETB',
+    simplifyDebts: false,
+    defaultSplitMethod: 'equal',
+    description: 'Shared household expenses for Apartment 12B.',
   },
 ];
 
@@ -189,7 +216,13 @@ export const GROUP_TYPES: { id: string; label: string; icon: string; color: stri
  * below, in module source order) safely -- by the time this function
  * is actually called from a click handler, module evaluation has long
  * finished top to bottom. */
-export function createGroup(input: { name: string; type: string; memberIds: string[] }): Group {
+export function createGroup(input: {
+  name: string;
+  type: string;
+  memberIds: string[];
+  currency?: string;
+  description?: string;
+}): Group {
   const groupType = GROUP_TYPES.find((t) => t.id === input.type) ?? GROUP_TYPES[0]!;
   const group: Group = {
     id: `g${GROUPS.length + 1}`,
@@ -202,10 +235,42 @@ export function createGroup(input: { name: string; type: string; memberIds: stri
     lastActivity: 'Just now',
     memberIds: input.memberIds,
     createdAt: 'Just now',
+    currency: input.currency ?? 'ETB',
+    simplifyDebts: true,
+    defaultSplitMethod: 'equal',
+    description: input.description ?? '',
   };
   GROUPS.push(group);
   GROUP_BALANCES[group.id] = Object.fromEntries(['me', ...input.memberIds].map((id) => [id, 0n]));
   return group;
+}
+
+/** Mutates a group in place -- same module-level pattern as
+ * updateExpense/createGroup. Used by GRP-07 (Settings) for basic-info
+ * and financial-settings edits. */
+export function updateGroup(id: string, patch: Partial<Group>): void {
+  const index = GROUPS.findIndex((g) => g.id === id);
+  if (index !== -1) {
+    GROUPS[index] = { ...GROUPS[index]!, ...patch };
+  }
+}
+
+/** Adds an existing friend to a group -- GRP-06's "Add Member". Updates
+ * `members`/`memberIds` and seeds a zero balance for them in
+ * GROUP_BALANCES (they've shared no expenses with the group yet, so
+ * they can't owe or be owed anything on joining). No-op if they're
+ * already a member. */
+export function addGroupMember(groupId: string, friendId: string): void {
+  const group = GROUPS.find((g) => g.id === groupId);
+  if (!group || group.memberIds.includes(friendId)) {
+    return;
+  }
+  group.memberIds.push(friendId);
+  group.members += 1;
+  const balances = GROUP_BALANCES[groupId];
+  if (balances) {
+    balances[friendId] = 0n;
+  }
 }
 
 /**

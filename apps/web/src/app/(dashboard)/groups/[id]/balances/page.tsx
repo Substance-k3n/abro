@@ -17,11 +17,11 @@
 //  - Simplified view calls @abro/types' simplifyDebts() directly -- the
 //    same tested function apps/api uses server-side (ABRO_PRD.md §18) --
 //    over this group's GROUP_BALANCES entries.
-//  - "Simplify toggle (if enabled in settings)": GRP-07 (Settings, a
-//    later PR) doesn't exist yet, so there's no real per-group setting
-//    to gate on. The toggle is always available; once Settings ships,
-//    wiring this to "Simplify debts" (spec's GRP-07 Financial Settings
-//    toggle) is a small follow-up, not a structural change.
+//  - "Simplify toggle (if enabled in settings)": gated on
+//    Group.simplifyDebts (GRP-07's Financial Settings toggle, added
+//    alongside this screen) -- when off, only the Individual view is
+//    offered (no method toggle shown at all, since there's nothing to
+//    toggle between).
 //  - "Mark as settled" is a disabled placeholder on each simplified
 //    payment card -- same reasoning as every other destructive/
 //    state-changing mock action in this app (Delete expense, Remove
@@ -92,17 +92,19 @@ export default function GroupBalancesPage() {
         <div className="w-[60px]" />
       </div>
 
-      <div className="neo-inset-sm mb-5 flex gap-1 rounded-[14px] p-1">
-        {(['individual', 'simplified'] as const).map((v) => (
-          <button
-            key={v}
-            onClick={() => setView(v)}
-            className={`neo-tab flex-1 border-none capitalize ${view === v ? 'active' : ''}`}
-          >
-            {v}
-          </button>
-        ))}
-      </div>
+      {group.simplifyDebts && (
+        <div className="neo-inset-sm mb-5 flex gap-1 rounded-[14px] p-1">
+          {(['individual', 'simplified'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`neo-tab flex-1 border-none capitalize ${view === v ? 'active' : ''}`}
+            >
+              {v}
+            </button>
+          ))}
+        </div>
+      )}
 
       {allSettled ? (
         <EmptyState

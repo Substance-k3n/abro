@@ -45,6 +45,8 @@ export default function CreateGroupMembersPage() {
       name: draft.name.trim(),
       type: draft.type,
       memberIds: draft.memberIds,
+      currency: draft.currency,
+      description: draft.description.trim(),
     });
     reset();
     router.push(`/groups/${group.id}`);
