@@ -231,6 +231,118 @@ export const ACTIVITIES: Activity[] = [
   },
 ];
 
+export interface ExpenseRecord {
+  id: string;
+  name: string;
+  category: string;
+  amount: MinorUnits;
+  /** Display-ready, matching ACTIVITIES' convention -- not parsed as a
+   * real date anywhere in this phase. */
+  date: string;
+  groupId: string | null;
+  /** The literal string 'me' (matching ~/lib/expense-draft.ts's `ME`
+   * sentinel, not imported here for the same reason resolveParticipants
+   * doesn't -- see that function's comment) or a FRIENDS id. */
+  payerId: string;
+  participantIds: string[];
+  splitMethod: 'equal' | 'exact' | 'percentage' | 'shares';
+  /** Final per-participant amount, in minor units. */
+  shares: Record<string, MinorUnits>;
+  note: string;
+  createdBy: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedAt?: string;
+}
+
+/**
+ * Full expense records for EXP-09 (detail view) and EXP-10 (edit) --
+ * Phase 4. Shares the same `id`s as ACTIVITIES' `type: 'expense'` rows
+ * (a1, a3, a4, a5) so an activity/recent-activity row can link straight
+ * to its detail page. Not derived from ACTIVITIES programmatically --
+ * ACTIVITIES.dir (the signed direction shown in feeds) and this
+ * record's actual payer/participants/shares aren't guaranteed to agree
+ * perfectly (e.g. a3's `dir: 'paid'` reads as neutral, but its real
+ * payer/participant split below nets to "Hana owes you half"). That's
+ * fine for this mock-data phase -- Phase 8 replaces both arrays with
+ * one real Expense model from apps/api, where activity feed rows are
+ * derived FROM expenses rather than maintained in parallel.
+ */
+export const EXPENSES: ExpenseRecord[] = [
+  {
+    id: 'a1',
+    name: 'Lunch at Kategna',
+    category: 'Food',
+    amount: etb(900),
+    date: 'Sep 22, 2026',
+    groupId: 'g1',
+    payerId: '1',
+    participantIds: ['me', '1', '2', '3', '5'],
+    splitMethod: 'equal',
+    shares: { me: etb(180), '1': etb(180), '2': etb(180), '3': etb(180), '5': etb(180) },
+    note: '',
+    createdBy: '1',
+    createdAt: '2h ago',
+  },
+  {
+    id: 'a3',
+    name: 'Uber to Bole',
+    category: 'Transport',
+    amount: etb(180),
+    date: 'Sep 21, 2026',
+    groupId: null,
+    payerId: 'me',
+    participantIds: ['me', '2'],
+    splitMethod: 'equal',
+    shares: { me: etb(90), '2': etb(90) },
+    note: '',
+    createdBy: 'me',
+    createdAt: 'Yesterday',
+  },
+  {
+    id: 'a4',
+    name: 'Coffee at Tomoca',
+    category: 'Coffee',
+    amount: etb(360),
+    date: 'Sep 19, 2026',
+    groupId: 'g1',
+    payerId: '2',
+    participantIds: ['me', '1', '2', '3', '5'],
+    splitMethod: 'equal',
+    shares: { me: etb(72), '1': etb(72), '2': etb(72), '3': etb(72), '5': etb(72) },
+    note: '',
+    createdBy: '2',
+    createdAt: 'Mon',
+  },
+  {
+    id: 'a5',
+    name: 'Groceries — Shoa',
+    category: 'Groceries',
+    amount: etb(1200),
+    date: 'Sep 18, 2026',
+    groupId: 'g3',
+    payerId: 'me',
+    participantIds: ['me', '2', '3'],
+    splitMethod: 'equal',
+    shares: { me: etb(400), '2': etb(400), '3': etb(400) },
+    note: '',
+    createdBy: 'me',
+    createdAt: 'Sun',
+  },
+];
+
+/** Mutates the shared EXPENSES array in place -- module-level state, not
+ * a real backend, but it does mean an edit survives navigating away
+ * from and back to a detail page within the same session, which reads
+ * better than an edit that silently reverts. Phase 8 replaces this with
+ * a real PUT /expenses/:id call. */
+export function updateExpense(id: string, patch: Partial<ExpenseRecord>): void {
+  const index = EXPENSES.findIndex((e) => e.id === id);
+  if (index !== -1) {
+    EXPENSES[index] = { ...EXPENSES[index]!, ...patch };
+  }
+}
+
 export interface SearchPerson {
   id: string;
   name: string;

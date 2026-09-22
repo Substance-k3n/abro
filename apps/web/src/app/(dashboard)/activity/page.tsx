@@ -27,6 +27,7 @@
 
 import { ActivityItem, EmptyState } from '@abro/ui';
 import { Receipt, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { ACTIVITIES, GROUPS } from '~/lib/mock-data';
@@ -41,6 +42,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ];
 
 export default function ActivityPage() {
+  const router = useRouter();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [query, setQuery] = useState('');
 
@@ -119,6 +121,7 @@ export default function ActivityPage() {
               amount={a.amount}
               dir={a.dir}
               time={a.time}
+              onClick={a.type === 'expense' ? () => router.push(`/expenses/${a.id}`) : undefined}
             />
           ))}
         </div>

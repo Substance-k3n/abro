@@ -24,6 +24,7 @@ import {
 } from '@abro/ui';
 import { Bell, Handshake, Plus, Receipt, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 import { ACTIVITIES, CURRENT_USER, FRIENDS, GROUPS, NOTIFICATIONS } from '~/lib/mock-data';
 
@@ -35,6 +36,7 @@ const QUICK_ACTIONS = [
 ];
 
 export default function HomePage() {
+  const router = useRouter();
   const owedTotal = FRIENDS.reduce((sum, f) => sum + f.owes, 0n);
   const oweTotal = FRIENDS.reduce((sum, f) => sum + f.iOwe, 0n);
   const net = owedTotal - oweTotal;
@@ -278,6 +280,7 @@ export default function HomePage() {
                 amount={a.amount}
                 dir={a.dir}
                 time={a.time}
+                onClick={a.type === 'expense' ? () => router.push(`/expenses/${a.id}`) : undefined}
               />
             ))}
           </div>
