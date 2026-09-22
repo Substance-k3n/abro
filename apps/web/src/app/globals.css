@@ -10,9 +10,14 @@
  * Ported so far: .neo-raised(-lg/-sm), .neo-flat, .neo-btn(-accent/-green),
  * .neo-card-accent, .neo-badge-green/red, .neo-avatar, .neo-inset(-sm),
  * .neo-input, .otp-box, .neo-tab(.active), .hide-scroll, .notif-dot,
- * .fade-in — everything Phase 1/2 (auth) and Phase 3 (dashboard) need.
- * The rest (toggles, split-card, step indicators, cat-pill, ...) land
- * alongside the screens that use them — see docs/WIRING_PLAN.md.
+ * .fade-in, .split-card(.selected), .cat-pill(.selected),
+ * .neo-toggle(.on)/.neo-toggle-thumb, .neo-progress-track/-fill —
+ * everything Phase 1/2 (auth), Phase 3 (dashboard), and Phase 4's
+ * add-expense wizard foundation need. There's no dedicated CSS class for
+ * the wizard's step indicator (numbered circles + connector line) — the
+ * prototype builds that with inline styles per-instance rather than a
+ * reusable class, so this port does the same in the wizard layout
+ * component rather than inventing a class the prototype doesn't have.
  */
 
 /* ===================== LIGHT THEME (default) ===================== */
@@ -416,6 +421,136 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* Split method card (EXP-04) -- selectable card, ported from the
+   prototype's .split-card (index.css:452). */
+.split-card {
+  background: var(--neo-bg);
+  box-shadow:
+    6px 6px 14px var(--neo-dark),
+    -6px -6px 14px var(--neo-light);
+  border-radius: 18px;
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.split-card.selected {
+  border-color: rgba(99, 102, 241, 0.5);
+  box-shadow:
+    inset 3px 3px 8px rgba(99, 102, 241, 0.08),
+    inset -3px -3px 8px var(--neo-light),
+    0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+:root[data-theme='dark'] .split-card.selected {
+  box-shadow:
+    inset 3px 3px 8px rgba(99, 102, 241, 0.15),
+    inset -3px -3px 8px rgba(40, 44, 63, 0.5),
+    0 0 0 2px rgba(129, 140, 248, 0.25);
+}
+
+/* Category pill (EXP-01), ported from the prototype's .cat-pill
+   (index.css:489). */
+.cat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: var(--neo-bg);
+  box-shadow:
+    3px 3px 8px var(--neo-dark),
+    -3px -3px 8px var(--neo-light);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: var(--t-muted);
+  white-space: nowrap;
+}
+
+.cat-pill.selected {
+  background: linear-gradient(145deg, #7c7fff, #5558ee);
+  color: white;
+  box-shadow:
+    3px 3px 8px rgba(99, 102, 241, 0.35),
+    -2px -2px 6px rgba(255, 255, 255, 0.18);
+}
+
+:root[data-theme='dark'] .cat-pill.selected {
+  box-shadow:
+    3px 3px 8px rgba(99, 102, 241, 0.45),
+    -2px -2px 6px rgba(19, 21, 31, 0.5);
+}
+
+/* Toggle switch, ported from the prototype's .neo-toggle
+   (index.css:368) -- not needed until Phase 4 (e.g. EXP-08's "make
+   recurring" affordance). */
+.neo-toggle {
+  width: 52px;
+  height: 28px;
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow:
+    inset 3px 3px 7px var(--neo-dark),
+    inset -3px -3px 7px var(--neo-light);
+}
+
+.neo-toggle.on {
+  background: linear-gradient(145deg, #7c7fff, #5558ee);
+  box-shadow:
+    inset 2px 2px 5px rgba(60, 63, 200, 0.3),
+    inset -2px -2px 5px rgba(255, 255, 255, 0.15);
+}
+
+.neo-toggle-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  transition: left 0.25s ease;
+  box-shadow:
+    3px 3px 6px rgba(0, 0, 0, 0.2),
+    -2px -2px 4px rgba(255, 255, 255, 0.4);
+  background: white;
+}
+
+:root[data-theme='dark'] .neo-toggle-thumb {
+  background: #dde4f0;
+  box-shadow:
+    3px 3px 6px rgba(0, 0, 0, 0.4),
+    -2px -2px 4px rgba(255, 255, 255, 0.08);
+}
+
+.neo-toggle.on .neo-toggle-thumb {
+  left: 27px;
+}
+
+/* Progress bar, ported from the prototype's .neo-progress-track
+   (index.css:413) -- backs the wizard's step indicator connector line. */
+.neo-progress-track {
+  background: var(--neo-bg);
+  box-shadow:
+    inset 3px 3px 7px var(--neo-dark),
+    inset -3px -3px 7px var(--neo-light);
+  border-radius: 999px;
+  overflow: hidden;
+  height: 10px;
+}
+
+.neo-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c7fff, #5558ee);
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  transition: width 0.5s ease;
 }
 
 .fade-in {
