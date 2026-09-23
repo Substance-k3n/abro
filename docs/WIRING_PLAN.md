@@ -336,11 +336,77 @@ stops at STL-05.
 
 **Verified:** `pnpm typecheck`/`lint`/`build` pass clean.
 
-## Phase 7 — Profile & settings `[todo]`
+## Phase 7 — Profile & settings `[done]`
 
 Branch: `feature/profile-settings-screens`
 
-`PRF-01`, `SET-01`…`SET-03`.
+`PRF-01`, `SET-01`…`SET-03`. Shipped as one PR rather than split further
+-- unlike Phase 5/6's per-sub-feature branches, Profile and Settings
+link to each other in both directions (PRF-01's "App settings" row,
+SET-01's "Profile" row) and edit the same underlying state
+(`CURRENT_USER.currency`/`language`), so splitting them across two PRs
+would mean one PR's screen linked to a route that didn't exist yet
+_and_ both PRs touching the same `mock-data.ts` fields -- a real
+coupling, not an arbitrary bundling choice.
+
+- [x] `/profile` (PRF-01) -- editable display name/avatar-color/phone,
+      email with a verified badge, Preferences (currency, language,
+      a Notifications summary row linking to SET-02), Statistics (4
+      cards computed live from `getCurrentUserStats()` -- expenses
+      tracked, amount managed, groups joined, friends -- never invented
+      figures), and Account Actions.
+- [x] `/settings` (SET-01) -- Account (links to Profile, and to SET-03
+      for both "Privacy" and "Security", matching the spec's single
+      combined route), Preferences (currency/language mirror PRF-01's
+      own fields; date/number format are local-only, nothing in this
+      app reads a configurable format yet), Notifications (channel
+      master toggles + a link into SET-02), Data, About, and a real
+      Sign out action.
+- [x] `/settings/notifications` (SET-02) -- channel toggles, one toggle
+      per notification type (not a full per-type-per-channel matrix --
+      see `~/lib/mock-data.ts`'s `NotificationPrefs` header comment),
+      quiet hours.
+- [x] `/settings/privacy` (SET-03) -- password (disabled placeholder,
+      no fabricated "last changed" date), a real local 2FA toggle,
+      privacy selectors (profile visibility, who can add you, who can
+      see your expenses), Connected Accounts (Google: "Not connected"),
+      and Active Sessions showing only the one session that's actually
+      real ("This device") -- no invented device/location list.
+
+New `~/lib/mock-data.ts` state backing this phase: `CURRENT_USER` grew
+email/phone/currency/language/memberSince fields plus
+`updateCurrentUser`; `getCurrentUserStats()` (derived, not stored, same
+"expenses are facts" rule this project applies to money); and two new
+mock-state + mutator pairs, `NOTIFICATION_PREFS`/`updateNotificationPrefs`
+and `PRIVACY_SETTINGS`/`updatePrivacySettings`, both module-level
+mutations via `Object.assign` (same pattern as `updateGroup`).
+
+Deviations from spec (Confirmed, all following patterns already
+established in earlier phases): every destructive or otherwise
+unbuildable action (change password, export data, delete account,
+disconnect Google, 2FA setup) is a disabled placeholder, same class as
+every prior phase's Remove friend/Delete group/etc; Data's "Storage
+usage" is omitted entirely rather than showing an invented number, and
+Active Sessions shows no fabricated device list -- both follow this
+project's standing rule against presenting made-up figures as real
+data (see GRP-05's equivalent omission of a fake pairwise-debt
+network).
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check` all pass clean;
+`pnpm --filter web build` includes all four new routes in its static
+route list. Manual browser click-through confirmed: Profile's avatar-
+color picker and Save flow, Statistics cards showing real computed
+values, the Profile → Settings → Notifications → Privacy navigation
+chain (and back), notification channel/type toggles and quiet-hours
+expand/collapse mutating `NOTIFICATION_PREFS` live, and the 2FA toggle
+correctly revealing/hiding its "Set up 2FA" placeholder. No console
+errors on any screen.
+
+**Acceptance met:** all 4 screens work against mock data; Profile and
+Settings are mutually reachable from within the app (not dead-end
+routes), closing the gap left by Phase 3's `nav-items.ts`, whose
+"Profile" tab and Home's settings-gear icon both pointed at `/profile`
+before this phase existed.
 
 ## Phase 8 — Wire to the real API `[todo]`
 

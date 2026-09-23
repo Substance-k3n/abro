@@ -32,12 +32,48 @@ export const CATEGORIES = [
 ] as const;
 
 /** The logged-in user's mock identity -- reused wherever "you" needs an
- * avatar/name (Home's greeting header, and Phase 4's add-expense wizard
- * payer/participant selection). Noted, not fixed: this happens to share
- * a name with FRIENDS id '3' ("Nesredin Haile") -- a pre-existing mock-
- * data coincidence from Phase 3, not introduced here. UI copy always
- * says "You" rather than the name to avoid confusion with that friend. */
-export const CURRENT_USER = { name: 'Nesredin', initials: 'NH', color: '#f59e0b' };
+ * avatar/name (Home's greeting header, Phase 4's add-expense wizard
+ * payer/participant selection, and Phase 7's Profile/Settings screens).
+ * Noted, not fixed: this happens to share a name with FRIENDS id '3'
+ * ("Nesredin Haile") -- a pre-existing mock-data coincidence from Phase
+ * 3, not introduced here. UI copy always says "You" rather than the
+ * name to avoid confusion with that friend.
+ *
+ * Phase 7 (PRF-01) additions -- email/phone/currency/language/
+ * memberSince -- are plausible mock values, same footing as every other
+ * seeded figure in this file (FRIENDS' balances, GROUPS' names): not
+ * fabricated *facts presented as real data*, just the mock identity's
+ * profile fields, editable via `updateCurrentUser`. */
+export interface CurrentUserProfile {
+  name: string;
+  initials: string;
+  color: string;
+  email: string;
+  emailVerified: boolean;
+  phone: string | null;
+  currency: string;
+  language: string;
+  memberSince: string;
+}
+
+export const CURRENT_USER: CurrentUserProfile = {
+  name: 'Nesredin',
+  initials: 'NH',
+  color: '#f59e0b',
+  email: 'nesredin.haile@example.com',
+  emailVerified: true,
+  phone: null,
+  currency: 'ETB',
+  language: 'English',
+  memberSince: 'Jan 2026',
+};
+
+/** Module-level mutation, same pattern as `updateGroup` -- mutates the
+ * single `CURRENT_USER` object in place (`Object.assign`, not
+ * reassignment) so every existing importer's reference stays valid. */
+export function updateCurrentUser(patch: Partial<CurrentUserProfile>): void {
+  Object.assign(CURRENT_USER, patch);
+}
 
 export interface Friend {
   id: string;
@@ -695,3 +731,101 @@ export const NOTIFICATIONS: NotificationMock[] = [
     read: true,
   },
 ];
+
+/**
+ * Phase 7 (PRF-01) -- Profile Statistics, computed from real mock data
+ * rather than stored/invented figures ("Expenses are facts, balances
+ * (and here, stats) are derived projections" -- the same rule this
+ * project applies to money, extended to these counts). "Total amount
+ * managed" is defined as the sum of every EXPENSES row's amount (the
+ * total value of expenses this user has been party to, not a made-up
+ * "lifetime volume" figure) -- a documented interpretation, since the
+ * spec doesn't define the term precisely.
+ */
+export function getCurrentUserStats() {
+  return {
+    totalExpenses: EXPENSES.length,
+    totalAmountManaged: EXPENSES.reduce((sum, e) => sum + e.amount, 0n),
+    groupsJoined: GROUPS.length,
+    friendsCount: FRIENDS.length,
+  };
+}
+
+/**
+ * Phase 7 (SET-02) -- Notification preferences. Simplified from the
+ * spec's full "per type per channel" matrix (7 types x push/email) to
+ * one toggle per type applying to both channels, plus the two channel
+ * master toggles -- same class of simplification as GRP-07's
+ * notification toggles, and for the same reason: this app has no real
+ * notification-generation system for these settings to actually gate
+ * (NOTIFICATIONS above is a static seed list, not produced by any
+ * event this toggle set could suppress), so a finer-grained UI would
+ * imply more real effect than exists. "Payment due" (spec's own list)
+ * is dropped -- the spec marks it "(future)" itself, and there's no
+ * recurring-payment-due concept implemented anywhere in this app yet.
+ * Quiet hours are UI-only for the same reason -- no scheduler reads them.
+ */
+export interface NotificationPrefs {
+  pushEnabled: boolean;
+  emailEnabled: boolean;
+  types: {
+    expenseAdded: boolean;
+    expenseUpdated: boolean;
+    settlementReceived: boolean;
+    groupInvitation: boolean;
+    memberJoined: boolean;
+    balanceReminder: boolean;
+  };
+  quietHoursEnabled: boolean;
+  quietHoursStart: string;
+  quietHoursEnd: string;
+}
+
+export const NOTIFICATION_PREFS: NotificationPrefs = {
+  pushEnabled: true,
+  emailEnabled: true,
+  types: {
+    expenseAdded: true,
+    expenseUpdated: true,
+    settlementReceived: true,
+    groupInvitation: true,
+    memberJoined: false,
+    balanceReminder: true,
+  },
+  quietHoursEnabled: false,
+  quietHoursStart: '22:00',
+  quietHoursEnd: '07:00',
+};
+
+export function updateNotificationPrefs(patch: Partial<NotificationPrefs>): void {
+  Object.assign(NOTIFICATION_PREFS, patch);
+}
+
+/**
+ * Phase 7 (SET-03) -- Privacy & Security settings. "Active Sessions"
+ * (spec's §5) is deliberately not modeled here: this app has no real
+ * session/device tracking, and inventing a plausible-looking device
+ * list (browser names, locations, "last active" times) would be
+ * exactly the fabricated data this project's workflow avoids -- the
+ * settings page instead states honestly that only this session exists.
+ * Two-factor auth is a local toggle only (no real TOTP/SMS flow to back
+ * it), same "harmless UI-only toggle" class as GRP-07's notification
+ * toggles -- flipping it doesn't grant or revoke anything real.
+ */
+export interface PrivacySettings {
+  profileVisibility: 'public' | 'friends' | 'private';
+  whoCanAddYou: 'anyone' | 'friendsOfFriends' | 'nobody';
+  whoCanSeeExpenses: 'friends' | 'nobody';
+  twoFactorEnabled: boolean;
+}
+
+export const PRIVACY_SETTINGS: PrivacySettings = {
+  profileVisibility: 'friends',
+  whoCanAddYou: 'friendsOfFriends',
+  whoCanSeeExpenses: 'friends',
+  twoFactorEnabled: false,
+};
+
+export function updatePrivacySettings(patch: Partial<PrivacySettings>): void {
+  Object.assign(PRIVACY_SETTINGS, patch);
+}
