@@ -80,7 +80,7 @@ func main() {
 	expensesSvc := expenses.NewService(queries, groupsSvc, friendsSvc, notificationsSvc, receiptStore)
 	expensesHandler := expenses.NewHandler(expensesSvc, idempotencySvc, queries)
 
-	balancesSvc := balances.NewService(queries)
+	balancesSvc := balances.NewService(queries, friendsSvc, groupsSvc)
 	balancesHandler := balances.NewHandler(balancesSvc, groupsSvc, queries)
 
 	settlementsSvc := settlements.NewService(queries, balancesSvc, groupsSvc, notificationsSvc, expensesSvc)

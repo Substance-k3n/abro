@@ -27,9 +27,37 @@ func NewHandler(svc *Service, groupsSvc *groups.Service, q db.Querier) *Handler 
 
 func (h *Handler) Mount(r chi.Router) {
 	r.Use(authpkg.RequireSession(h.q))
+	r.Get("/summary", httpx.Wrap(h.summary))
 	r.Get("/friends/{friendId}", httpx.Wrap(h.friendBalance))
 	r.Get("/groups/{groupId}", httpx.Wrap(h.groupSummary))
 	r.Get("/groups/{groupId}/simplified", httpx.Wrap(h.simplifiedGroupDebts))
+}
+
+func (h *Handler) summary(w http.ResponseWriter, r *http.Request) error {
+	user := authpkg.CurrentUser(r.Context())
+	friendBalances, groupBalances, err := h.svc.GetSummary(r.Context(), user.ID)
+	if err != nil {
+		return err
+	}
+
+	out := apitypes.BalancesSummary{
+		Friends: make([]apitypes.FriendBalance, len(friendBalances)),
+		Groups:  make([]apitypes.GroupBalance, len(groupBalances)),
+	}
+	for i, f := range friendBalances {
+		out.Friends[i] = apitypes.FriendBalance{
+			FriendID:   idutil.String(f.FriendID),
+			NetBalance: strconv.FormatInt(f.NetBalance, 10),
+		}
+	}
+	for i, g := range groupBalances {
+		out.Groups[i] = apitypes.GroupBalance{
+			GroupID:    idutil.String(g.GroupID),
+			NetBalance: strconv.FormatInt(g.NetBalance, 10),
+		}
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
+	return nil
 }
 
 func (h *Handler) friendBalance(w http.ResponseWriter, r *http.Request) error {

@@ -10,16 +10,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
+	"github.com/Substance-k3n/abro/apps/api/internal/friends"
+	"github.com/Substance-k3n/abro/apps/api/internal/groups"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
 	"github.com/Substance-k3n/abro/apps/api/internal/money"
 )
 
 type Service struct {
-	q db.Querier
+	q       db.Querier
+	friends *friends.Service
+	groups  *groups.Service
 }
 
-func NewService(q db.Querier) *Service {
-	return &Service{q: q}
+func NewService(q db.Querier, friendsSvc *friends.Service, groupsSvc *groups.Service) *Service {
+	return &Service{q: q, friends: friendsSvc, groups: groupsSvc}
 }
 
 // GetPairwiseBalance computes the net balance between exactly two users,
@@ -107,4 +111,67 @@ func (s *Service) GetSimplifiedGroupDebts(ctx context.Context, groupID pgtype.UU
 		return nil, err
 	}
 	return money.SimplifyDebts(summary), nil
+}
+
+// FriendNetBalance and GroupNetBalance are GetSummary's per-entity
+// results, pgtype.UUID rather than apitypes' wire strings -- the router
+// does that conversion, same division of labor as everywhere else in
+// this package.
+type FriendNetBalance struct {
+	FriendID   pgtype.UUID
+	NetBalance money.MinorUnits
+}
+
+type GroupNetBalance struct {
+	GroupID    pgtype.UUID
+	NetBalance money.MinorUnits
+}
+
+// GetSummary computes every one of userID's friend and group balances in
+// one call -- Phase 8 (docs/WIRING_PLAN.md) added this because no
+// existing endpoint could back Home/Balances Overview without an N+1
+// fan-out from the browser (one GetPairwiseBalance/GetGroupSummary call
+// per friendship/membership, same as the existing per-entity endpoints
+// already do individually -- this just loops over them here instead of
+// in N separate HTTP round trips).
+func (s *Service) GetSummary(ctx context.Context, userID pgtype.UUID) ([]FriendNetBalance, []GroupNetBalance, error) {
+	friendRows, err := s.friends.List(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	friendBalances := make([]FriendNetBalance, 0, len(friendRows))
+	for _, row := range friendRows {
+		otherID := row.FriendID
+		if row.UserID != userID {
+			otherID = row.UserID
+		}
+		balance, err := s.GetPairwiseBalance(ctx, userID, otherID, pgtype.UUID{})
+		if err != nil {
+			return nil, nil, err
+		}
+		friendBalances = append(friendBalances, FriendNetBalance{FriendID: otherID, NetBalance: balance})
+	}
+
+	myGroups, err := s.groups.ListMine(ctx, userID)
+	if err != nil {
+		return nil, nil, err
+	}
+	myIDString := idutil.String(userID)
+	groupBalances := make([]GroupNetBalance, 0, len(myGroups))
+	for _, g := range myGroups {
+		summary, err := s.GetGroupSummary(ctx, g.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		var mine money.MinorUnits
+		for _, entry := range summary {
+			if entry.UserID == myIDString {
+				mine = entry.NetBalance
+				break
+			}
+		}
+		groupBalances = append(groupBalances, GroupNetBalance{GroupID: g.ID, NetBalance: mine})
+	}
+
+	return friendBalances, groupBalances, nil
 }
