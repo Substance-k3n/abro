@@ -97,6 +97,7 @@ func main() {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
 	r.Use(httpx.Recoverer)
+	r.Use(httpx.CORS(cfg.WebOrigin))
 
 	r.Route("/auth", authHandler.Mount)
 	r.Route("/users", usersHandler.Mount)

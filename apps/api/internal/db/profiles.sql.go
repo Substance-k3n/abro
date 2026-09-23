@@ -12,7 +12,7 @@ import (
 )
 
 const getProfileByEmail = `-- name: GetProfileByEmail :one
-SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at FROM profiles WHERE email = $1
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username FROM profiles WHERE email = $1
 `
 
 func (q *Queries) GetProfileByEmail(ctx context.Context, email pgtype.Text) (Profile, error) {
@@ -28,12 +28,13 @@ func (q *Queries) GetProfileByEmail(ctx context.Context, email pgtype.Text) (Pro
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Username,
 	)
 	return i, err
 }
 
 const getProfileByID = `-- name: GetProfileByID :one
-SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at FROM profiles WHERE id = $1
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username FROM profiles WHERE id = $1
 `
 
 func (q *Queries) GetProfileByID(ctx context.Context, id pgtype.UUID) (Profile, error) {
@@ -49,6 +50,30 @@ func (q *Queries) GetProfileByID(ctx context.Context, id pgtype.UUID) (Profile, 
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Username,
+	)
+	return i, err
+}
+
+const getProfileByUsername = `-- name: GetProfileByUsername :one
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username FROM profiles WHERE username = $1
+`
+
+// Phase 8 (AUTH-05) -- backs the username-availability check.
+func (q *Queries) GetProfileByUsername(ctx context.Context, username pgtype.Text) (Profile, error) {
+	row := q.db.QueryRow(ctx, getProfileByUsername, username)
+	var i Profile
+	err := row.Scan(
+		&i.ID,
+		&i.DisplayName,
+		&i.AvatarUrl,
+		&i.Phone,
+		&i.Email,
+		&i.PreferredCurrency,
+		&i.Locale,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Username,
 	)
 	return i, err
 }
@@ -57,16 +82,18 @@ const updateProfile = `-- name: UpdateProfile :one
 UPDATE profiles
 SET display_name = COALESCE($1, display_name),
     avatar_url = COALESCE($2, avatar_url),
-    preferred_currency = COALESCE($3, preferred_currency),
-    locale = COALESCE($4, locale),
+    username = COALESCE($3, username),
+    preferred_currency = COALESCE($4, preferred_currency),
+    locale = COALESCE($5, locale),
     updated_at = now()
-WHERE id = $5
-RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at
+WHERE id = $6
+RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username
 `
 
 type UpdateProfileParams struct {
 	DisplayName       pgtype.Text `json:"display_name"`
 	AvatarUrl         pgtype.Text `json:"avatar_url"`
+	Username          pgtype.Text `json:"username"`
 	PreferredCurrency pgtype.Text `json:"preferred_currency"`
 	Locale            pgtype.Text `json:"locale"`
 	ID                pgtype.UUID `json:"id"`
@@ -76,6 +103,7 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (P
 	row := q.db.QueryRow(ctx, updateProfile,
 		arg.DisplayName,
 		arg.AvatarUrl,
+		arg.Username,
 		arg.PreferredCurrency,
 		arg.Locale,
 		arg.ID,
@@ -91,6 +119,7 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (P
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Username,
 	)
 	return i, err
 }
@@ -99,7 +128,7 @@ const upsertProfileByEmail = `-- name: UpsertProfileByEmail :one
 INSERT INTO profiles (email, display_name)
 VALUES ($1, $2)
 ON CONFLICT (email) DO UPDATE SET id = profiles.id
-RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at
+RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username
 `
 
 type UpsertProfileByEmailParams struct {
@@ -123,6 +152,7 @@ func (q *Queries) UpsertProfileByEmail(ctx context.Context, arg UpsertProfileByE
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Username,
 	)
 	return i, err
 }
@@ -131,7 +161,7 @@ const upsertProfileByEmailWithNameAvatar = `-- name: UpsertProfileByEmailWithNam
 INSERT INTO profiles (email, display_name, avatar_url)
 VALUES ($1, $2, $3)
 ON CONFLICT (email) DO UPDATE SET id = profiles.id
-RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at
+RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username
 `
 
 type UpsertProfileByEmailWithNameAvatarParams struct {
@@ -155,6 +185,7 @@ func (q *Queries) UpsertProfileByEmailWithNameAvatar(ctx context.Context, arg Up
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Username,
 	)
 	return i, err
 }

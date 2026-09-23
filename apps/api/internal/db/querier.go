@@ -59,6 +59,8 @@ type Querier interface {
 	GetPairwiseParticipantsPersonal(ctx context.Context, arg GetPairwiseParticipantsPersonalParams) ([]GetPairwiseParticipantsPersonalRow, error)
 	GetProfileByEmail(ctx context.Context, email pgtype.Text) (Profile, error)
 	GetProfileByID(ctx context.Context, id pgtype.UUID) (Profile, error)
+	// Phase 8 (AUTH-05) -- backs the username-availability check.
+	GetProfileByUsername(ctx context.Context, username pgtype.Text) (Profile, error)
 	// Cooldown check: most recent OTP sent for this email since `since`.
 	GetRecentOtpCode(ctx context.Context, arg GetRecentOtpCodeParams) (OtpCode, error)
 	GetRecurringExpenseByID(ctx context.Context, id pgtype.UUID) (RecurringExpense, error)

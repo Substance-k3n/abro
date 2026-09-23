@@ -13,6 +13,7 @@ import (
 type UpdateProfileInput struct {
 	DisplayName       *string `json:"displayName"`
 	AvatarURL         *string `json:"avatarUrl"`
+	Username          *string `json:"username"`
 	PreferredCurrency *string `json:"preferredCurrency"`
 	Locale            *string `json:"locale"`
 }
@@ -30,6 +31,13 @@ func (in *UpdateProfileInput) Validate() error {
 		if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 			return httpx.BadRequest("VALIDATION_ERROR", "avatarUrl must be a valid URL")
 		}
+	}
+	if in.Username != nil {
+		normalized := NormalizeUsername(*in.Username)
+		if err := ValidateUsernameFormat(normalized); err != nil {
+			return err
+		}
+		in.Username = &normalized
 	}
 	if in.PreferredCurrency != nil && len(*in.PreferredCurrency) != 3 {
 		return httpx.BadRequest("VALIDATION_ERROR", "preferredCurrency must be a 3-letter code")

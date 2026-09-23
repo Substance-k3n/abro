@@ -17,10 +17,14 @@ import (
 // shape is defined, so a future sensitive Profile field doesn't leak by
 // accident (same rationale as the NestJS toAuthProfile mapper it replaces).
 type AuthProfile struct {
-	ID                string  `json:"id"`
-	DisplayName       string  `json:"displayName"`
-	AvatarURL         *string `json:"avatarUrl"`
-	Email             *string `json:"email"`
+	ID          string  `json:"id"`
+	DisplayName string  `json:"displayName"`
+	AvatarURL   *string `json:"avatarUrl"`
+	Email       *string `json:"email"`
+	// Username is nil until the profile completes setup (AUTH-05) --
+	// the frontend's own signal for whether to route there after sign-in,
+	// rather than a separate isNewUser flag. See migrations/0010_username.
+	Username          *string `json:"username"`
 	PreferredCurrency string  `json:"preferredCurrency"`
 	Locale            string  `json:"locale"`
 }
@@ -31,6 +35,7 @@ func ToAuthProfile(p db.Profile) AuthProfile {
 		DisplayName:       p.DisplayName,
 		AvatarURL:         textPtr(p.AvatarUrl),
 		Email:             textPtr(p.Email),
+		Username:          textPtr(p.Username),
 		PreferredCurrency: p.PreferredCurrency,
 		Locale:            p.Locale,
 	}

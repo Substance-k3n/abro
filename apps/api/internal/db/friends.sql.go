@@ -232,7 +232,7 @@ func (q *Queries) ListIncomingFriendRequests(ctx context.Context, friendID pgtyp
 }
 
 const searchFriendByEmailOrPhone = `-- name: SearchFriendByEmailOrPhone :one
-SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at FROM profiles
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username FROM profiles
 WHERE id != $1 AND (email = $2 OR phone = $2)
 LIMIT 1
 `
@@ -257,6 +257,7 @@ func (q *Queries) SearchFriendByEmailOrPhone(ctx context.Context, arg SearchFrie
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Username,
 	)
 	return i, err
 }

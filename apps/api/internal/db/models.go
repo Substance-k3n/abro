@@ -434,6 +434,7 @@ type Profile struct {
 	Locale            string             `json:"locale"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Username          pgtype.Text        `json:"username"`
 }
 
 type PushSubscription struct {

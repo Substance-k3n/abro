@@ -4,6 +4,10 @@ SELECT * FROM profiles WHERE id = $1;
 -- name: GetProfileByEmail :one
 SELECT * FROM profiles WHERE email = $1;
 
+-- name: GetProfileByUsername :one
+-- Phase 8 (AUTH-05) -- backs the username-availability check.
+SELECT * FROM profiles WHERE username = $1;
+
 -- name: UpsertProfileByEmail :one
 -- Mirrors Prisma's `upsert({ where: { email }, update: {}, create: {...} })`
 -- -- a genuine no-op on conflict (the "id = profiles.id" self-assignment),
@@ -25,6 +29,7 @@ RETURNING *;
 UPDATE profiles
 SET display_name = COALESCE(sqlc.narg('display_name'), display_name),
     avatar_url = COALESCE(sqlc.narg('avatar_url'), avatar_url),
+    username = COALESCE(sqlc.narg('username'), username),
     preferred_currency = COALESCE(sqlc.narg('preferred_currency'), preferred_currency),
     locale = COALESCE(sqlc.narg('locale'), locale),
     updated_at = now()

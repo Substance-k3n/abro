@@ -1,0 +1,15 @@
+-- Phase 8 (frontend/docs/WIRING_PLAN.md) -- AUTH-05 (setup-profile)'s
+-- username step was mock-only against a frontend that never had a real
+-- backend field to persist to. Added on request rather than dropping the
+-- screen's username step: a real, unique, user-chosen handle profiles.id
+-- doesn't otherwise expose (it's a UUID, not something a friend could
+-- type in to find you).
+--
+-- Nullable + unique: NULL until a user completes setup-profile (both
+-- OTP and Google sign-in auto-create a profile with only a display name
+-- -- see auth/service.go's VerifyOTP/SignInWithGoogle), and Postgres
+-- treats multiple NULLs in a UNIQUE column as distinct, so any number of
+-- not-yet-onboarded profiles can coexist. The frontend's post-sign-in
+-- routing treats `username IS NULL` as its "needs setup" signal instead
+-- of a separate isNewUser flag.
+ALTER TABLE profiles ADD COLUMN username TEXT UNIQUE;
