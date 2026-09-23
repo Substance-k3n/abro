@@ -139,25 +139,21 @@ export default function BalancesPage() {
               {owedToYou.length > 0 && (
                 <div>
                   <SectionLabel>People who owe you</SectionLabel>
+                  {/* No "Settle" button here: apps/api/internal/settlements/
+                      service.go only lets the debtor record a settlement
+                      (ADR-003) -- there's no valid settle action from this
+                      session for a debt owed *to* you. See settle/page.tsx's
+                      header comment. */}
                   <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                     {owedToYou.map((f) => (
-                      <div key={f.id} className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <PersonRow
-                            initials={f.initials}
-                            color={f.color}
-                            name={f.name}
-                            right={<AmountBadge amount={f.owes} dir="receive" />}
-                            onClick={() => router.push(`/friends/${f.id}`)}
-                          />
-                        </div>
-                        <Link
-                          href={`/settle?friendId=${f.id}`}
-                          className="neo-btn shrink-0 rounded-xl px-3 py-2 text-[0.72rem] font-semibold"
-                        >
-                          Settle
-                        </Link>
-                      </div>
+                      <PersonRow
+                        key={f.id}
+                        initials={f.initials}
+                        color={f.color}
+                        name={f.name}
+                        right={<AmountBadge amount={f.owes} dir="receive" />}
+                        onClick={() => router.push(`/friends/${f.id}`)}
+                      />
                     ))}
                   </div>
                 </div>

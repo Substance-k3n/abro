@@ -139,7 +139,10 @@ export default function GroupDetailPage() {
               {formatMoney(group.balance < 0n ? -group.balance : group.balance, ETB)}
             </p>
           </div>
-          {group.balance !== 0n && (
+          {/* Only shown when you owe the group net: apps/api/internal/
+              settlements/service.go only lets the debtor record a
+              settlement (ADR-003) -- see settle/page.tsx's header comment. */}
+          {group.balance < 0n && (
             <Link
               href={`/settle?groupId=${group.id}`}
               className="neo-btn-green font-display rounded-xl px-4 py-2.5 text-[0.85rem] font-semibold"
@@ -159,14 +162,27 @@ export default function GroupDetailPage() {
           <Plus size={18} strokeWidth={2} />
           <span className="text-[0.68rem] font-medium">Add Expense</span>
         </Link>
-        <Link
-          href={`/settle?groupId=${group.id}`}
-          className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
-          style={{ color: 'var(--t-secondary)' }}
-        >
-          <Handshake size={18} strokeWidth={2} />
-          <span className="text-[0.68rem] font-medium">Settle Up</span>
-        </Link>
+        {group.balance < 0n ? (
+          <Link
+            href={`/settle?groupId=${group.id}`}
+            className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
+            style={{ color: 'var(--t-secondary)' }}
+          >
+            <Handshake size={18} strokeWidth={2} />
+            <span className="text-[0.68rem] font-medium">Settle Up</span>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            disabled
+            title="You don't owe this group anything"
+            className="neo-flat flex cursor-not-allowed flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center opacity-50"
+            style={{ color: 'var(--t-secondary)' }}
+          >
+            <Handshake size={18} strokeWidth={2} />
+            <span className="text-[0.68rem] font-medium">Settle Up</span>
+          </button>
+        )}
         <Link
           href={`/groups/${group.id}/simplified`}
           className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"

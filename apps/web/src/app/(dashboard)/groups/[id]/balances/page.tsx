@@ -22,16 +22,17 @@
 //    alongside this screen) -- when off, only the Individual view is
 //    offered (no method toggle shown at all, since there's nothing to
 //    toggle between).
-//  - "Mark as settled" is a disabled placeholder on each simplified
-//    payment card -- same reasoning as every other destructive/
-//    state-changing mock action in this app (Delete expense, Remove
-//    friend): no real settlement-recording endpoint exists yet, and
-//    wiring it against mock data with no confirmation step would be
-//    worse than being upfront that it's not built.
+//  - "Mark as settled" links into the real /settle flow (Phase 6) only
+//    for payments where you're the payer -- apps/api/internal/
+//    settlements/service.go only lets the debtor record a settlement
+//    (ADR-003), so a payment owed *to* you stays a disabled placeholder
+//    (same reasoning as every other destructive/state-changing mock
+//    action with no valid path from this session, e.g. Remove friend).
 
 import { ETB, type NetPosition, formatMoney, simplifyDebts } from '@abro/types';
 import { Avatar, EmptyState } from '@abro/ui';
 import { ArrowLeft, ArrowRight, Handshake, Users } from 'lucide-react';
+import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
@@ -168,23 +169,32 @@ export default function GroupBalancesPage() {
                   {to.id === ME ? 'You' : to.name.split(' ')[0]}
                 </span>
                 <span
-                  className="font-mono text-[0.85rem] font-bold"
+                  className="mr-1 font-mono text-[0.85rem] font-bold"
                   style={{ color: 'var(--t-primary)' }}
                 >
                   {formatMoney(tx.amount, ETB)}
                 </span>
+                {tx.fromUserId === ME ? (
+                  <Link
+                    href={`/settle?groupId=${group.id}&toUserId=${tx.toUserId}`}
+                    className="neo-btn shrink-0 rounded-lg px-2.5 py-1.5 text-[0.72rem] font-semibold"
+                  >
+                    Settle
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    title="They need to record this from their side"
+                    className="neo-flat shrink-0 cursor-not-allowed rounded-lg px-2.5 py-1.5 text-[0.72rem] font-medium opacity-50"
+                    style={{ color: 'var(--t-muted)' }}
+                  >
+                    Settle
+                  </button>
+                )}
               </div>
             );
           })}
-          <button
-            type="button"
-            disabled
-            title="Coming soon"
-            className="neo-flat mt-1 cursor-not-allowed rounded-2xl px-4 py-3 text-[0.82rem] font-medium opacity-50"
-            style={{ color: 'var(--t-muted)' }}
-          >
-            Mark payments as settled
-          </button>
         </div>
       )}
     </div>

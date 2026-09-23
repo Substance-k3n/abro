@@ -6,7 +6,7 @@
 // 1450) become 145000n (ETB has 2 decimal digits). Phase 8 replaces this
 // module with real `apps/api` calls, screen by screen.
 
-import type { MinorUnits } from '@abro/types';
+import { type MinorUnits, type NetPosition, simplifyDebts } from '@abro/types';
 
 /** Converts a whole-ETB amount (as the prototype's mock data used) to
  * minor units. Test/mock-data-only -- real amounts come from the API
@@ -291,6 +291,156 @@ export const GROUP_BALANCES: Record<string, Record<string, MinorUnits>> = {
   g2: { me: etb(-3200), '1': etb(1500), '2': etb(1000), '5': etb(700) },
   g3: { me: etb(0), '2': etb(0), '3': etb(0) },
 };
+
+/** Payment methods for STL-03's optional "Payment method" field -- same
+ * static-reference-data pattern as CATEGORIES, not wizard state (kept
+ * out of settle-draft.tsx for the same reason resolveParticipants keeps
+ * mock-data.ts free of wizard-specific imports). */
+export const SETTLEMENT_METHODS = ['Cash', 'Bank transfer', 'Mobile Money', 'Other'] as const;
+
+/**
+ * Phase 6 (Settlement) -- ABRO_PRD.md §19, and mirroring
+ * apps/api/internal/settlements/service.go's real, already-implemented
+ * rule (ADR-003): a settlement can only be recorded by the person who
+ * owes -- `Service.Create` requires `GetPairwiseBalance(actor, toUser)`
+ * to be positive (actor owes toUser), and errors NO_OUTSTANDING_DEBT
+ * otherwise. There is no "record that someone paid me" path -- only the
+ * debtor's own session can create that row. This app only ever acts as
+ * the current user ('me'), so `fromUserId` is always 'me' for anything
+ * created via `createSettlement` below; seed rows below include the
+ * reverse direction (someone else settling with 'me') as pre-existing
+ * history, which is legitimate -- it's just not something *this*
+ * session's UI can produce, same as how ACTIVITIES already carries a
+ * couple of `dir: 'receive'` settlement rows.
+ */
+export interface SettlementRecord {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  amount: MinorUnits;
+  /** null = personal (no group) settlement. */
+  groupId: string | null;
+  method: string;
+  note: string;
+  /** Display-ready, matching ExpenseRecord.date's convention. */
+  date: string;
+}
+
+/** Seeded from ACTIVITIES' existing settlement rows (a2, a6) rather than
+ * invented figures -- same amounts, same people, same direction. */
+export const SETTLEMENTS: SettlementRecord[] = [
+  {
+    id: 's1',
+    fromUserId: '1',
+    toUserId: 'me',
+    amount: etb(500),
+    groupId: null,
+    method: 'Cash',
+    note: '',
+    date: 'Yesterday',
+  },
+  {
+    id: 's2',
+    fromUserId: 'me',
+    toUserId: '4',
+    amount: etb(2100),
+    groupId: null,
+    method: 'Bank transfer',
+    note: '',
+    date: 'Sat',
+  },
+];
+
+/** Every group-scoped debt the current user owes, as the exact
+ * minimum-transaction payments `simplifyDebts()` (the same tested
+ * function GRP-05/GRP-08 already call) computes for that group --
+ * filtered to the payments where 'me' is the payer. STL-01's Groups
+ * section and its per-group drill-down both read this. */
+export function getMyGroupDebts(groupId: string): { toUserId: string; amount: MinorUnits }[] {
+  const balances = GROUP_BALANCES[groupId] ?? {};
+  const positions: NetPosition[] = Object.entries(balances).map(([userId, netBalance]) => ({
+    userId,
+    netBalance,
+  }));
+  return simplifyDebts(positions)
+    .filter((tx) => tx.fromUserId === 'me')
+    .map((tx) => ({ toUserId: tx.toUserId, amount: tx.amount }));
+}
+
+/** The outstanding amount the current user owes `toUserId`, personal or
+ * group-scoped -- what STL-02's "Current Balance Display" and its
+ * validation ("cannot exceed outstanding balance") are computed
+ * against. Personal: FRIENDS.iOwe directly. Group-scoped: this specific
+ * pairwise amount from `getMyGroupDebts`, since a flat per-member net
+ * position (GROUP_BALANCES) isn't itself a pairwise "I owe exactly this
+ * person this much" figure -- the simplified payment plan is. */
+export function getOutstanding(toUserId: string, groupId: string | null): MinorUnits {
+  if (groupId) {
+    return getMyGroupDebts(groupId).find((d) => d.toUserId === toUserId)?.amount ?? 0n;
+  }
+  return FRIENDS.find((f) => f.id === toUserId)?.iOwe ?? 0n;
+}
+
+/**
+ * Records a settlement -- module-level mutation, same pattern as
+ * createGroup/updateExpense. Applies the ledger effect described in
+ * ABRO_PRD.md §19 (full or partial: the paid amount moves off both
+ * sides' outstanding balance, preserving whatever remains unpaid) to
+ * whichever balance model backs this settlement, appends the record to
+ * SETTLEMENTS (STL-05 history) and a matching row to ACTIVITIES (so it
+ * shows up immediately in Home/Activity, same as every other mutation
+ * in this app).
+ */
+export function createSettlement(input: {
+  toUserId: string;
+  groupId: string | null;
+  amount: MinorUnits;
+  method: string;
+  note: string;
+}): SettlementRecord {
+  const record: SettlementRecord = {
+    id: `s${SETTLEMENTS.length + 1}`,
+    fromUserId: 'me',
+    toUserId: input.toUserId,
+    amount: input.amount,
+    groupId: input.groupId,
+    method: input.method,
+    note: input.note,
+    date: 'Just now',
+  };
+  SETTLEMENTS.push(record);
+
+  if (input.groupId) {
+    const balances = GROUP_BALANCES[input.groupId];
+    if (balances) {
+      balances['me'] = (balances['me'] ?? 0n) + input.amount;
+      balances[input.toUserId] = (balances[input.toUserId] ?? 0n) - input.amount;
+    }
+    const group = GROUPS.find((g) => g.id === input.groupId);
+    if (group) {
+      group.balance += input.amount;
+    }
+  } else {
+    const friend = FRIENDS.find((f) => f.id === input.toUserId);
+    if (friend) {
+      friend.iOwe -= input.amount;
+    }
+  }
+
+  const friendName = resolveParticipants([input.toUserId])[0]?.name ?? 'them';
+  ACTIVITIES.unshift({
+    id: record.id,
+    type: 'settlement',
+    title: `You settled with ${friendName}`,
+    sub: input.method,
+    amount: input.amount,
+    dir: 'paid',
+    time: 'Just now',
+    category: 'Settlement',
+  });
+
+  return record;
+}
 
 export interface Activity {
   id: string;
