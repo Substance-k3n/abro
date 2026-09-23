@@ -478,13 +478,70 @@ acceptable for now since this mirrors a pre-existing, already-tracked
 gap (real Google OAuth credentials are still an outstanding manual
 setup step), not something this slice regressed.
 
+### Slice 2 — Home (DASH-01) `[done]`
+
+Branches: `feature/balances-summary-endpoint` (PR #23, backend),
+`feature/home-api-integration` (this PR, frontend).
+
+No aggregate "all my balances" endpoint existed -- only per-friend
+(`GET /balances/friends/{id}`) and per-group (`GET /balances/groups/
+{id}`) lookups, which would have forced Home into an N+1 fan-out (one
+request per friendship/membership). Decided with the user to add a
+real aggregate endpoint instead (`GET /balances/summary`, PR #23)
+rather than accept that fan-out.
+
+- [x] `~/lib/friends-api.ts`, `~/lib/groups-api.ts`, `~/lib/
+balances-api.ts`, `~/lib/notifications-api.ts`, `~/lib/
+expenses-api.ts` -- typed calls into their respective apps/api
+      modules, following `~/lib/auth-api.ts`'s pattern from slice 1.
+      Each later slice that needs one of these modules extends its
+      existing file rather than starting a new one.
+- [x] `~/lib/identity.ts` -- `initialsOf`/`colorForId`, shared by every
+      screen rendering a real person's avatar (no stored color field
+      exists -- AUTH-06/PRF-01's picker is cosmetic-only).
+- [x] `~/lib/balances-api.ts`'s `friendOweSplit()` -- documents and
+      centralizes a real gotcha: apps/api's friend and group balances
+      use **opposite sign conventions** (friend: positive = "I owe
+      them"; group: positive = "they/the group owe me", matching this
+      app's existing mock `Group.balance` convention already). Every
+      later slice showing a friend balance must go through this
+      function rather than re-deriving the sign logic.
+- [x] `/home` (DASH-01) -- first dashboard screen off mock data. Five
+      parallel requests on mount (profile, friends, groups, balances
+      summary, unread notifications, 5 most recent expenses); a real
+      loading spinner and error-with-retry state, both new to this app
+      (every mock-data screen before this was synchronous). This is
+      the reference pattern for every later Phase 8 dashboard slice.
+
+Deviations (Confirmed): Recent Activity rows are not clickable --
+they'd link to `/expenses/[id]`, still mock-data-only until Phase 8
+reaches expenses, and would show "not found" for a real id. Group
+icon/color still come from `~/lib/mock-data.ts`'s `GROUP_TYPES` lookup
+(client-side reference data, not mock _facts_), matched
+case-insensitively against apps/api's UPPERCASE `type` enum. Activity
+row timestamps are an absolute short date, not relative ("2h ago") --
+no relative-time formatter exists yet, out of scope for this slice.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` all clean;
+`go build`/`vet`/`gofmt -l`/`go test ./...` (backend) all clean.
+Manual end-to-end browser verification with two real signed-up users,
+a real friendship, a real personal expense, and a real group + group
+expense: friend balance (red, "you owe", correct amount and sign),
+group balance (green, "the group owes you", correct amount and
+opposite sign convention correctly _not_ flipped), Recent Activity
+rows for both showing correct title/sub/amount/direction, unread
+notification badge. Confirms the friend/group sign-convention split is
+implemented correctly in both directions, not just one.
+
 ### Later slices `[todo]`
 
-Dashboard (`DASH-0x`), expenses (`EXP-0x`), groups (`GRP-0x`),
-settlement (`STL-0x`/`BAL-0x`), profile/settings preferences beyond
-auth (`PRF-01`'s stats/currency/language, `SET-0x`) -- each replaces
-its own slice of `~/lib/mock-data.ts` the same way this slice replaced
-`~/lib/expense-draft.tsx`-adjacent auth mocking.
+Activity (`DASH-02`), Friends (`DASH-03`/`04`), Groups (`DASH-05`),
+Balances Overview (`DASH-06`), Notifications (`DASH-07`), Search
+(`DASH-08`), expenses (`EXP-0x`), groups (`GRP-0x`), settlement
+(`STL-0x`/`BAL-0x`), profile/settings preferences beyond auth
+(`PRF-01`'s stats/currency/language, `SET-0x`) -- each replaces its own
+slice of `~/lib/mock-data.ts`, reusing the `~/lib/*-api.ts` modules
+slice 2 already built wherever they apply.
 
 **Acceptance:** the "MVP Acceptance Criteria" checklist in
 `ABRO_PRD.md` §54 passes end to end against a real database, not mocks.
