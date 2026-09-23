@@ -102,7 +102,7 @@ func (h *Handler) googleCallback(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{Name: oauthStateCookie, Value: "", MaxAge: -1, Path: "/"})
 
 	if code == "" || state == "" || expectedCookie == nil || state != expectedCookie.Value {
-		http.Redirect(w, r, h.webOrig+"/sign-in?error=oauth_state", http.StatusFound)
+		http.Redirect(w, r, h.webOrig+"/auth/signin?error=oauth_state", http.StatusFound)
 		return
 	}
 
@@ -112,7 +112,13 @@ func (h *Handler) googleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	setSessionCookie(w, result.Token, result.ExpiresAt, h.isProd)
-	http.Redirect(w, r, h.webOrig+"/dashboard", http.StatusFound)
+	// A redirect can't carry "is this profile new" as data, so this always
+	// lands on one shared frontend page that calls GET /auth/me and routes
+	// onward from AuthProfile.username -- the same rule the OTP path
+	// applies client-side via apps/web/src/lib/auth-api.ts's
+	// postSignInPath(), re-applied here since a server redirect can't call
+	// into that TS function directly.
+	http.Redirect(w, r, h.webOrig+"/auth/callback", http.StatusFound)
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) error {

@@ -408,15 +408,83 @@ routes), closing the gap left by Phase 3's `nav-items.ts`, whose
 "Profile" tab and Home's settings-gear icon both pointed at `/profile`
 before this phase existed.
 
-## Phase 8 — Wire to the real API `[todo]`
-
-Branch: `feature/api-integration`
+## Phase 8 — Wire to the real API `[in progress]`
 
 Replace every phase's mock data with real calls into `apps/api`, screen
 set by screen set, in the same order they were built (auth first, then
-dashboard, then expenses...). This is also when `apps/api`'s modules
-(`auth`, `users`, `friends`, `groups`, `expenses`, `balances`,
-`settlements`) stop being empty `README.md` stubs.
+dashboard, then expenses...). `apps/api`'s modules have been real (not
+`README.md` stubs) since the Go rewrite (ADR-007); this phase is about
+the frontend actually calling them instead of `~/lib/mock-data.ts`.
+
+### Slice 1 — Infrastructure + auth `[done]`
+
+Branches: `feature/api-username-cors` (PR #21, backend), `feature/auth-api-integration` (this PR, frontend).
+
+Two real gaps found before any screen could be wired, both closed in
+PR #21: `apps/api` had no CORS handling at all (blocking every future
+slice, not just this one -- the session cookie can't cross :3200/:3201
+without it), and the mock AUTH-06 (setup-profile) assumed a username
+system the real `Profile` model never had a field for (added on
+request rather than dropping the screen -- `profiles.username`,
+nullable + unique, migration `0010_username`).
+
+- [x] `~/lib/api-client.ts` -- shared fetch wrapper (`credentials:
+'include'`, apps/api's `{statusCode, code, message}` error
+      envelope mapped to a typed `ApiError`). Every later slice's
+      `~/lib/*-api.ts` builds on this same client.
+- [x] `~/lib/auth-api.ts` -- typed calls for `/auth/otp/*`, `/auth/me`,
+      `/auth/logout`, `/users/username-available`, `PATCH /users/me`,
+      plus `postSignInPath()`: the one place "route to setup-profile
+      vs. home" is decided, from `AuthProfile.username === null`.
+- [x] `/auth/signin` (AUTH-03/04) -- password field and "Forgot
+      password?" removed entirely (apps/api has no password auth to
+      match them); submit calls the real `POST /auth/otp/request`,
+      Google is a real page navigation to `GET /auth/google`.
+- [x] `/auth/verify-email` (AUTH-05) -- auto-submit calls the real
+      `POST /auth/otp/verify` and routes via `postSignInPath()`
+      instead of always landing on setup-profile. Resend calls the
+      real endpoint too, with a client-side 60s cooldown matching
+      apps/api's own `OTP_COOLDOWN`.
+- [x] `/auth/setup-profile` (AUTH-06) -- the hardcoded `TAKEN_USERNAMES`
+      list + fake 600ms check replaced by a real, 400ms-debounced call
+      to `GET /users/username-available`; Continue calls the real
+      `PATCH /users/me`. Avatar color picker stays cosmetic-only (no
+      image upload/storage exists) -- same deviation as PRF-01.
+- [x] `/auth/callback` -- new, not an `ABRO_FRONTEND_SPEC.md` screen.
+      Google's OAuth redirect can't carry "is this profile new" as
+      data the way the OTP path's client-side response can, so it
+      always lands here, which calls `GET /auth/me` and applies the
+      same `postSignInPath()` rule from an already-established
+      session. Also fixed two apps/api redirect targets that pointed
+      at routes this Next.js app doesn't have (`/dashboard` -> here,
+      `/sign-in` -> `/auth/signin`).
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` all clean.
+Manual end-to-end browser click-through against a real local
+Postgres+API: sign-up email -> real OTP (read from the dev-mode
+console log, no mailer configured locally) -> verify -> setup-profile
+with a live availability check -> `/home`; a second sign-in for the
+same (now-onboarded) email skips straight to `/home`; a wrong code
+shows apps/api's real `OTP_INCORRECT` message and clears the boxes.
+Google sign-in itself isn't end-to-end testable without real OAuth
+credentials (none configured in any environment yet, tracked
+separately) -- confirmed instead that hitting `/auth/google` returns
+the expected `GOOGLE_OAUTH_NOT_CONFIGURED` error rather than crashing.
+
+**Known limitation carried forward:** clicking "Continue with Google"
+today lands on apps/api's raw JSON error response (no Google
+credentials configured anywhere yet), not a friendly in-app message --
+acceptable for now since this mirrors a pre-existing, already-tracked
+gap (real Google OAuth credentials are still an outstanding manual
+setup step), not something this slice regressed.
+
+### Later slices `[todo]`
+
+Dashboard (`DASH-0x`), expenses (`EXP-0x`), groups (`GRP-0x`),
+settlement (`STL-0x`/`BAL-0x`), profile/settings preferences beyond
+auth (`PRF-01`'s stats/currency/language, `SET-0x`) -- each replaces
+its own slice of `~/lib/mock-data.ts` the same way this slice replaced
+`~/lib/expense-draft.tsx`-adjacent auth mocking.
 
 **Acceptance:** the "MVP Acceptance Criteria" checklist in
 `ABRO_PRD.md` §54 passes end to end against a real database, not mocks.
