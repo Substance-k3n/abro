@@ -533,11 +533,60 @@ rows for both showing correct title/sub/amount/direction, unread
 notification badge. Confirms the friend/group sign-convention split is
 implemented correctly in both directions, not just one.
 
+### Slice 3 — Friends, Balances Overview, Notifications `[done]`
+
+Branch: `feature/friends-balances-notifications-api-integration`.
+
+No new backend work needed -- unlike slices 1 and 2, every endpoint
+these three screens need already existed (`GET /friends/`, `GET
+/groups/`, `GET /balances/summary`, `GET /notifications`, `PATCH
+/notifications/read-all`, `PATCH /notifications/{id}/read`). Purely a
+frontend slice, reusing slice 2's `~/lib/*-api.ts` modules.
+
+- [x] `~/lib/balances-api.ts`'s `deriveFriendRows()`/`deriveGroupRows()`
+      -- extracted from Home's (DASH-01) inline logic into shared
+      helpers once a second and third screen needed the identical
+      `listFriends()`/`listGroups()` + `getBalancesSummary()` join.
+      Home itself was refactored to call these too, so all three
+      screens can't drift apart on how a balance is computed.
+- [x] `~/lib/format.ts`'s `formatShortDate()` -- same extraction, for
+      the absolute-short-date formatting Home's `toActivityDisplay()`
+      introduced and Notifications now also needs.
+- [x] `/friends` (DASH-03) -- "Settled up" (spec's third section) is
+      new here; Home never needed it (it hides zero-balance friends
+      entirely). Search filters the same real rows.
+- [x] `/balances` (DASH-06) -- All/Friends only/Groups only filter tabs
+      over the same `deriveFriendRows()`/`deriveGroupRows()` data Home
+      and Friends use; a real loading state (the spec's own "loading
+      state" item, previously marked not-applicable-yet against mock
+      data).
+- [x] `/notifications` (DASH-07) -- real `type` enum
+      (`apps/api/internal/notifications/service.go`) mapped to the same
+      four lucide icons the mock version hardcoded per seed row. Mark-
+      read/mark-all-read apply optimistically to local state and roll
+      back on failure, rather than waiting on the round trip.
+
+Deviation (Confirmed): a friend row on both `/friends` and `/balances`
+still navigates to `/friends/[friendId]`, still mock-data-only until
+Friend Detail (DASH-04) is wired in a later slice -- verified this
+degrades gracefully (the page's own "Friend not found" empty state for
+an unmatched real id), not a crash.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` all clean.
+Manual end-to-end browser verification with two real signed-up users,
+a real friendship, and a real personal expense between them: `/friends`
+correctly sections the friend under "People you owe" with the right
+signed amount; `/balances` shows the identical amount and total, and
+its Groups-only filter correctly empties out for a user with no
+groups; `/notifications` shows a real `EXPENSE_ADDED` notification with
+the right icon/title/body, marking it read updates the UI instantly
+and persists (confirmed via a direct API call after the click) with
+the unread badge/"Mark all read" button correctly disappearing.
+
 ### Later slices `[todo]`
 
-Activity (`DASH-02`), Friends (`DASH-03`/`04`), Groups (`DASH-05`),
-Balances Overview (`DASH-06`), Notifications (`DASH-07`), Search
-(`DASH-08`), expenses (`EXP-0x`), groups (`GRP-0x`), settlement
+Activity (`DASH-02`), Friend Detail (`DASH-04`), Groups (`DASH-05`),
+Search (`DASH-08`), expenses (`EXP-0x`), groups (`GRP-0x`), settlement
 (`STL-0x`/`BAL-0x`), profile/settings preferences beyond auth
 (`PRF-01`'s stats/currency/language, `SET-0x`) -- each replaces its own
 slice of `~/lib/mock-data.ts`, reusing the `~/lib/*-api.ts` modules

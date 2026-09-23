@@ -17,6 +17,9 @@
 // re-deriving the sign logic.
 
 import { api } from './api-client';
+import type { FriendListItem } from './friends-api';
+import type { AuthGroup } from './groups-api';
+import { colorForId, initialsOf } from './identity';
 
 export interface FriendBalance {
   friendId: string;
@@ -45,4 +48,52 @@ export function getBalancesSummary(): Promise<BalancesSummary> {
  * `Friend.owes`/`Friend.iOwe` fields this replaces. */
 export function friendOweSplit(netBalance: bigint): { owes: bigint; iOwe: bigint } {
   return netBalance < 0n ? { owes: -netBalance, iOwe: 0n } : { owes: 0n, iOwe: netBalance };
+}
+
+export interface FriendRow {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  owes: bigint;
+  iOwe: bigint;
+}
+
+/** Combines `listFriends()` + `getBalancesSummary()` into the per-friend
+ * display rows every friend-list screen needs (Home, DASH-03, DASH-06)
+ * -- one place this join lives, so they can't drift apart on it. */
+export function deriveFriendRows(
+  friends: FriendListItem[],
+  balances: BalancesSummary,
+): FriendRow[] {
+  const balanceByFriend = new Map(balances.friends.map((f) => [f.friendId, BigInt(f.netBalance)]));
+  return friends.map((f) => {
+    const { owes, iOwe } = friendOweSplit(balanceByFriend.get(f.friend.id) ?? 0n);
+    return {
+      id: f.friend.id,
+      name: f.friend.displayName,
+      initials: initialsOf(f.friend.displayName),
+      color: colorForId(f.friend.id),
+      owes,
+      iOwe,
+    };
+  });
+}
+
+export interface GroupRow {
+  id: string;
+  name: string;
+  /** Positive = the group owes you (no sign conversion needed, unlike
+   * friend balances -- see this file's header comment). */
+  balance: bigint;
+}
+
+/** Combines `listGroups()` + `getBalancesSummary()` into the per-group
+ * display rows every group-list screen needs (Home, DASH-06) -- icon/
+ * color are deliberately not included here, since they come from
+ * `~/lib/mock-data.ts`'s `GROUP_TYPES` lookup, a UI-layer concern each
+ * page already handles for itself. */
+export function deriveGroupRows(groups: AuthGroup[], balances: BalancesSummary): GroupRow[] {
+  const balanceByGroup = new Map(balances.groups.map((g) => [g.groupId, BigInt(g.netBalance)]));
+  return groups.map((g) => ({ id: g.id, name: g.name, balance: balanceByGroup.get(g.id) ?? 0n }));
 }

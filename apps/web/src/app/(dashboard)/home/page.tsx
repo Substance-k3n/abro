@@ -53,7 +53,12 @@ import { useEffect, useState } from 'react';
 
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
-import { type BalancesSummary, friendOweSplit, getBalancesSummary } from '~/lib/balances-api';
+import {
+  type BalancesSummary,
+  deriveFriendRows,
+  deriveGroupRows,
+  getBalancesSummary,
+} from '~/lib/balances-api';
 import {
   type ActivityDisplay,
   type AuthExpense,
@@ -151,23 +156,9 @@ export default function HomePage() {
   }
 
   const { profile, friends, groups, balances, unreadCount, recentActivity } = data;
-
-  const balanceByFriend = new Map(balances.friends.map((f) => [f.friendId, BigInt(f.netBalance)]));
-  const balanceByGroup = new Map(balances.groups.map((g) => [g.groupId, BigInt(g.netBalance)]));
   const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
 
-  const friendRows = friends.map((f) => {
-    const { owes, iOwe } = friendOweSplit(balanceByFriend.get(f.friend.id) ?? 0n);
-    return {
-      id: f.friend.id,
-      name: f.friend.displayName,
-      initials: initialsOf(f.friend.displayName),
-      color: colorForId(f.friend.id),
-      owes,
-      iOwe,
-    };
-  });
-
+  const friendRows = deriveFriendRows(friends, balances);
   const owedTotal = friendRows.reduce((sum, f) => sum + f.owes, 0n);
   const oweTotal = friendRows.reduce((sum, f) => sum + f.iOwe, 0n);
   const net = owedTotal - oweTotal;
@@ -175,12 +166,17 @@ export default function HomePage() {
   const owedToYou = friendRows.filter((f) => f.owes > 0n).slice(0, 3);
   const youOwe = friendRows.filter((f) => f.iOwe > 0n).slice(0, 3);
 
-  const groupRows = groups.map((g) => {
-    const groupType =
+  const groupTypeById = new Map(
+    groups.map((g) => [
+      g.id,
       GROUP_TYPES.find((t) => t.id.toUpperCase() === g.type) ??
-      GROUP_TYPES[GROUP_TYPES.length - 1]!;
-    return { id: g.id, name: g.name, balance: balanceByGroup.get(g.id) ?? 0n, groupType };
-  });
+        GROUP_TYPES[GROUP_TYPES.length - 1]!,
+    ]),
+  );
+  const groupRows = deriveGroupRows(groups, balances).map((g) => ({
+    ...g,
+    groupType: groupTypeById.get(g.id)!,
+  }));
   const groupsWithBalance = groupRows.filter((g) => g.balance !== 0n);
 
   const activityRows: ActivityDisplay[] = recentActivity.map((e) =>

@@ -10,6 +10,7 @@
 
 import { api } from './api-client';
 import type { AuthProfile } from './auth-api';
+import { formatShortDate } from './format';
 
 export interface ExpenseParticipant {
   id: string;
@@ -86,19 +87,15 @@ export interface ActivityDisplay {
  * payer a `0` participant row (`{settler: 0, recipient: amount}`), so
  * "my share" would show 0 for the person who actually paid.
  *
- * `time` is an absolute short date, not a relative one ("2h ago") --
- * `expenseDate` has no client-side relative-time formatter in this app
- * yet, and adding one is out of scope for this slice. */
+ * `time` is `~/lib/format.ts`'s absolute short date, not a relative one
+ * ("2h ago") -- see that module for why. */
 export function toActivityDisplay(
   expense: AuthExpense,
   meId: string,
   groupNameById: Map<string, string>,
 ): ActivityDisplay {
   const iPaid = expense.paidBy.id === meId;
-  const time = new Date(expense.expenseDate).toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-  });
+  const time = formatShortDate(expense.expenseDate);
 
   if (expense.splitType === 'SETTLEMENT') {
     const other = expense.participants.find((p) => p.user.id !== expense.paidBy.id)?.user;

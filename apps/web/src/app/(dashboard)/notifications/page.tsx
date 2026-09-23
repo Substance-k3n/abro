@@ -2,31 +2,103 @@
 
 // DASH-07 Notifications — docs/ABRO_FRONTEND_SPEC.md §3 (lines 530-570).
 // Ported from the prototype's NotificationsScreen (App.tsx:3954): type
-// icon, title/body/time, unread accent border + dot. Unlike the
-// prototype's inert "Mark all read" button, this one actually works
-// against local state (still mock data, but the interaction itself is
-// real) -- Phase 8 replaces the local state with a real
-// PATCH /notifications/read-all call.
+// icon, title/body/time, unread accent border + dot.
+//
+// Phase 8 (docs/WIRING_PLAN.md) rewiring: real GET /notifications on
+// mount, real PATCH /notifications/read-all and PATCH /notifications/
+// {id}/read on click -- both apply optimistically to local state first
+// (same instant-feedback UX the mock version already had) and roll
+// back on failure, rather than waiting on a round trip before the UI
+// updates.
+//
+// Icon-per-type mapping is new here -- the mock version hardcoded one
+// icon per seeded notification; real ones carry a real `type`
+// (apps/api/internal/notifications/service.go's `Type` enum:
+// EXPENSE_ADDED/EXPENSE_EDITED/EXPENSE_DELETED/SETTLEMENT/
+// GROUP_INVITATION/GROUP_MEMBERSHIP_CHANGE/RECURRING_EXPENSE/
+// DEBT_SIMPLIFICATION_CHANGE), mapped to the same four lucide icons the
+// mock version used, matched by category rather than 1:1.
 
 import { EmptyState } from '@abro/ui';
 import { Bell, type LucideIcon, Receipt, UserPlus, Utensils, Wallet } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { NOTIFICATIONS, type NotificationMock } from '~/lib/mock-data';
+import { ApiError } from '~/lib/api-client';
+import { formatShortDate } from '~/lib/format';
+import {
+  type Notification,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from '~/lib/notifications-api';
 
-const ICONS: Record<NotificationMock['icon'], LucideIcon> = {
-  Wallet,
-  Utensils,
-  UserPlus,
-  Receipt,
+const ICONS: Record<string, LucideIcon> = {
+  EXPENSE_ADDED: Utensils,
+  EXPENSE_EDITED: Receipt,
+  EXPENSE_DELETED: Receipt,
+  SETTLEMENT: Wallet,
+  GROUP_INVITATION: UserPlus,
+  GROUP_MEMBERSHIP_CHANGE: UserPlus,
+  RECURRING_EXPENSE: Receipt,
+  DEBT_SIMPLIFICATION_CHANGE: Receipt,
 };
 
-export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState(NOTIFICATIONS);
+function LoadingState() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <div
+        className="h-8 w-8 rounded-full border-2"
+        style={{
+          borderColor: 'rgba(99,102,241,0.3)',
+          borderTopColor: 'var(--accent)',
+          animation: 'spin 0.7s linear infinite',
+        }}
+        aria-label="Loading"
+      />
+    </div>
+  );
+}
 
-  const markAllRead = () => setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  const markRead = (id: string) =>
-    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+export default function NotificationsPage() {
+  const [notifications, setNotifications] = useState<Notification[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setError(null);
+    setNotifications(null);
+    listNotifications({ limit: 50 })
+      .then(setNotifications)
+      .catch((err) => {
+        setError(err instanceof ApiError ? err.message : 'Could not load notifications.');
+      });
+  };
+
+  useEffect(load, []);
+
+  const markAllRead = () => {
+    if (!notifications) {
+      return;
+    }
+    const previous = notifications;
+    const now = new Date().toISOString();
+    setNotifications(previous.map((n) => ({ ...n, readAt: n.readAt ?? now })));
+    markAllNotificationsRead().catch(() => setNotifications(previous));
+  };
+
+  const markRead = (id: string) => {
+    if (!notifications) {
+      return;
+    }
+    const target = notifications.find((n) => n.id === id);
+    if (!target || target.readAt) {
+      return;
+    }
+    const previous = notifications;
+    setNotifications(
+      previous.map((n) => (n.id === id ? { ...n, readAt: new Date().toISOString() } : n)),
+    );
+    markNotificationRead(id).catch(() => setNotifications(previous));
+  };
 
   return (
     <div className="fade-in px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
@@ -37,16 +109,32 @@ export default function NotificationsPage() {
         >
           Notifications
         </h2>
-        <button
-          onClick={markAllRead}
-          className="text-[0.78rem] font-medium"
-          style={{ color: 'var(--accent)' }}
-        >
-          Mark all read
-        </button>
+        {notifications && notifications.some((n) => !n.readAt) && (
+          <button
+            onClick={markAllRead}
+            className="text-[0.78rem] font-medium"
+            style={{ color: 'var(--accent)' }}
+          >
+            Mark all read
+          </button>
+        )}
       </div>
 
-      {notifications.length === 0 ? (
+      {error ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <p className="text-[0.9rem]" style={{ color: 'var(--t-muted)' }}>
+            {error}
+          </p>
+          <button
+            onClick={load}
+            className="neo-btn-accent rounded-2xl px-5 py-2.5 text-[0.85rem] font-semibold"
+          >
+            Try again
+          </button>
+        </div>
+      ) : !notifications ? (
+        <LoadingState />
+      ) : notifications.length === 0 ? (
         <EmptyState
           icon={<Bell size={26} strokeWidth={1.5} />}
           title="All caught up!"
@@ -55,13 +143,14 @@ export default function NotificationsPage() {
       ) : (
         <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
           {notifications.map((n) => {
-            const Icon = ICONS[n.icon];
+            const Icon = ICONS[n.type] ?? Bell;
+            const isRead = n.readAt !== null;
             return (
               <button
                 key={n.id}
                 onClick={() => markRead(n.id)}
                 className="neo-raised-sm flex items-start gap-3 rounded-2xl p-3.5 text-left"
-                style={{ borderLeft: n.read ? 'none' : '3px solid var(--accent)' }}
+                style={{ borderLeft: isRead ? 'none' : '3px solid var(--accent)' }}
               >
                 <div
                   className="neo-raised-sm flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
@@ -72,7 +161,7 @@ export default function NotificationsPage() {
                 <div className="flex-1">
                   <p
                     className="mb-0.5 text-[0.88rem]"
-                    style={{ color: 'var(--t-primary)', fontWeight: n.read ? 500 : 700 }}
+                    style={{ color: 'var(--t-primary)', fontWeight: isRead ? 500 : 700 }}
                   >
                     {n.title}
                   </p>
@@ -83,10 +172,10 @@ export default function NotificationsPage() {
                     {n.body}
                   </p>
                   <p className="text-[0.7rem]" style={{ color: '#b0b5c0' }}>
-                    {n.time}
+                    {formatShortDate(n.createdAt)}
                   </p>
                 </div>
-                {!n.read && <div className="notif-dot mt-1 shrink-0" />}
+                {!isRead && <div className="notif-dot mt-1 shrink-0" />}
               </button>
             );
           })}
