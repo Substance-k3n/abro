@@ -30,6 +30,15 @@
 //    across earlier phases) are handled here: a valid `friendId` with a
 //    real outstanding balance skips straight to /settle/amount; a valid
 //    `groupId` pre-opens that group's drill-down.
+//  - Every hand-off to /settle/amount goes through its `?toUserId=`/
+//    `?groupId=` query params, never a context update made just before
+//    navigating -- a context update from this page and /settle/amount's
+//    first render are two different components; there's no guarantee
+//    the update commits before the new route reads it (confirmed by a
+//    real repro: the query-param-driven redirect landed on
+//    /settle/amount with a still-null draft.toUserId). /settle/amount
+//    reads its own params directly instead, same pattern EXP-01 already
+//    uses for its `?groupId=` pre-selection.
 
 import { ArrowRight, ChevronLeft, Handshake, Search as SearchIcon } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -38,8 +47,8 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { ETB, formatMoney } from '@abro/types';
 import { AmountBadge, EmptyState, GroupIcon, PersonRow } from '@abro/ui';
 
-import { useSettleDraft } from '~/lib/settle-draft';
 import { FRIENDS, GROUPS, getMyGroupDebts, resolveParticipants } from '~/lib/mock-data';
+import { useSettleDraft } from '~/lib/settle-draft';
 
 export default function SettleChoosePage() {
   return (
@@ -70,8 +79,7 @@ function SettleChooseForm() {
     if (friendId) {
       const friend = FRIENDS.find((f) => f.id === friendId);
       if (friend && friend.iOwe > 0n) {
-        update({ toUserId: friendId, groupId: null });
-        router.replace('/settle/amount');
+        router.replace(`/settle/amount?toUserId=${friendId}`);
         return;
       }
     }
@@ -80,8 +88,7 @@ function SettleChooseForm() {
     if (groupId && GROUPS.some((g) => g.id === groupId)) {
       const toUserId = searchParams.get('toUserId');
       if (toUserId && getMyGroupDebts(groupId).some((d) => d.toUserId === toUserId)) {
-        update({ toUserId, groupId });
-        router.replace('/settle/amount');
+        router.replace(`/settle/amount?toUserId=${toUserId}&groupId=${groupId}`);
         return;
       }
       update({ groupId, toUserId: null });
@@ -139,10 +146,9 @@ function SettleChooseForm() {
                   name={person.name}
                   sub="In this group"
                   right={<AmountBadge amount={d.amount} dir="owe" />}
-                  onClick={() => {
-                    update({ toUserId: d.toUserId, groupId: activeGroup.id });
-                    router.push('/settle/amount');
-                  }}
+                  onClick={() =>
+                    router.push(`/settle/amount?toUserId=${d.toUserId}&groupId=${activeGroup.id}`)
+                  }
                 />
               );
             })}
@@ -211,10 +217,7 @@ function SettleChooseForm() {
                     color={f.color}
                     name={f.name}
                     right={<AmountBadge amount={f.iOwe} dir="owe" />}
-                    onClick={() => {
-                      update({ toUserId: f.id, groupId: null });
-                      router.push('/settle/amount');
-                    }}
+                    onClick={() => router.push(`/settle/amount?toUserId=${f.id}`)}
                   />
                 ))}
               </div>
