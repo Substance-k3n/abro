@@ -16,12 +16,19 @@
 // No prototype reference exists for this screen (the Figma Make prototype's
 // App.tsx has no Balances Overview screen) -- designed fresh from the spec
 // text above, reusing Home's (DASH-01) exact balance patterns: same bigint
-// owed/owe/net reduce over FRIENDS/GROUPS, same BalanceCard/PersonRow/
+// owed/owe/net reduce over friends/groups, same BalanceCard/PersonRow/
 // MoneyDisplay/AmountBadge/GroupIcon/SectionLabel components, same
 // neo-card/neo-raised-sm styling conventions. Filter tabs (.neo-tab/.active)
 // follow Activity's (DASH-02) established inline-pill pattern rather than a
 // full filter sheet/modal, consistent with the spec-vs-prototype deviations
 // already made on those screens.
+//
+// Phase 8 (docs/WIRING_PLAN.md) rewiring: real GET /friends/, GET /groups/,
+// and GET /balances/summary, combined via ~/lib/balances-api.ts's
+// deriveFriendRows()/deriveGroupRows() -- the same helpers Home (DASH-01)
+// and Friends (DASH-03) use, so all three screens agree on every balance.
+// "Loading state" (spec's own State list) is real now, not the
+// not-applicable-yet note the mock version carried.
 //
 // Deviations/omissions (Confirmed -- app is single-currency today):
 //  - Currency Breakdown card: omitted, not built as a fake collapsible. The
@@ -33,11 +40,12 @@
 //    currency = a no-op filter).
 //  - Header's "Filter/Sort button" -> inline filter tabs (All / Friends
 //    only / Groups only), no separate sort control -- the spec doesn't
-//    define sort keys/order for this screen and the mock lists are short
+//    define sort keys/order for this screen and the real lists are short
 //    enough not to need one.
-//  - "Loading state" (spec's State list): not applicable yet -- mock data
-//    is synchronous/local, same as every other Phase 3 dashboard screen.
-//    Phase 8 (real API) is when this needs a real loading/skeleton state.
+//  - Group icon/color still come from ~/lib/mock-data.ts's GROUP_TYPES
+//    lookup table (client-side reference data, not mock *facts*), matched
+//    case-insensitively against apps/api's UPPERCASE `type` enum -- same
+//    deviation already established on Home.
 
 import {
   AmountBadge,
@@ -51,9 +59,18 @@ import {
 import { Handshake } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { FRIENDS, GROUPS } from '~/lib/mock-data';
+import { ApiError } from '~/lib/api-client';
+import {
+  type BalancesSummary,
+  deriveFriendRows,
+  deriveGroupRows,
+  getBalancesSummary,
+} from '~/lib/balances-api';
+import { type FriendListItem, listFriends } from '~/lib/friends-api';
+import { type AuthGroup, listGroups } from '~/lib/groups-api';
+import { GROUP_TYPES } from '~/lib/mock-data';
 
 type FilterKey = 'all' | 'friends' | 'groups';
 
@@ -63,29 +80,95 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'groups', label: 'Groups only' },
 ];
 
+interface BalancesData {
+  friends: FriendListItem[];
+  groups: AuthGroup[];
+  balances: BalancesSummary;
+}
+
+function LoadingState() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <div
+        className="h-8 w-8 rounded-full border-2"
+        style={{
+          borderColor: 'rgba(99,102,241,0.3)',
+          borderTopColor: 'var(--accent)',
+          animation: 'spin 0.7s linear infinite',
+        }}
+        aria-label="Loading"
+      />
+    </div>
+  );
+}
+
 export default function BalancesPage() {
   const router = useRouter();
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [data, setData] = useState<BalancesData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setError(null);
+    setData(null);
+    Promise.all([listFriends(), listGroups(), getBalancesSummary()])
+      .then(([friends, groups, balances]) => setData({ friends, groups, balances }))
+      .catch((err) => {
+        setError(err instanceof ApiError ? err.message : 'Could not load your balances.');
+      });
+  };
+
+  useEffect(load, []);
+
+  if (error) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-8 text-center">
+        <p className="text-[0.9rem]" style={{ color: 'var(--t-muted)' }}>
+          {error}
+        </p>
+        <button
+          onClick={load}
+          className="neo-btn-accent rounded-2xl px-5 py-2.5 text-[0.85rem] font-semibold"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (!data) {
+    return <LoadingState />;
+  }
+
+  const friendRows = deriveFriendRows(data.friends, data.balances);
+  const groupTypeById = new Map(
+    data.groups.map((g) => [
+      g.id,
+      GROUP_TYPES.find((t) => t.id.toUpperCase() === g.type) ??
+        GROUP_TYPES[GROUP_TYPES.length - 1]!,
+    ]),
+  );
+  const groupRows = deriveGroupRows(data.groups, data.balances).map((g) => ({
+    ...g,
+    groupType: groupTypeById.get(g.id)!,
+  }));
 
   // Total Balance Card: friends + groups combined, same bigint reduce
   // pattern as Home (DASH-01).
-  const friendOwedTotal = FRIENDS.reduce((sum, f) => sum + f.owes, 0n);
-  const friendOweTotal = FRIENDS.reduce((sum, f) => sum + f.iOwe, 0n);
-  const groupOwedTotal = GROUPS.filter((g) => g.balance > 0n).reduce(
-    (sum, g) => sum + g.balance,
-    0n,
-  );
-  const groupOweTotal = GROUPS.filter((g) => g.balance < 0n).reduce(
-    (sum, g) => sum - g.balance,
-    0n,
-  );
+  const friendOwedTotal = friendRows.reduce((sum, f) => sum + f.owes, 0n);
+  const friendOweTotal = friendRows.reduce((sum, f) => sum + f.iOwe, 0n);
+  const groupOwedTotal = groupRows
+    .filter((g) => g.balance > 0n)
+    .reduce((sum, g) => sum + g.balance, 0n);
+  const groupOweTotal = groupRows
+    .filter((g) => g.balance < 0n)
+    .reduce((sum, g) => sum - g.balance, 0n);
   const owedTotal = friendOwedTotal + groupOwedTotal;
   const oweTotal = friendOweTotal + groupOweTotal;
   const net = owedTotal - oweTotal;
 
-  const owedToYou = FRIENDS.filter((f) => f.owes > 0n);
-  const youOwe = FRIENDS.filter((f) => f.iOwe > 0n);
-  const groupsWithBalance = GROUPS.filter((g) => g.balance !== 0n);
+  const owedToYou = friendRows.filter((f) => f.owes > 0n);
+  const youOwe = friendRows.filter((f) => f.iOwe > 0n);
+  const groupsWithBalance = groupRows.filter((g) => g.balance !== 0n);
 
   const showFriends = filter !== 'groups';
   const showGroups = filter !== 'friends';
@@ -199,9 +282,9 @@ export default function BalancesPage() {
                     >
                       <div
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]"
-                        style={{ background: `${g.color}22`, color: g.color }}
+                        style={{ background: `${g.groupType.color}22`, color: g.groupType.color }}
                       >
-                        <GroupIcon icon={g.icon} size={19} />
+                        <GroupIcon icon={g.groupType.icon} size={19} />
                       </div>
                       <span
                         className="flex-1 text-[0.88rem] font-semibold"

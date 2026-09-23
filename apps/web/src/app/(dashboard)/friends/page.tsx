@@ -1,17 +1,6 @@
 'use client';
 
 // DASH-03 Friends List — docs/ABRO_FRONTEND_SPEC.md §3 (lines 337-381).
-// The mock `Friend` shape (apps/web/src/lib/mock-data.ts) splits a
-// friend's balance into two unsigned fields rather than one signed
-// amount: `owes` (what they owe you) and `iOwe` (what you owe them) --
-// the same shape Home's Balances section already relies on. Derived the
-// spec's three groupings from those: "people who owe you" is `owes >
-// 0n`, "people you owe" is `iOwe > 0n`, and "settled up" is both fields
-// zero. No mock friend currently has both fields non-zero, but the
-// filters below don't assume mutual exclusivity -- a friend with both
-// would (correctly) appear in both outstanding sections rather than
-// being silently dropped.
-//
 // Ported the prototype's FriendsScreen (App.tsx:1937) for the two
 // balance sections' visual language, and its separate
 // FriendsManageScreen (App.tsx:4415) for the search bar + "settled up"
@@ -19,6 +8,21 @@
 // and FriendsManageScreen already had the pattern (there collapsed
 // behind a "Manage friends" entry point; here collapsed by default via
 // local state per the spec's explicit "collapsed by default").
+//
+// Phase 8 (docs/WIRING_PLAN.md) rewiring: real GET /friends/ + the
+// GET /balances/summary this app's Home (DASH-01) slice already added,
+// combined via ~/lib/balances-api.ts's deriveFriendRows() -- the exact
+// same helper Home uses, so the two screens can't disagree about a
+// friend's balance. "Settled up" (spec's third section) is new here --
+// Home never needed it (it hides zero-balance friends entirely) --
+// derived as `owes === 0n && iOwe === 0n`.
+//
+// Deviation (Confirmed): a friend row still navigates to
+// `/friends/[friendId]`, which is still mock-data-only until Friend
+// Detail (DASH-04) is wired in a later slice -- clicking through with a
+// real friend id will land on that page's own "not found" state until
+// then. Same class of temporary rough edge as Home's Recent Activity
+// rows, which have the equivalent gap against `/expenses/[id]`.
 //
 // PersonRow (@abro/ui) renders as a <button>, so it navigates via its
 // own `onClick` + router.push rather than being wrapped in a Link
@@ -28,17 +32,73 @@ import { AmountBadge, EmptyState, PersonRow, SectionLabel } from '@abro/ui';
 import { ChevronDown, ChevronUp, Plus, Search, UserX } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { FRIENDS } from '~/lib/mock-data';
+import { ApiError } from '~/lib/api-client';
+import { deriveFriendRows, getBalancesSummary } from '~/lib/balances-api';
+import { type FriendListItem, listFriends } from '~/lib/friends-api';
+
+function LoadingState() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <div
+        className="h-8 w-8 rounded-full border-2"
+        style={{
+          borderColor: 'rgba(99,102,241,0.3)',
+          borderTopColor: 'var(--accent)',
+          animation: 'spin 0.7s linear infinite',
+        }}
+        aria-label="Loading"
+      />
+    </div>
+  );
+}
 
 export default function FriendsPage() {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [settledOpen, setSettledOpen] = useState(false);
+  const [friends, setFriends] = useState<FriendListItem[] | null>(null);
+  const [rows, setRows] = useState<ReturnType<typeof deriveFriendRows> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setError(null);
+    setFriends(null);
+    setRows(null);
+    Promise.all([listFriends(), getBalancesSummary()])
+      .then(([friendList, balances]) => {
+        setFriends(friendList);
+        setRows(deriveFriendRows(friendList, balances));
+      })
+      .catch((err) => {
+        setError(err instanceof ApiError ? err.message : 'Could not load your friends.');
+      });
+  };
+
+  useEffect(load, []);
+
+  if (error) {
+    return (
+      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-8 text-center">
+        <p className="text-[0.9rem]" style={{ color: 'var(--t-muted)' }}>
+          {error}
+        </p>
+        <button
+          onClick={load}
+          className="neo-btn-accent rounded-2xl px-5 py-2.5 text-[0.85rem] font-semibold"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (!friends || !rows) {
+    return <LoadingState />;
+  }
 
   const query = search.trim().toLowerCase();
-  const filtered = query ? FRIENDS.filter((f) => f.name.toLowerCase().includes(query)) : FRIENDS;
+  const filtered = query ? rows.filter((f) => f.name.toLowerCase().includes(query)) : rows;
 
   const owedToYou = filtered.filter((f) => f.owes > 0n);
   const youOwe = filtered.filter((f) => f.iOwe > 0n);
