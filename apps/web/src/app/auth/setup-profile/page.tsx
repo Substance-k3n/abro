@@ -1,16 +1,33 @@
 'use client';
 
-// AUTH-06 (Setup Profile) — docs/ABRO_FRONTEND_SPEC.md §2.
-// Ported from the prototype's SetUsernameScreen. Username availability is
-// still a client-side mock (a hardcoded TAKEN list + a fake 600ms check) —
-// Phase 8 replaces this with a real apps/api call.
+// AUTH-06 (Setup Profile) — docs/ABRO_FRONTEND_SPEC.md §2. Picks the
+// username and display name real accounts didn't get during sign-in
+// (both OTP and Google auto-create a profile with no username --
+// apps/api/internal/auth/service.go -- `username: null` on the returned
+// AuthProfile is exactly what routes a fresh sign-in here instead of
+// straight to /home, see ~/lib/auth-api.ts's postSignInPath()).
+//
+// Phase 8 rewiring (docs/WIRING_PLAN.md): the availability check now
+// calls the real GET /users/username-available (~/lib/auth-api.ts),
+// debounced 400ms after typing stops, replacing the old hardcoded
+// TAKEN_USERNAMES list + fake 600ms timeout. Continue calls the real
+// PATCH /users/me with {username, displayName}, then routes to /home.
+//
+// Avatar editing stays a client-only color swatch picker, same
+// deviation already established on PRF-01 (`~/app/(dashboard)/profile`)
+// -- apps/api's `avatarUrl` expects a real image URL, and no image
+// upload/storage exists for profile photos in this phase, so the chosen
+// color is cosmetic only and never sent to the API.
 
 import { CheckCircle2, Hash, PenLine, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
-const TAKEN_USERNAMES = ['abel', 'hana', 'nesredin', 'meron', 'dawit', 'abro'];
+import { ApiError } from '~/lib/api-client';
+import { checkUsernameAvailable, updateProfile } from '~/lib/auth-api';
+
 const AVATAR_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#14b8a6', '#8b5cf6', '#f43f5e'];
+const USERNAME_DEBOUNCE_MS = 400;
 
 const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9_.]/g, '');
 
@@ -33,23 +50,76 @@ export default function SetupProfilePage() {
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [avatarIndex, setAvatarIndex] = useState(0);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestSeq = useRef(0);
 
   const isValidFormat = username.length >= 3;
-  const canContinue = isValidFormat && fullName.trim().length >= 2 && available === true;
+  const canContinue =
+    isValidFormat && fullName.trim().length >= 2 && available === true && !submitting;
   const avatarColor = AVATAR_COLORS[avatarIndex]!;
 
   const checkUsername = (value: string) => {
     const slug = slugify(value);
     setUsername(slug);
     setAvailable(null);
+    setSubmitError(null);
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
     if (slug.length < 3) {
+      setChecking(false);
       return;
     }
+
     setChecking(true);
-    setTimeout(() => {
-      setAvailable(!TAKEN_USERNAMES.includes(slug));
-      setChecking(false);
-    }, 600);
+    const seq = ++requestSeq.current;
+    debounceRef.current = setTimeout(() => {
+      checkUsernameAvailable(slug)
+        .then(({ available: isAvailable }) => {
+          if (seq === requestSeq.current) {
+            setAvailable(isAvailable);
+            setChecking(false);
+          }
+        })
+        .catch(() => {
+          if (seq === requestSeq.current) {
+            setChecking(false);
+          }
+        });
+    }, USERNAME_DEBOUNCE_MS);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
+
+  const submit = async () => {
+    if (!canContinue) {
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await updateProfile({ username, displayName: fullName.trim() });
+      router.push('/home');
+    } catch (err) {
+      if (err instanceof ApiError && err.code === 'USERNAME_TAKEN') {
+        setAvailable(false);
+        setSubmitError(err.message);
+      } else {
+        setSubmitError(
+          err instanceof ApiError ? err.message : 'Something went wrong. Please try again.',
+        );
+      }
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -222,15 +292,21 @@ export default function SetupProfilePage() {
               friends find you on ABRO.
             </p>
           </div>
+
+          {submitError && (
+            <p className="text-center text-[0.8rem] font-medium" style={{ color: 'var(--c-red)' }}>
+              {submitError}
+            </p>
+          )}
         </div>
 
         <div className="pt-6">
           <button
-            onClick={() => router.push('/home')}
+            onClick={submit}
             disabled={!canContinue}
             className="neo-btn-accent font-display w-full rounded-[18px] px-4 py-4 text-base font-bold transition-opacity duration-200 disabled:cursor-default disabled:opacity-40"
           >
-            Continue
+            {submitting ? 'Saving…' : 'Continue'}
           </button>
         </div>
       </div>
