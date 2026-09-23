@@ -11,6 +11,30 @@
 // chart -- Analytics is explicitly a post-MVP screen (§16), so a "View
 // Analytics" CTA pointing nowhere isn't worth the chart's hover/touch/
 // period-toggle complexity for this pass.
+//
+// Phase 8 (docs/WIRING_PLAN.md), slice 2: rewired from ~/lib/mock-data.ts
+// to real apps/api calls -- the first dashboard screen to do so. Five
+// parallel requests on mount (profile, friends, groups, the new
+// GET /balances/summary, unread notifications, recent expenses) rather
+// than one mock-data import; a real loading/error state is new here too
+// (every mock-data screen before this was synchronous). This is the
+// reference pattern later Phase 8 slices (Activity, Friends, Groups,
+// Balances Overview) should follow, including ~/lib/balances-api.ts's
+// friendOweSplit() for the friend/group balance sign-convention split.
+//
+// Deviations from the mock version (Confirmed):
+//  - Group icon/color still come from ~/lib/mock-data.ts's GROUP_TYPES
+//    lookup table (client-side reference data, not mock *facts* -- see
+//    that file's own header note) -- matched case-insensitively against
+//    apps/api's UPPERCASE `type` enum values.
+//  - Recent Activity rows are not clickable -- they'd link to
+//    `/expenses/[id]`, which is still mock-data-only (Phase 4 hasn't
+//    been rewired yet) and would show "not found" for a real expense
+//    id. Re-enable once that slice lands.
+//  - Avatar color (yours and every friend's) is deterministically
+//    derived from their id (~/lib/identity.ts), not stored -- no real
+//    Profile field for it exists (AUTH-06/PRF-01's color picker is
+//    cosmetic-only).
 
 import {
   ActivityItem,
@@ -22,11 +46,25 @@ import {
   PersonRow,
   SectionLabel,
 } from '@abro/ui';
+import { ETB } from '@abro/types';
 import { Bell, Handshake, Plus, Receipt, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-import { ACTIVITIES, CURRENT_USER, FRIENDS, GROUPS, NOTIFICATIONS } from '~/lib/mock-data';
+import { ApiError } from '~/lib/api-client';
+import { type AuthProfile, me } from '~/lib/auth-api';
+import { type BalancesSummary, friendOweSplit, getBalancesSummary } from '~/lib/balances-api';
+import {
+  type ActivityDisplay,
+  type AuthExpense,
+  listExpenses,
+  toActivityDisplay,
+} from '~/lib/expenses-api';
+import { type FriendListItem, listFriends } from '~/lib/friends-api';
+import { type AuthGroup, listGroups } from '~/lib/groups-api';
+import { colorForId, initialsOf } from '~/lib/identity';
+import { GROUP_TYPES } from '~/lib/mock-data';
+import { listNotifications } from '~/lib/notifications-api';
 
 const QUICK_ACTIONS = [
   { label: 'Add Expense', href: '/expenses/new', icon: Plus, accent: true },
@@ -35,24 +73,130 @@ const QUICK_ACTIONS = [
   { label: 'Create Group', href: '/groups/new', icon: Users, accent: false },
 ];
 
-export default function HomePage() {
-  const router = useRouter();
-  const owedTotal = FRIENDS.reduce((sum, f) => sum + f.owes, 0n);
-  const oweTotal = FRIENDS.reduce((sum, f) => sum + f.iOwe, 0n);
-  const net = owedTotal - oweTotal;
-  const unreadCount = NOTIFICATIONS.filter((n) => !n.read).length;
+interface HomeData {
+  profile: AuthProfile;
+  friends: FriendListItem[];
+  groups: AuthGroup[];
+  balances: BalancesSummary;
+  unreadCount: number;
+  recentActivity: AuthExpense[];
+}
 
-  const owedToYou = FRIENDS.filter((f) => f.owes > 0n).slice(0, 3);
-  const youOwe = FRIENDS.filter((f) => f.iOwe > 0n).slice(0, 3);
-  const groupsWithBalance = GROUPS.filter((g) => g.balance !== 0n);
-  const recentActivity = ACTIVITIES.slice(0, 5);
+function LoadingState() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div
+        className="h-8 w-8 rounded-full border-2"
+        style={{
+          borderColor: 'rgba(99,102,241,0.3)',
+          borderTopColor: 'var(--accent)',
+          animation: 'spin 0.7s linear infinite',
+        }}
+        aria-label="Loading"
+      />
+    </div>
+  );
+}
+
+function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-8 text-center">
+      <p className="text-[0.9rem]" style={{ color: 'var(--t-muted)' }}>
+        {message}
+      </p>
+      <button
+        onClick={onRetry}
+        className="neo-btn-accent rounded-2xl px-5 py-2.5 text-[0.85rem] font-semibold"
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
+
+export default function HomePage() {
+  const [data, setData] = useState<HomeData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setError(null);
+    setData(null);
+    Promise.all([
+      me(),
+      listFriends(),
+      listGroups(),
+      getBalancesSummary(),
+      listNotifications({ unreadOnly: true, limit: 100 }),
+      listExpenses({ limit: 5 }),
+    ])
+      .then(([profile, friends, groups, balances, unread, recentActivity]) => {
+        setData({ profile, friends, groups, balances, unreadCount: unread.length, recentActivity });
+      })
+      .catch((err) => {
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : 'Could not load your dashboard. Please try again.',
+        );
+      });
+  };
+
+  useEffect(load, []);
+
+  if (error) {
+    return <ErrorState message={error} onRetry={load} />;
+  }
+  if (!data) {
+    return <LoadingState />;
+  }
+
+  const { profile, friends, groups, balances, unreadCount, recentActivity } = data;
+
+  const balanceByFriend = new Map(balances.friends.map((f) => [f.friendId, BigInt(f.netBalance)]));
+  const balanceByGroup = new Map(balances.groups.map((g) => [g.groupId, BigInt(g.netBalance)]));
+  const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
+
+  const friendRows = friends.map((f) => {
+    const { owes, iOwe } = friendOweSplit(balanceByFriend.get(f.friend.id) ?? 0n);
+    return {
+      id: f.friend.id,
+      name: f.friend.displayName,
+      initials: initialsOf(f.friend.displayName),
+      color: colorForId(f.friend.id),
+      owes,
+      iOwe,
+    };
+  });
+
+  const owedTotal = friendRows.reduce((sum, f) => sum + f.owes, 0n);
+  const oweTotal = friendRows.reduce((sum, f) => sum + f.iOwe, 0n);
+  const net = owedTotal - oweTotal;
+
+  const owedToYou = friendRows.filter((f) => f.owes > 0n).slice(0, 3);
+  const youOwe = friendRows.filter((f) => f.iOwe > 0n).slice(0, 3);
+
+  const groupRows = groups.map((g) => {
+    const groupType =
+      GROUP_TYPES.find((t) => t.id.toUpperCase() === g.type) ??
+      GROUP_TYPES[GROUP_TYPES.length - 1]!;
+    return { id: g.id, name: g.name, balance: balanceByGroup.get(g.id) ?? 0n, groupType };
+  });
+  const groupsWithBalance = groupRows.filter((g) => g.balance !== 0n);
+
+  const activityRows: ActivityDisplay[] = recentActivity.map((e) =>
+    toActivityDisplay(e, profile.id, groupNameById),
+  );
 
   return (
     <div className="fade-in hide-scroll px-5 py-6 md:px-8 md:py-8">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Avatar initials={CURRENT_USER.initials} color={CURRENT_USER.color} size={44} />
+          <Avatar
+            initials={initialsOf(profile.displayName)}
+            color={colorForId(profile.id)}
+            size={44}
+          />
           <div>
             <p className="mb-0.5 text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
               Good morning
@@ -61,7 +205,7 @@ export default function HomePage() {
               className="font-display text-[1.3rem] font-bold tracking-tight"
               style={{ color: 'var(--t-primary)' }}
             >
-              {CURRENT_USER.name}
+              {profile.displayName}
             </h2>
           </div>
         </div>
@@ -223,9 +367,9 @@ export default function HomePage() {
                   >
                     <div
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]"
-                      style={{ background: `${g.color}22`, color: g.color }}
+                      style={{ background: `${g.groupType.color}22`, color: g.groupType.color }}
                     >
-                      <GroupIcon icon={g.icon} size={19} />
+                      <GroupIcon icon={g.groupType.icon} size={19} />
                     </div>
                     <span
                       className="flex-1 text-[0.88rem] font-semibold"
@@ -263,7 +407,7 @@ export default function HomePage() {
             See all
           </Link>
         </div>
-        {recentActivity.length === 0 ? (
+        {activityRows.length === 0 ? (
           <EmptyState
             icon={<Receipt size={26} strokeWidth={1.5} />}
             title="No activity yet"
@@ -271,16 +415,16 @@ export default function HomePage() {
           />
         ) : (
           <div className="flex flex-col gap-2.5">
-            {recentActivity.map((a) => (
+            {activityRows.map((a, i) => (
               <ActivityItem
-                key={a.id}
+                key={recentActivity[i]!.id}
                 category={a.category}
                 title={a.title}
                 sub={a.sub}
                 amount={a.amount}
                 dir={a.dir}
                 time={a.time}
-                onClick={a.type === 'expense' ? () => router.push(`/expenses/${a.id}`) : undefined}
+                currency={ETB}
               />
             ))}
           </div>
