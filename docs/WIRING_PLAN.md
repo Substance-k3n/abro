@@ -271,12 +271,70 @@ correctly to the group they belong to (not the prototype's
 hardcoded-first-group shortcut); the shared debt-simplification code
 `apps/api` already ships with is now exercised by the frontend too.
 
-## Phase 6 — Settlement `[todo]`
+## Phase 6 — Settlement `[done]`
 
-Branch: `feature/settlement-screens`
+Branches: `feature/settlement-foundation` (PR #16), `feature/settlement-
+amount-confirm` (PR #18, opened after #17 was auto-closed by GitHub
+when its base branch was deleted post-merge of #16 -- same commits,
+retargeted at `dev` directly), `feature/settlement-history` (this PR).
 
-`BAL-01`/`BAL-02`, `STL-01`…`STL-05`. Depends on Phase 4's split
+`BAL-01`/`BAL-02`, `STL-01`…`STL-05`. Depended on Phase 4's split
 utilities and the balance-derivation rules in `ABRO_PRD.md` §16.
+
+- [x] `BAL-01` (Balance Detail, Friend) -- the spec itself marks this
+      "already covered in DASH-04 Friend Detail" (`ABRO_FRONTEND_SPEC.md`
+      line 1507); no separate route built, matching the spec's own note.
+- [x] `BAL-02` (Balance Detail, Group) -- no separate `/balances/
+    group/[id]` route built. Unlike BAL-01, the spec doesn't call this
+      one out as covered elsewhere, but its full content -- "Your
+      Balance Card" (amount + direction), member-by-member breakdown,
+      contributing expenses, Settle Up / View simplified debts actions
+      -- is already exactly what Phase 5's `groups/[id]` (GRP-03, the
+      balance card) + `groups/[id]/expenses` (GRP-04, contributing
+      expenses) + `groups/[id]/balances` (GRP-05, member breakdown +
+      simplified view + Settle links) provide together. Building a
+      fourth route that re-renders the same data would duplicate an
+      existing screen rather than fill a gap -- same reasoning the spec
+      applied to BAL-01.
+- [x] `settle/page.tsx` (STL-01, Choose Person) + `settle/layout.tsx`
+      (shared `SettleDraftProvider` wizard state, same pattern as the
+      expense wizard) -- outstanding balances by friend and by group,
+      search, select → amount.
+- [x] `settle/amount/page.tsx` (STL-02, Enter Amount) -- current
+      balance display, amount input with Full/Half quick actions,
+      validation against the real outstanding amount (`getOutstanding`
+      in `~/lib/mock-data.ts`).
+- [x] `settle/confirm/page.tsx` (STL-03, Confirm) -- summary, optional
+      method/note fields, the required "ABRO does not process payments"
+      notice, Confirm → the one real mutation in this flow
+      (`createSettlement`).
+- [x] `settle/success/page.tsx` (STL-04, Settlement Success) -- landed
+      in the same PR as STL-02/03 rather than separately, since
+      STL-03's Confirm button is the create flow's only real side
+      effect and needs a real destination to be verifiable end to end
+      (see the file's own header comment for the full reasoning, plus
+      the snapshot-not-live-draft pattern that avoids a state-reset
+      race with its own "Back to Home" action).
+- [x] `settlements/page.tsx` (STL-05, Settlement History) -- reads
+      `SETTLEMENTS` (not `ACTIVITIES`; see `~/lib/mock-data.ts`'s own
+      header comment earmarking that array for this screen). All/You
+      paid/You received filter pills + a search-by-person box, reached
+      via STL-04's "View balance history" link (built ahead of this
+      route in the earlier PR, same phased-landing pattern as every
+      other cross-phase link in this app).
+
+Deviations from spec (Confirmed, all following patterns already
+established in Phase 3/5): STL-05's "by date range" filter omitted --
+`SETTLEMENTS.date` is a display string ("Yesterday", "Sat"), not a
+real `Date`, same gap Activity's (DASH-02) date-range omission already
+documented; "by person" filter folded into the search box rather than
+a separate control; header "Filter button" → inline `.neo-tab` pills;
+"tap settlement → Detail view" → navigates to the settlement's real
+context (the group, or the counterparty's friend page) instead of a
+nonexistent STL-0x detail screen, since the spec's own screen list
+stops at STL-05.
+
+**Verified:** `pnpm typecheck`/`lint`/`build` pass clean.
 
 ## Phase 7 — Profile & settings `[todo]`
 
