@@ -24,6 +24,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Use(authpkg.RequireSession(h.q))
 	r.Get("/me", httpx.Wrap(h.me))
 	r.Patch("/me", httpx.Wrap(h.updateMe))
+	r.Get("/username-available", httpx.Wrap(h.usernameAvailable))
 }
 
 func (h *Handler) me(w http.ResponseWriter, r *http.Request) error {
@@ -46,5 +47,29 @@ func (h *Handler) updateMe(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	httpx.WriteJSON(w, http.StatusOK, apitypes.ToAuthProfile(updated))
+	return nil
+}
+
+// AUTH-05's live availability check as user types. Own profile's current
+// username (if any) counts as available -- editing your own profile
+// without actually changing the username shouldn't report a conflict
+// with yourself.
+func (h *Handler) usernameAvailable(w http.ResponseWriter, r *http.Request) error {
+	username := apitypes.NormalizeUsername(r.URL.Query().Get("username"))
+	if err := apitypes.ValidateUsernameFormat(username); err != nil {
+		return err
+	}
+
+	user := authpkg.CurrentUser(r.Context())
+	if user.Username.Valid && user.Username.String == username {
+		httpx.WriteJSON(w, http.StatusOK, map[string]bool{"available": true})
+		return nil
+	}
+
+	available, err := h.svc.CheckUsernameAvailable(r.Context(), username)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]bool{"available": available})
 	return nil
 }
