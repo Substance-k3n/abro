@@ -285,7 +285,7 @@ utilities and the balance-derivation rules in `ABRO_PRD.md` §16.
       "already covered in DASH-04 Friend Detail" (`ABRO_FRONTEND_SPEC.md`
       line 1507); no separate route built, matching the spec's own note.
 - [x] `BAL-02` (Balance Detail, Group) -- no separate `/balances/
-    group/[id]` route built. Unlike BAL-01, the spec doesn't call this
+group/[id]` route built. Unlike BAL-01, the spec doesn't call this
       one out as covered elsewhere, but its full content -- "Your
       Balance Card" (amount + direction), member-by-member breakdown,
       contributing expenses, Settle Up / View simplified debts actions
