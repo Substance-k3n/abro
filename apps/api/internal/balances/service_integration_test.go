@@ -64,7 +64,7 @@ func setup(t *testing.T) env {
 	)
 	require.NoError(t, err)
 	expensesSvc := expenses.NewService(queries, groupsSvc, friendsSvc, notifySvc, receiptStore)
-	balancesSvc := balances.NewService(queries)
+	balancesSvc := balances.NewService(queries, friendsSvc, groupsSvc)
 
 	// Cleanup is association-based (by profile), not tracked-ID-based --
 	// simpler here since every test creates expenses/groups through the
@@ -258,6 +258,57 @@ func TestService_GetGroupSummary(t *testing.T) {
 		assert.Equal(t, int64(550), byUser[idutil.String(owner.ID)])
 		assert.Equal(t, int64(-250), byUser[idutil.String(friend.ID)])
 		assert.Equal(t, int64(-300), byUser[idutil.String(third.ID)])
+	})
+}
+
+func TestService_GetSummary(t *testing.T) {
+	t.Run("returns every friend's and every group's net balance for the current user", func(t *testing.T) {
+		e := setup(t)
+		me := e.makeProfile(t, "Me")
+		friend := e.makeProfile(t, "Friend")
+		stranger := e.makeProfile(t, "Stranger")
+		e.makeFriends(t, me.ID, friend.ID)
+
+		// Personal expense with `friend` -- friend paid, me owes half.
+		_, err := e.expenses.Create(context.Background(), friend.ID, expenseInput("EQUAL", "Lunch", "100", nil, equalParticipants(me.ID, friend.ID)))
+		require.NoError(t, err)
+
+		e.makeFriends(t, me.ID, stranger.ID)
+		simplify := true
+		group, err := e.groups.Create(context.Background(), me.ID, apitypes.CreateGroupInput{
+			Name: "Trip", Type: strPtr("TRIP"), Currency: strPtr("ETB"), SimplifyDebts: &simplify,
+			MemberIDs: []string{idutil.String(stranger.ID)},
+		})
+		require.NoError(t, err)
+		_, err = e.groups.AcceptInvite(context.Background(), stranger.ID, group.ID)
+		require.NoError(t, err)
+		_, err = e.expenses.Create(context.Background(), me.ID, expenseInput("EQUAL", "Hotel", "200", &group.ID, equalParticipants(me.ID, stranger.ID)))
+		require.NoError(t, err)
+
+		friendBalances, groupBalances, err := e.balances.GetSummary(context.Background(), me.ID)
+		require.NoError(t, err)
+
+		require.Len(t, friendBalances, 2, "friend + stranger, both friended")
+		byFriend := map[string]int64{}
+		for _, fb := range friendBalances {
+			byFriend[idutil.String(fb.FriendID)] = fb.NetBalance
+		}
+		assert.Equal(t, int64(50), byFriend[idutil.String(friend.ID)], "me owes friend 50 personally (positive = I owe them, per GetPairwiseBalance's convention)")
+		assert.Equal(t, int64(0), byFriend[idutil.String(stranger.ID)], "the shared expense is group-scoped, not personal")
+
+		require.Len(t, groupBalances, 1)
+		assert.Equal(t, group.ID, groupBalances[0].GroupID)
+		assert.Equal(t, int64(100), groupBalances[0].NetBalance, "me paid 200, owes 100 as a participant -> net +100")
+	})
+
+	t.Run("returns empty slices, not nil, for a user with no friends or groups", func(t *testing.T) {
+		e := setup(t)
+		alone := e.makeProfile(t, "Alone")
+
+		friendBalances, groupBalances, err := e.balances.GetSummary(context.Background(), alone.ID)
+		require.NoError(t, err)
+		assert.Empty(t, friendBalances)
+		assert.Empty(t, groupBalances)
 	})
 }
 

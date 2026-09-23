@@ -67,7 +67,7 @@ func setup(t *testing.T) env {
 	)
 	require.NoError(t, err)
 	expensesSvc := expenses.NewService(queries, groupsSvc, friendsSvc, notifySvc, receiptStore)
-	balancesSvc := balances.NewService(queries)
+	balancesSvc := balances.NewService(queries, friendsSvc, groupsSvc)
 	svc := settlements.NewService(queries, balancesSvc, groupsSvc, notifySvc, expensesSvc)
 
 	var profiles []pgtype.UUID
