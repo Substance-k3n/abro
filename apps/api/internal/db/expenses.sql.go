@@ -280,7 +280,7 @@ func (q *Queries) ListExpenseParticipantsForExpenseIDs(ctx context.Context, expe
 
 const listExpensesByGroup = `-- name: ListExpensesByGroup :many
 SELECT id, group_id, name, category, amount, currency, paid_by_id, split_type, expense_date, receipt_path, notes, conversion_id, deleted_at, deleted_by_id, created_at, updated_at, updated_by_id FROM expenses WHERE group_id = $1 AND deleted_at IS NULL
-ORDER BY expense_date DESC
+ORDER BY expense_date DESC, created_at DESC, id DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -333,7 +333,7 @@ SELECT e.id, e.group_id, e.name, e.category, e.amount, e.currency, e.paid_by_id,
 WHERE e.group_id IS NULL AND e.deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $1)
   AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $2)
-ORDER BY e.expense_date DESC
+ORDER BY e.expense_date DESC, e.created_at DESC, e.id DESC
 LIMIT $3 OFFSET $4
 `
 
@@ -395,7 +395,7 @@ WHERE e.deleted_at IS NULL AND (
     (e.group_id IS NULL AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $1))
     OR (e.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = e.group_id AND gm.user_id = $1 AND gm.status = 'ACTIVE'))
 )
-ORDER BY e.expense_date DESC
+ORDER BY e.expense_date DESC, e.created_at DESC, e.id DESC
 LIMIT $2 OFFSET $3
 `
 
@@ -405,6 +405,11 @@ type ListMyExpensesParams struct {
 	Offset int32       `json:"offset"`
 }
 
+// All three expense list queries order by (expense_date, created_at, id)
+// DESC: expense_date alone isn't unique (same-day expenses are common),
+// and LIMIT/OFFSET paging over a non-total order can skip or repeat rows
+// across pages. created_at puts later-entered same-day expenses first;
+// id makes the order total.
 // Personal (non-group) expenses the actor participates in, plus every
 // expense in a group the actor is an ACTIVE member of.
 func (q *Queries) ListMyExpenses(ctx context.Context, arg ListMyExpensesParams) ([]Expense, error) {
