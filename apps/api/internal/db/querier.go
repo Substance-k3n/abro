@@ -104,6 +104,13 @@ type Querier interface {
 	// and LIMIT/OFFSET paging over a non-total order can skip or repeat rows
 	// across pages. created_at puts later-entered same-day expenses first;
 	// id makes the order total.
+	//
+	// All three also take an optional `pattern` (DASH-08 Search): NULL means
+	// no text filter; otherwise an ILIKE pattern matched against name,
+	// category and notes. The caller builds it (expenses.likePattern) with
+	// the user's % / _ / \ escaped, so they match literally -- backslash
+	// is Postgres's default LIKE escape character.
+	//
 	// Personal (non-group) expenses the actor participates in, plus every
 	// expense in a group the actor is an ACTIVE member of.
 	ListMyExpenses(ctx context.Context, arg ListMyExpensesParams) ([]Expense, error)

@@ -279,19 +279,28 @@ func (q *Queries) ListExpenseParticipantsForExpenseIDs(ctx context.Context, expe
 }
 
 const listExpensesByGroup = `-- name: ListExpensesByGroup :many
-SELECT id, group_id, name, category, amount, currency, paid_by_id, split_type, expense_date, receipt_path, notes, conversion_id, deleted_at, deleted_by_id, created_at, updated_at, updated_by_id FROM expenses WHERE group_id = $1 AND deleted_at IS NULL
-ORDER BY expense_date DESC, created_at DESC, id DESC
-LIMIT $2 OFFSET $3
+SELECT id, group_id, name, category, amount, currency, paid_by_id, split_type, expense_date, receipt_path, notes, conversion_id, deleted_at, deleted_by_id, created_at, updated_at, updated_by_id FROM expenses e
+WHERE e.group_id = $1 AND e.deleted_at IS NULL
+  AND ($2::text IS NULL
+       OR e.name ILIKE $2 OR e.category ILIKE $2 OR e.notes ILIKE $2)
+ORDER BY e.expense_date DESC, e.created_at DESC, e.id DESC
+LIMIT $4 OFFSET $3
 `
 
 type ListExpensesByGroupParams struct {
-	GroupID pgtype.UUID `json:"group_id"`
-	Limit   int32       `json:"limit"`
-	Offset  int32       `json:"offset"`
+	GroupID   pgtype.UUID `json:"group_id"`
+	Pattern   pgtype.Text `json:"pattern"`
+	RowOffset int32       `json:"row_offset"`
+	RowLimit  int32       `json:"row_limit"`
 }
 
 func (q *Queries) ListExpensesByGroup(ctx context.Context, arg ListExpensesByGroupParams) ([]Expense, error) {
-	rows, err := q.db.Query(ctx, listExpensesByGroup, arg.GroupID, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listExpensesByGroup,
+		arg.GroupID,
+		arg.Pattern,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -333,15 +342,18 @@ SELECT e.id, e.group_id, e.name, e.category, e.amount, e.currency, e.paid_by_id,
 WHERE e.group_id IS NULL AND e.deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $1)
   AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $2)
+  AND ($3::text IS NULL
+       OR e.name ILIKE $3 OR e.category ILIKE $3 OR e.notes ILIKE $3)
 ORDER BY e.expense_date DESC, e.created_at DESC, e.id DESC
-LIMIT $3 OFFSET $4
+LIMIT $5 OFFSET $4
 `
 
 type ListExpensesWithFriendParams struct {
-	UserID   pgtype.UUID `json:"user_id"`
-	UserID_2 pgtype.UUID `json:"user_id_2"`
-	Limit    int32       `json:"limit"`
-	Offset   int32       `json:"offset"`
+	UserID    pgtype.UUID `json:"user_id"`
+	FriendID  pgtype.UUID `json:"friend_id"`
+	Pattern   pgtype.Text `json:"pattern"`
+	RowOffset int32       `json:"row_offset"`
+	RowLimit  int32       `json:"row_limit"`
 }
 
 // Personal (non-group) expenses shared between the actor and a specific
@@ -349,9 +361,10 @@ type ListExpensesWithFriendParams struct {
 func (q *Queries) ListExpensesWithFriend(ctx context.Context, arg ListExpensesWithFriendParams) ([]Expense, error) {
 	rows, err := q.db.Query(ctx, listExpensesWithFriend,
 		arg.UserID,
-		arg.UserID_2,
-		arg.Limit,
-		arg.Offset,
+		arg.FriendID,
+		arg.Pattern,
+		arg.RowOffset,
+		arg.RowLimit,
 	)
 	if err != nil {
 		return nil, err
@@ -395,14 +408,17 @@ WHERE e.deleted_at IS NULL AND (
     (e.group_id IS NULL AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $1))
     OR (e.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = e.group_id AND gm.user_id = $1 AND gm.status = 'ACTIVE'))
 )
+  AND ($2::text IS NULL
+       OR e.name ILIKE $2 OR e.category ILIKE $2 OR e.notes ILIKE $2)
 ORDER BY e.expense_date DESC, e.created_at DESC, e.id DESC
-LIMIT $2 OFFSET $3
+LIMIT $4 OFFSET $3
 `
 
 type ListMyExpensesParams struct {
-	UserID pgtype.UUID `json:"user_id"`
-	Limit  int32       `json:"limit"`
-	Offset int32       `json:"offset"`
+	UserID    pgtype.UUID `json:"user_id"`
+	Pattern   pgtype.Text `json:"pattern"`
+	RowOffset int32       `json:"row_offset"`
+	RowLimit  int32       `json:"row_limit"`
 }
 
 // All three expense list queries order by (expense_date, created_at, id)
@@ -410,10 +426,22 @@ type ListMyExpensesParams struct {
 // and LIMIT/OFFSET paging over a non-total order can skip or repeat rows
 // across pages. created_at puts later-entered same-day expenses first;
 // id makes the order total.
+//
+// All three also take an optional `pattern` (DASH-08 Search): NULL means
+// no text filter; otherwise an ILIKE pattern matched against name,
+// category and notes. The caller builds it (expenses.likePattern) with
+// the user's % / _ / \ escaped, so they match literally -- backslash
+// is Postgres's default LIKE escape character.
+//
 // Personal (non-group) expenses the actor participates in, plus every
 // expense in a group the actor is an ACTIVE member of.
 func (q *Queries) ListMyExpenses(ctx context.Context, arg ListMyExpensesParams) ([]Expense, error) {
-	rows, err := q.db.Query(ctx, listMyExpenses, arg.UserID, arg.Limit, arg.Offset)
+	rows, err := q.db.Query(ctx, listMyExpenses,
+		arg.UserID,
+		arg.Pattern,
+		arg.RowOffset,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}

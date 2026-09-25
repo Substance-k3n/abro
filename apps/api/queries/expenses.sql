@@ -43,30 +43,44 @@ WHERE ep.expense_id = ANY(sqlc.arg('expense_ids')::uuid[]);
 -- and LIMIT/OFFSET paging over a non-total order can skip or repeat rows
 -- across pages. created_at puts later-entered same-day expenses first;
 -- id makes the order total.
+--
+-- All three also take an optional `pattern` (DASH-08 Search): NULL means
+-- no text filter; otherwise an ILIKE pattern matched against name,
+-- category and notes. The caller builds it (expenses.likePattern) with
+-- the user's % / _ / \ escaped, so they match literally -- backslash
+-- is Postgres's default LIKE escape character.
+--
 -- Personal (non-group) expenses the actor participates in, plus every
 -- expense in a group the actor is an ACTIVE member of.
 SELECT * FROM expenses e
 WHERE e.deleted_at IS NULL AND (
-    (e.group_id IS NULL AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $1))
-    OR (e.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = e.group_id AND gm.user_id = $1 AND gm.status = 'ACTIVE'))
+    (e.group_id IS NULL AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = sqlc.arg('user_id')))
+    OR (e.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = e.group_id AND gm.user_id = sqlc.arg('user_id') AND gm.status = 'ACTIVE'))
 )
+  AND (sqlc.narg('pattern')::text IS NULL
+       OR e.name ILIKE sqlc.narg('pattern') OR e.category ILIKE sqlc.narg('pattern') OR e.notes ILIKE sqlc.narg('pattern'))
 ORDER BY e.expense_date DESC, e.created_at DESC, e.id DESC
-LIMIT $2 OFFSET $3;
+LIMIT sqlc.arg('row_limit') OFFSET sqlc.arg('row_offset');
 
 -- name: ListExpensesByGroup :many
-SELECT * FROM expenses WHERE group_id = $1 AND deleted_at IS NULL
-ORDER BY expense_date DESC, created_at DESC, id DESC
-LIMIT $2 OFFSET $3;
+SELECT * FROM expenses e
+WHERE e.group_id = sqlc.arg('group_id') AND e.deleted_at IS NULL
+  AND (sqlc.narg('pattern')::text IS NULL
+       OR e.name ILIKE sqlc.narg('pattern') OR e.category ILIKE sqlc.narg('pattern') OR e.notes ILIKE sqlc.narg('pattern'))
+ORDER BY e.expense_date DESC, e.created_at DESC, e.id DESC
+LIMIT sqlc.arg('row_limit') OFFSET sqlc.arg('row_offset');
 
 -- name: ListExpensesWithFriend :many
 -- Personal (non-group) expenses shared between the actor and a specific
 -- friend -- ABRO_PRD.md §22 "Friend Balance" history list.
 SELECT e.* FROM expenses e
 WHERE e.group_id IS NULL AND e.deleted_at IS NULL
-  AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $1)
-  AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $2)
+  AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = sqlc.arg('user_id'))
+  AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = sqlc.arg('friend_id'))
+  AND (sqlc.narg('pattern')::text IS NULL
+       OR e.name ILIKE sqlc.narg('pattern') OR e.category ILIKE sqlc.narg('pattern') OR e.notes ILIKE sqlc.narg('pattern'))
 ORDER BY e.expense_date DESC, e.created_at DESC, e.id DESC
-LIMIT $3 OFFSET $4;
+LIMIT sqlc.arg('row_limit') OFFSET sqlc.arg('row_offset');
 
 -- name: CreateExpenseNote :one
 INSERT INTO expense_notes (expense_id, author_id, content)
