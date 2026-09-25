@@ -91,6 +91,11 @@ type Querier interface {
 	ListGroupMembersWithProfiles(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersWithProfilesRow, error)
 	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
 	ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([]Group, error)
+	// All three expense list queries order by (expense_date, created_at, id)
+	// DESC: expense_date alone isn't unique (same-day expenses are common),
+	// and LIMIT/OFFSET paging over a non-total order can skip or repeat rows
+	// across pages. created_at puts later-entered same-day expenses first;
+	// id makes the order total.
 	// Personal (non-group) expenses the actor participates in, plus every
 	// expense in a group the actor is an ACTIVE member of.
 	ListMyExpenses(ctx context.Context, arg ListMyExpensesParams) ([]Expense, error)

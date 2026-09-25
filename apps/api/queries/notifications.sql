@@ -17,7 +17,7 @@ SELECT * FROM notifications WHERE id = $1;
 -- true, and a no-op (all rows) when false, in one query.
 SELECT * FROM notifications
 WHERE user_id = $1 AND (NOT sqlc.arg(unread_only)::bool OR read_at IS NULL)
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC -- id: total order for stable paging
 LIMIT $2 OFFSET $3;
 
 -- name: MarkNotificationRead :one

@@ -113,7 +113,7 @@ func (q *Queries) GetNotificationByID(ctx context.Context, id pgtype.UUID) (Noti
 const listNotifications = `-- name: ListNotifications :many
 SELECT id, user_id, type, title, body, read_at, created_at FROM notifications
 WHERE user_id = $1 AND (NOT $4::bool OR read_at IS NULL)
-ORDER BY created_at DESC
+ORDER BY created_at DESC, id DESC -- id: total order for stable paging
 LIMIT $2 OFFSET $3
 `
 

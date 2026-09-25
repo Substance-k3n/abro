@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
+	"sort"
 	"testing"
 	"time"
 
@@ -260,6 +261,51 @@ func TestService_PersonalExpenses(t *testing.T) {
 		update := baseInput("EQUAL", "Coffee (edited)", "25", equalParticipants(payer.ID, friend.ID))
 		_, err = e.svc.Update(context.Background(), friend.ID, expense.ID, update)
 		assert.Error(t, err)
+	})
+}
+
+func TestService_ListPaging(t *testing.T) {
+	t.Run("pages same-date expenses in a total, stable order with no gaps or repeats", func(t *testing.T) {
+		e := setup(t)
+		ctx := context.Background()
+		payer := e.makeProfile(t, "Payer")
+		friend := e.makeProfile(t, "Friend")
+		e.makeFriends(t, payer.ID, friend.ID)
+
+		const n = 7
+		sameDate := time.Date(2030, 6, 1, 12, 0, 0, 0, time.UTC)
+		var want []string
+		for i := 0; i < n; i++ {
+			in := baseInput("EQUAL", fmt.Sprintf("Same day #%d", i), "100", equalParticipants(payer.ID, friend.ID))
+			in.ExpenseDate = sameDate.Format(time.RFC3339)
+			expense, err := e.svc.Create(ctx, payer.ID, in)
+			require.NoError(t, err)
+			e.trackExpense(expense.ID)
+			// Force a full tie on (expense_date, created_at), so only the id
+			// tiebreaker can order these rows.
+			_, err = e.pool.Exec(ctx, `UPDATE expenses SET created_at = $2 WHERE id = $1`, expense.ID, sameDate)
+			require.NoError(t, err)
+			want = append(want, idutil.String(expense.ID))
+		}
+		// Postgres compares uuids bytewise, which matches lowercase-hex
+		// string order.
+		sort.Sort(sort.Reverse(sort.StringSlice(want)))
+
+		for _, q := range []apitypes.ListExpensesQuery{
+			{},
+			{FriendID: idutil.String(friend.ID)},
+		} {
+			var got []string
+			for offset := int32(0); offset < n+2; offset += 2 {
+				q.Limit, q.Offset = 2, offset
+				page, err := e.svc.List(ctx, payer.ID, q)
+				require.NoError(t, err)
+				for _, exp := range page {
+					got = append(got, idutil.String(exp.ID))
+				}
+			}
+			assert.Equal(t, want, got, "query %+v", q)
+		}
 	})
 }
 
