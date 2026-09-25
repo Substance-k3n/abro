@@ -63,13 +63,17 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
 
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 	user := authpkg.CurrentUser(r.Context())
-	rows, err := h.svc.ListMine(r.Context(), user.ID)
+	rows, err := h.svc.ListMineWithStats(r.Context(), user.ID)
 	if err != nil {
 		return err
 	}
-	out := make([]apitypes.AuthGroup, len(rows))
+	out := make([]apitypes.GroupListItem, len(rows))
 	for i, row := range rows {
-		out[i] = toAuthGroupRow(row)
+		out[i] = apitypes.GroupListItem{
+			AuthGroup:      toAuthGroupRow(row.Group),
+			MemberCount:    int(row.MemberCount),
+			LastActivityAt: row.LastActivityAt.Time,
+		}
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
