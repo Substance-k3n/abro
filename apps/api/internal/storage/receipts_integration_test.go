@@ -17,8 +17,8 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
 )
 
-// Hits real MinIO (infra/docker/dev/compose.yml's minio service, bucket
-// provisioned by minio-createbuckets) -- same "hit the real thing, don't
+// Hits a real S3-compatible server (RustFS -- infra/docker/dev/compose.yml's
+// s3 service, bucket provisioned by s3-createbuckets) -- same "hit the real thing, don't
 // mock" convention as every Postgres-backed test in this repo.
 
 func newTestStorage(t *testing.T) *storage.ReceiptStorage {
@@ -46,7 +46,7 @@ func testKey(label string) string {
 }
 
 func TestReceiptStorage(t *testing.T) {
-	t.Run("is configured against the dev MinIO env vars", func(t *testing.T) {
+	t.Run("is configured against the dev S3 env vars", func(t *testing.T) {
 		s := newTestStorage(t)
 		assert.True(t, s.IsConfigured())
 	})
