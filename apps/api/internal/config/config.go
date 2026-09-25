@@ -26,7 +26,7 @@ type Config struct {
 	// docs/DECISIONS.md ADR-004's "pick a real OTP provider" follow-up --
 	// Resend. Empty ResendAPIKey means auth.ConsoleOTPMailer stays in use
 	// (see cmd/api/main.go), same IsConfigured()-gated pattern as Google
-	// OAuth and MinIO.
+	// OAuth and S3 receipt storage.
 	ResendAPIKey    string
 	ResendFromEmail string
 
