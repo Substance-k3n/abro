@@ -83,17 +83,24 @@ export function deriveFriendRows(
 export interface GroupRow {
   id: string;
   name: string;
+  /** apps/api's UPPERCASE group type -- pass to ~/lib/groups-api.ts's
+   * `groupTypeFor()` for its icon/color. */
+  type: string;
   /** Positive = the group owes you (no sign conversion needed, unlike
    * friend balances -- see this file's header comment). */
   balance: bigint;
 }
 
 /** Combines `listGroups()` + `getBalancesSummary()` into the per-group
- * display rows every group-list screen needs (Home, DASH-06) -- icon/
- * color are deliberately not included here, since they come from
- * `~/lib/mock-data.ts`'s `GROUP_TYPES` lookup, a UI-layer concern each
- * page already handles for itself. */
+ * display rows every group-list screen needs (Home, DASH-05, DASH-06)
+ * -- icon/color are deliberately not included here (UI-layer reference
+ * data); callers map `type` through `groupTypeFor()`. */
 export function deriveGroupRows(groups: AuthGroup[], balances: BalancesSummary): GroupRow[] {
   const balanceByGroup = new Map(balances.groups.map((g) => [g.groupId, BigInt(g.netBalance)]));
-  return groups.map((g) => ({ id: g.id, name: g.name, balance: balanceByGroup.get(g.id) ?? 0n }));
+  return groups.map((g) => ({
+    id: g.id,
+    name: g.name,
+    type: g.type,
+    balance: balanceByGroup.get(g.id) ?? 0n,
+  }));
 }
