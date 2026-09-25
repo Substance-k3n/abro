@@ -116,6 +116,16 @@ type AuthGroup struct {
 	Members       []GroupMember `json:"members"`
 }
 
+// GroupListItem is GET /groups/'s element shape: an AuthGroup (members
+// still always empty here, same as before) with two list-only summary
+// fields flattened alongside it, so existing clients reading AuthGroup's
+// fields are unaffected.
+type GroupListItem struct {
+	AuthGroup
+	MemberCount    int       `json:"memberCount"`
+	LastActivityAt time.Time `json:"lastActivityAt"`
+}
+
 type GroupInvite struct {
 	Group     AuthGroup `json:"group"`
 	InvitedAt time.Time `json:"invitedAt"`

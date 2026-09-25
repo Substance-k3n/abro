@@ -265,6 +265,64 @@ func (q *Queries) ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([
 	return items, nil
 }
 
+const listMyActiveGroupsWithStats = `-- name: ListMyActiveGroupsWithStats :many
+SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at,
+       (SELECT count(*) FROM group_members m
+        WHERE m.group_id = g.id AND m.status = 'ACTIVE')::int AS member_count,
+       COALESCE((SELECT max(e.created_at) FROM expenses e
+                 WHERE e.group_id = g.id AND e.deleted_at IS NULL),
+                g.created_at)::timestamptz AS last_activity_at
+FROM groups g
+JOIN group_members gm ON gm.group_id = g.id
+WHERE gm.user_id = $1 AND gm.status = 'ACTIVE'
+ORDER BY g.created_at DESC
+`
+
+type ListMyActiveGroupsWithStatsRow struct {
+	Group          Group              `json:"group"`
+	MemberCount    int32              `json:"member_count"`
+	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
+}
+
+// Same rows as ListMyActiveGroups, plus the two per-group values the
+// DASH-05 Groups list shows on every card: how many ACTIVE members the
+// group has (INVITED/LEFT don't count), and when its most recent
+// non-deleted expense was recorded (created_at, not the user-chosen,
+// possibly backdated expense_date), falling back to the group's own
+// created_at for a group with no expenses yet. Correlated subqueries
+// rather than a GROUP BY so the embedded groups row stays intact.
+func (q *Queries) ListMyActiveGroupsWithStats(ctx context.Context, userID pgtype.UUID) ([]ListMyActiveGroupsWithStatsRow, error) {
+	rows, err := q.db.Query(ctx, listMyActiveGroupsWithStats, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListMyActiveGroupsWithStatsRow
+	for rows.Next() {
+		var i ListMyActiveGroupsWithStatsRow
+		if err := rows.Scan(
+			&i.Group.ID,
+			&i.Group.Name,
+			&i.Group.Type,
+			&i.Group.Currency,
+			&i.Group.Description,
+			&i.Group.SimplifyDebts,
+			&i.Group.CreatedByID,
+			&i.Group.CreatedAt,
+			&i.Group.UpdatedAt,
+			&i.MemberCount,
+			&i.LastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMyInvites = `-- name: ListMyInvites :many
 SELECT gm.joined_at AS invited_at, g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at
 FROM group_members gm
