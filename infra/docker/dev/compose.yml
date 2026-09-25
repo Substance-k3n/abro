@@ -19,45 +19,66 @@ services:
     volumes:
       - database:/var/lib/postgresql/data
 
-  # docs/DECISIONS.md ADR-006: receipt storage, S3-compatible, self-hosted.
-  minio:
-    # Docker Hub's minio/minio and minio/mc images are gone (org policy
-    # change) -- quay.io is MinIO's own registry now.
-    image: quay.io/minio/minio:latest
-    container_name: ${MINIO_CONTAINER_NAME:-abro-minio}
+  # docs/DECISIONS.md ADR-008 (superseding ADR-006's MinIO choice):
+  # receipt storage, S3-compatible, self-hosted. RustFS -- MinIO's images
+  # are no longer publicly pullable and its repo is archived. apps/api
+  # still talks to it through minio-go, a generic S3 client.
+  s3:
+    image: rustfs/rustfs:1.0.0
+    container_name: ${S3_CONTAINER_NAME:-abro-s3}
     restart: always
-    command: server /data --console-address ":9001"
+    depends_on:
+      s3-volume-permissions:
+        condition: service_completed_successfully
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-abro-minio}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-password123}
+      - RUSTFS_VOLUMES=/data
+      - RUSTFS_ADDRESS=0.0.0.0:9000
+      - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
+      - RUSTFS_CONSOLE_ENABLE=true
+      # Same defaults apps/api/.env.example and the integration tests use
+      # (the `abro-minio` value predates the switch; kept so existing
+      # .env files keep working).
+      - RUSTFS_ACCESS_KEY=${S3_ACCESS_KEY_ID:-abro-minio}
+      - RUSTFS_SECRET_KEY=${S3_SECRET_ACCESS_KEY:-password123}
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ['CMD', 'curl', '-fsS', 'http://127.0.0.1:9000/health']
       interval: 10s
       timeout: 5s
       retries: 5
     ports:
-      - '${MINIO_API_PORT:-9460}:9000'
-      - '${MINIO_CONSOLE_PORT:-9461}:9001'
+      - '${S3_API_PORT:-9460}:9000'
+      - '${S3_CONSOLE_PORT:-9461}:9001'
     volumes:
-      - minio-data:/data
+      - s3-data:/data
+
+  # One-shot: RustFS runs as a non-root user (UID/GID 10001), so a fresh
+  # named volume must be chowned to it first -- same helper RustFS's own
+  # docker-compose-simple.yml uses.
+  s3-volume-permissions:
+    image: alpine:3.20
+    command: chown -R 10001:10001 /data
+    volumes:
+      - s3-data:/data
 
   # One-shot: provisions the receipts bucket on `docker compose up`, then
   # exits -- so apps/api never has to create-bucket-if-missing at runtime.
-  minio-createbuckets:
-    image: quay.io/minio/mc:latest
+  # AWS CLI rather than MinIO's `mc`, whose image is gone too.
+  s3-createbuckets:
+    image: amazon/aws-cli:2.27.0
     depends_on:
-      minio:
+      s3:
         condition: service_healthy
     environment:
-      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-abro-minio}
-      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-password123}
+      - AWS_ACCESS_KEY_ID=${S3_ACCESS_KEY_ID:-abro-minio}
+      - AWS_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY:-password123}
+      - AWS_DEFAULT_REGION=us-east-1
       - RECEIPTS_BUCKET=${RECEIPTS_BUCKET:-abro-receipts}
     entrypoint: >
       /bin/sh -c "
-      mc alias set local http://minio:9000 $$MINIO_ROOT_USER $$MINIO_ROOT_PASSWORD &&
-      mc mb --ignore-existing local/$$RECEIPTS_BUCKET
+      aws --endpoint-url http://s3:9000 s3api head-bucket --bucket $$RECEIPTS_BUCKET ||
+      aws --endpoint-url http://s3:9000 s3 mb s3://$$RECEIPTS_BUCKET
       "
 
 volumes:
   database:
-  minio-data:
+  s3-data:
