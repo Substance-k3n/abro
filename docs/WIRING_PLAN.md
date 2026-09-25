@@ -583,9 +583,67 @@ the right icon/title/body, marking it read updates the UI instantly
 and persists (confirmed via a direct API call after the click) with
 the unread badge/"Mark all read" button correctly disappearing.
 
+### Slice 4 — Activity, Friend Detail, Groups `[done]`
+
+Branches: `feature/groups-list-stats` (PR #26, backend),
+`feature/activity-friend-detail-groups-api-integration` (this PR,
+frontend).
+
+DASH-05's cards show "N members · last activity", but `GET /groups/`
+always returned `members: []` and no timestamp -- the only frontend
+option was one `GET /groups/{id}` per card. Decided with the user to add
+list-only `memberCount` (ACTIVE members) and `lastActivityAt` (latest
+non-deleted expense's `created_at`, falling back to the group's own)
+fields to `GET /groups/` instead (PR #26), same call as slice 2's
+`/balances/summary`. Activity and Friend Detail needed no backend work.
+
+- [x] `~/components/LoadStates.tsx` -- `LoadingState`/`ErrorState`,
+      extracted from the private copies Home/Friends/Balances/
+      Notifications each grew in slices 2-3 before three more screens
+      added their own. Those four pages now use it too.
+- [x] `~/lib/groups-api.ts`'s `GroupListItem` + `groupTypeFor()` -- the
+      `GROUP_TYPES` icon/color lookup Home and Balances each inlined,
+      now shared by all three group-showing screens. `GroupRow`
+      (`deriveGroupRows()`) carries `type` for it.
+- [x] `/activity` (DASH-02) -- real paginated `GET /expenses` (30 per
+      page, explicit "Load more" rather than infinite scroll). Filters
+      are now exact instead of heuristic (Settlements = `splitType
+SETTLEMENT`, Groups = has `groupId`), applied client-side over
+      loaded rows along with search.
+- [x] `/friends/[friendId]` (DASH-04) -- replaces the mock "does the
+      activity text mention their first name" heuristic with the real
+      `GET /expenses?friendId=` relation. That list is personal-scope
+      only, exactly what the pairwise balance above it is computed
+      from, so the two reconcile; group expenses with the friend live
+      in each group's balance instead. Closes slice 3's "friend rows
+      link to a mock-only page" gap.
+- [x] `/groups` (DASH-05) -- real groups + balances via
+      `deriveGroupRows()`, member count and last activity from PR #26.
+
+Deviations (Confirmed): expense rows on all three screens are still not
+clickable (EXP-09 is mock-only, same as Home); group cards still link to
+mock-only GRP-03, which degrades to its own "Group not found" state;
+Friend Detail's "View all-time spending" `?friendId=` link isn't read by
+Activity yet; Activity's date-range filter is still unbuilt.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean;
+`go build`/`vet`/`gofmt -l`/`go test ./...` clean (backend PR). Manual
+browser verification against real Postgres + the PR #26 API, with two
+real users, 39 personal/group expenses and one settlement, amounts
+hand-computed beforehand (Bekele owes Alice 150 - 45 + 35x5 - 50 = 230
+ETB; the trip group owes Alice 300): Activity loads 30 rows then 9 more
+on "Load more" with no duplicates and the button disappearing at the
+end; each filter tab and search return exactly the expected rows;
+Friend Detail shows "owes you 230.00 ETB" from Alice's side and "you owe
+230.00 ETB" + Settle Up from Bekele's, with the settlement alone under
+Settlements and the group expense correctly absent; an unknown friend id
+shows "Friend not found"; Groups shows "2 members"/"1 member", type
+badges, +300 / Settled for Alice and -300 for Bekele (who correctly
+doesn't see Alice's solo group). Home/Friends/Balances/Notifications
+re-checked after the shared-component refactor, no console errors.
+
 ### Later slices `[todo]`
 
-Activity (`DASH-02`), Friend Detail (`DASH-04`), Groups (`DASH-05`),
 Search (`DASH-08`), expenses (`EXP-0x`), groups (`GRP-0x`), settlement
 (`STL-0x`/`BAL-0x`), profile/settings preferences beyond auth
 (`PRF-01`'s stats/currency/language, `SET-0x`) -- each replaces its own
