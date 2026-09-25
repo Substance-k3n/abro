@@ -39,10 +39,16 @@ export interface AuthExpense {
 export function listExpenses(opts?: {
   groupId?: string;
   friendId?: string;
+  /** apps/api's `q` (DASH-08): case-insensitive substring over name,
+   * category and notes, server-side across every expense you can see. */
+  search?: string;
   limit?: number;
   offset?: number;
 }): Promise<AuthExpense[]> {
   const params = new URLSearchParams();
+  if (opts?.search) {
+    params.set('q', opts.search);
+  }
   if (opts?.groupId) {
     params.set('groupId', opts.groupId);
   }
