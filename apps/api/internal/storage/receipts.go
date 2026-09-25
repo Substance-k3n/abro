@@ -1,5 +1,7 @@
-// Package storage is a thin S3-compatible client wrapper -- ADR-006.
-// Targets MinIO in dev (infra/docker/dev/compose.yml) via minio-go/v7 (the
+// Package storage is a thin S3-compatible client wrapper -- ADR-006/008.
+// Targets RustFS in dev and CI (infra/docker/dev/compose.yml; ADR-008
+// replaced MinIO, whose images stopped being publicly pullable) via
+// minio-go/v7, a generic S3 client despite its name (the
 // original NestJS implementation used the AWS SDK instead, specifically so
 // swapping to real S3/R2/B2 later would be a config change rather than an
 // SDK change -- minio-go is equally S3-protocol-compatible against any of
@@ -64,7 +66,8 @@ func (s *ReceiptStorage) Upload(ctx context.Context, key string, body io.Reader,
 }
 
 // GetPresignedGetURL returns a short-lived URL -- private storage (PRD
-// §36), the client never talks to MinIO directly except through this.
+// §36), the client never talks to object storage directly except
+// through this.
 func (s *ReceiptStorage) GetPresignedGetURL(ctx context.Context, key string) (string, error) {
 	u, err := s.client.PresignedGetObject(ctx, s.bucket, key, presignedGetTTL, url.Values{})
 	if err != nil {
