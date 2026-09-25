@@ -104,3 +104,36 @@ export function deriveGroupRows(groups: AuthGroup[], balances: BalancesSummary):
     balance: balanceByGroup.get(g.id) ?? 0n,
   }));
 }
+
+export interface BalanceTotals {
+  /** Sum of everything owed to you, friends + groups. */
+  owedTotal: bigint;
+  /** Sum of everything you owe, friends + groups. */
+  oweTotal: bigint;
+  /** owedTotal - oweTotal: positive = you're owed overall. */
+  net: bigint;
+}
+
+/** Your overall position across every friend and group -- the numbers
+ * behind the balance card on both Home (DASH-01) and Balances Overview
+ * (DASH-06), shared so the two can't disagree (they did once: Home
+ * summed friends only). Friend and group balances never overlap --
+ * friend balances are personal-scope only (apps/api's
+ * GetPairwiseParticipantsPersonal), group expenses count only toward
+ * their group -- so adding them can't double count. */
+export function balanceTotals(friendRows: FriendRow[], groupRows: GroupRow[]): BalanceTotals {
+  let owedTotal = 0n;
+  let oweTotal = 0n;
+  for (const f of friendRows) {
+    owedTotal += f.owes;
+    oweTotal += f.iOwe;
+  }
+  for (const g of groupRows) {
+    if (g.balance > 0n) {
+      owedTotal += g.balance;
+    } else {
+      oweTotal -= g.balance;
+    }
+  }
+  return { owedTotal, oweTotal, net: owedTotal - oweTotal };
+}

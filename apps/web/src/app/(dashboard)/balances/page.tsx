@@ -65,6 +65,7 @@ import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import {
   type BalancesSummary,
+  balanceTotals,
   deriveFriendRows,
   deriveGroupRows,
   getBalancesSummary,
@@ -117,19 +118,8 @@ export default function BalancesPage() {
     groupType: groupTypeFor(g.type),
   }));
 
-  // Total Balance Card: friends + groups combined, same bigint reduce
-  // pattern as Home (DASH-01).
-  const friendOwedTotal = friendRows.reduce((sum, f) => sum + f.owes, 0n);
-  const friendOweTotal = friendRows.reduce((sum, f) => sum + f.iOwe, 0n);
-  const groupOwedTotal = groupRows
-    .filter((g) => g.balance > 0n)
-    .reduce((sum, g) => sum + g.balance, 0n);
-  const groupOweTotal = groupRows
-    .filter((g) => g.balance < 0n)
-    .reduce((sum, g) => sum - g.balance, 0n);
-  const owedTotal = friendOwedTotal + groupOwedTotal;
-  const oweTotal = friendOweTotal + groupOweTotal;
-  const net = owedTotal - oweTotal;
+  // Total Balance Card: friends + groups combined (same helper as Home).
+  const { owedTotal, oweTotal, net } = balanceTotals(friendRows, groupRows);
 
   const owedToYou = friendRows.filter((f) => f.owes > 0n);
   const youOwe = friendRows.filter((f) => f.iOwe > 0n);

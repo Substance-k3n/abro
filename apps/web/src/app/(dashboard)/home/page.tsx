@@ -56,6 +56,7 @@ import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
 import {
   type BalancesSummary,
+  balanceTotals,
   deriveFriendRows,
   deriveGroupRows,
   getBalancesSummary,
@@ -127,17 +128,15 @@ export default function HomePage() {
   const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
 
   const friendRows = deriveFriendRows(friends, balances);
-  const owedTotal = friendRows.reduce((sum, f) => sum + f.owes, 0n);
-  const oweTotal = friendRows.reduce((sum, f) => sum + f.iOwe, 0n);
-  const net = owedTotal - oweTotal;
-
-  const owedToYou = friendRows.filter((f) => f.owes > 0n).slice(0, 3);
-  const youOwe = friendRows.filter((f) => f.iOwe > 0n).slice(0, 3);
-
   const groupRows = deriveGroupRows(groups, balances).map((g) => ({
     ...g,
     groupType: groupTypeFor(g.type),
   }));
+  // Friends + groups -- the same overall position Balances (DASH-06) shows.
+  const { owedTotal, oweTotal, net } = balanceTotals(friendRows, groupRows);
+
+  const owedToYou = friendRows.filter((f) => f.owes > 0n).slice(0, 3);
+  const youOwe = friendRows.filter((f) => f.iOwe > 0n).slice(0, 3);
   const groupsWithBalance = groupRows.filter((g) => g.balance !== 0n);
 
   const activityRows: ActivityDisplay[] = recentActivity.map((e) =>
