@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/money"
@@ -133,8 +134,24 @@ func (in *AddExpenseNoteInput) Validate() error {
 type ListExpensesQuery struct {
 	GroupID  string
 	FriendID string
-	Limit    int32
-	Offset   int32
+	// Search is GET /expenses' optional `q` (DASH-08): a case-insensitive
+	// substring matched against name, category and notes. Empty = no
+	// text filter.
+	Search string
+	Limit  int32
+	Offset int32
+}
+
+// MaxExpenseSearchLength caps `q` -- long enough for any real expense
+// name, short enough that a pasted blob can't become a huge LIKE pattern.
+const MaxExpenseSearchLength = 100
+
+func (in *ListExpensesQuery) Validate() error {
+	in.Search = strings.TrimSpace(in.Search)
+	if utf8.RuneCountInString(in.Search) > MaxExpenseSearchLength {
+		return httpx.BadRequest("VALIDATION_ERROR", "q must be at most 100 characters")
+	}
+	return nil
 }
 
 // ExpenseParticipant / AuthExpense / AuthExpenseNote are response shapes --

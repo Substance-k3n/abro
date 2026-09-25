@@ -69,7 +69,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
 func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 	user := authpkg.CurrentUser(r.Context())
 	q := r.URL.Query()
-	query := apitypes.ListExpensesQuery{GroupID: q.Get("groupId"), FriendID: q.Get("friendId")}
+	query := apitypes.ListExpensesQuery{GroupID: q.Get("groupId"), FriendID: q.Get("friendId"), Search: q.Get("q")}
+	if err := query.Validate(); err != nil {
+		return err
+	}
 	if v, err := strconv.Atoi(q.Get("limit")); err == nil && v >= 1 && v <= 100 {
 		query.Limit = int32(v)
 	}
