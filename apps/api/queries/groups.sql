@@ -14,6 +14,25 @@ JOIN group_members gm ON gm.group_id = g.id
 WHERE gm.user_id = $1 AND gm.status = 'ACTIVE'
 ORDER BY g.created_at DESC;
 
+-- name: ListMyActiveGroupsWithStats :many
+-- Same rows as ListMyActiveGroups, plus the two per-group values the
+-- DASH-05 Groups list shows on every card: how many ACTIVE members the
+-- group has (INVITED/LEFT don't count), and when its most recent
+-- non-deleted expense was recorded (created_at, not the user-chosen,
+-- possibly backdated expense_date), falling back to the group's own
+-- created_at for a group with no expenses yet. Correlated subqueries
+-- rather than a GROUP BY so the embedded groups row stays intact.
+SELECT sqlc.embed(g),
+       (SELECT count(*) FROM group_members m
+        WHERE m.group_id = g.id AND m.status = 'ACTIVE')::int AS member_count,
+       COALESCE((SELECT max(e.created_at) FROM expenses e
+                 WHERE e.group_id = g.id AND e.deleted_at IS NULL),
+                g.created_at)::timestamptz AS last_activity_at
+FROM groups g
+JOIN group_members gm ON gm.group_id = g.id
+WHERE gm.user_id = $1 AND gm.status = 'ACTIVE'
+ORDER BY g.created_at DESC;
+
 -- name: ListMyInvites :many
 SELECT gm.joined_at AS invited_at, g.*
 FROM group_members gm

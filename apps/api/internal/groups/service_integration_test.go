@@ -454,6 +454,64 @@ func TestService(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, 1, countOf(friend.ID))
 	})
+
+	t.Run("ListMineWithStats counts only ACTIVE members and tracks the latest non-deleted expense", func(t *testing.T) {
+		e := setup(t)
+		owner := e.makeProfile(t, "Owner")
+		friend := e.makeProfile(t, "Friend")
+		e.makeFriends(t, owner.ID, friend.ID)
+		ctx := context.Background()
+
+		simplify := true
+		group, err := e.svc.Create(ctx, owner.ID, apitypes.CreateGroupInput{
+			Name: "Stats Trip", Type: strPtr("TRIP"), Currency: strPtr("ETB"), SimplifyDebts: &simplify,
+			MemberIDs: []string{idutil.String(friend.ID)},
+		})
+		require.NoError(t, err)
+		e.trackGroup(group.ID)
+		// Registered after setup's cleanup, so it runs first (LIFO) --
+		// expenses reference the group, which setup's cleanup deletes.
+		t.Cleanup(func() {
+			e.pool.Exec(context.Background(), `DELETE FROM expenses WHERE group_id = $1`, group.ID)
+		})
+
+		find := func() db.ListMyActiveGroupsWithStatsRow {
+			t.Helper()
+			rows, err := e.svc.ListMineWithStats(ctx, owner.ID)
+			require.NoError(t, err)
+			for _, row := range rows {
+				if row.Group.ID == group.ID {
+					return row
+				}
+			}
+			t.Fatalf("group %s not in ListMineWithStats", idutil.String(group.ID))
+			return db.ListMyActiveGroupsWithStatsRow{}
+		}
+
+		// Friend is still INVITED: only the owner counts, and with no
+		// expenses last activity falls back to the group's creation time.
+		row := find()
+		assert.Equal(t, int32(1), row.MemberCount)
+		assert.True(t, row.LastActivityAt.Time.Equal(group.CreatedAt.Time))
+
+		_, err = e.svc.AcceptInvite(ctx, friend.ID, group.ID)
+		require.NoError(t, err)
+
+		live := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+		deleted := time.Date(2031, 1, 1, 0, 0, 0, 0, time.UTC)
+		_, err = e.pool.Exec(ctx, `INSERT INTO expenses
+			(group_id, name, category, amount, paid_by_id, split_type, expense_date, created_at)
+			VALUES ($1, 'Live', 'Food', 100, $2, 'EQUAL', now(), $3)`, group.ID, owner.ID, live)
+		require.NoError(t, err)
+		_, err = e.pool.Exec(ctx, `INSERT INTO expenses
+			(group_id, name, category, amount, paid_by_id, split_type, expense_date, created_at, deleted_at)
+			VALUES ($1, 'Deleted', 'Food', 100, $2, 'EQUAL', now(), $3, now())`, group.ID, owner.ID, deleted)
+		require.NoError(t, err)
+
+		row = find()
+		assert.Equal(t, int32(2), row.MemberCount)
+		assert.True(t, row.LastActivityAt.Time.Equal(live), "got %s", row.LastActivityAt.Time)
+	})
 }
 
 func strPtr(s string) *string { return &s }

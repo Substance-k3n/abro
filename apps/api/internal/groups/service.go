@@ -112,6 +112,21 @@ func (s *Service) ListMine(ctx context.Context, userID pgtype.UUID) ([]db.Group,
 	return rows, nil
 }
 
+// ListMineWithStats is ListMine plus each group's ACTIVE member count and
+// last-activity timestamp -- backs GET /groups/ (DASH-05's cards). Kept
+// separate from ListMine, whose plain rows other callers (balances'
+// GetSummary) use without needing the extra per-group subqueries.
+func (s *Service) ListMineWithStats(ctx context.Context, userID pgtype.UUID) ([]db.ListMyActiveGroupsWithStatsRow, error) {
+	rows, err := s.q.ListMyActiveGroupsWithStats(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	if rows == nil {
+		rows = []db.ListMyActiveGroupsWithStatsRow{}
+	}
+	return rows, nil
+}
+
 func (s *Service) ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]db.ListMyInvitesRow, error) {
 	rows, err := s.q.ListMyInvites(ctx, userID)
 	if err != nil {

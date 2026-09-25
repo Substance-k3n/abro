@@ -91,6 +91,14 @@ type Querier interface {
 	ListGroupMembersWithProfiles(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersWithProfilesRow, error)
 	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
 	ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([]Group, error)
+	// Same rows as ListMyActiveGroups, plus the two per-group values the
+	// DASH-05 Groups list shows on every card: how many ACTIVE members the
+	// group has (INVITED/LEFT don't count), and when its most recent
+	// non-deleted expense was recorded (created_at, not the user-chosen,
+	// possibly backdated expense_date), falling back to the group's own
+	// created_at for a group with no expenses yet. Correlated subqueries
+	// rather than a GROUP BY so the embedded groups row stays intact.
+	ListMyActiveGroupsWithStats(ctx context.Context, userID pgtype.UUID) ([]ListMyActiveGroupsWithStatsRow, error)
 	// Personal (non-group) expenses the actor participates in, plus every
 	// expense in a group the actor is an ACTIVE member of.
 	ListMyExpenses(ctx context.Context, arg ListMyExpensesParams) ([]Expense, error)
