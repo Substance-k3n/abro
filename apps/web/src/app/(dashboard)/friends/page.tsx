@@ -34,25 +34,10 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { deriveFriendRows, getBalancesSummary } from '~/lib/balances-api';
 import { type FriendListItem, listFriends } from '~/lib/friends-api';
-
-function LoadingState() {
-  return (
-    <div className="flex min-h-[50vh] items-center justify-center">
-      <div
-        className="h-8 w-8 rounded-full border-2"
-        style={{
-          borderColor: 'rgba(99,102,241,0.3)',
-          borderTopColor: 'var(--accent)',
-          animation: 'spin 0.7s linear infinite',
-        }}
-        aria-label="Loading"
-      />
-    </div>
-  );
-}
 
 export default function FriendsPage() {
   const router = useRouter();
@@ -79,19 +64,7 @@ export default function FriendsPage() {
   useEffect(load, []);
 
   if (error) {
-    return (
-      <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 px-8 text-center">
-        <p className="text-[0.9rem]" style={{ color: 'var(--t-muted)' }}>
-          {error}
-        </p>
-        <button
-          onClick={load}
-          className="neo-btn-accent rounded-2xl px-5 py-2.5 text-[0.85rem] font-semibold"
-        >
-          Try again
-        </button>
-      </div>
-    );
+    return <ErrorState message={error} onRetry={load} />;
   }
   if (!friends || !rows) {
     return <LoadingState />;

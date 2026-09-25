@@ -23,6 +23,7 @@ import { EmptyState } from '@abro/ui';
 import { Bell, type LucideIcon, Receipt, UserPlus, Utensils, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { formatShortDate } from '~/lib/format';
 import {
@@ -42,22 +43,6 @@ const ICONS: Record<string, LucideIcon> = {
   RECURRING_EXPENSE: Receipt,
   DEBT_SIMPLIFICATION_CHANGE: Receipt,
 };
-
-function LoadingState() {
-  return (
-    <div className="flex min-h-[50vh] items-center justify-center">
-      <div
-        className="h-8 w-8 rounded-full border-2"
-        style={{
-          borderColor: 'rgba(99,102,241,0.3)',
-          borderTopColor: 'var(--accent)',
-          animation: 'spin 0.7s linear infinite',
-        }}
-        aria-label="Loading"
-      />
-    </div>
-  );
-}
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[] | null>(null);

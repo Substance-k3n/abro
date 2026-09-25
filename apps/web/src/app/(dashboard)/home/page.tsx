@@ -51,6 +51,7 @@ import { Bell, Handshake, Plus, Receipt, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
+import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
 import {
@@ -66,9 +67,8 @@ import {
   toActivityDisplay,
 } from '~/lib/expenses-api';
 import { type FriendListItem, listFriends } from '~/lib/friends-api';
-import { type AuthGroup, listGroups } from '~/lib/groups-api';
+import { type AuthGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
-import { GROUP_TYPES } from '~/lib/mock-data';
 import { listNotifications } from '~/lib/notifications-api';
 
 const QUICK_ACTIONS = [
@@ -85,38 +85,6 @@ interface HomeData {
   balances: BalancesSummary;
   unreadCount: number;
   recentActivity: AuthExpense[];
-}
-
-function LoadingState() {
-  return (
-    <div className="flex min-h-[60vh] items-center justify-center">
-      <div
-        className="h-8 w-8 rounded-full border-2"
-        style={{
-          borderColor: 'rgba(99,102,241,0.3)',
-          borderTopColor: 'var(--accent)',
-          animation: 'spin 0.7s linear infinite',
-        }}
-        aria-label="Loading"
-      />
-    </div>
-  );
-}
-
-function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-8 text-center">
-      <p className="text-[0.9rem]" style={{ color: 'var(--t-muted)' }}>
-        {message}
-      </p>
-      <button
-        onClick={onRetry}
-        className="neo-btn-accent rounded-2xl px-5 py-2.5 text-[0.85rem] font-semibold"
-      >
-        Try again
-      </button>
-    </div>
-  );
 }
 
 export default function HomePage() {
@@ -149,10 +117,10 @@ export default function HomePage() {
   useEffect(load, []);
 
   if (error) {
-    return <ErrorState message={error} onRetry={load} />;
+    return <ErrorState message={error} onRetry={load} minHeight="60vh" />;
   }
   if (!data) {
-    return <LoadingState />;
+    return <LoadingState minHeight="60vh" />;
   }
 
   const { profile, friends, groups, balances, unreadCount, recentActivity } = data;
@@ -166,16 +134,9 @@ export default function HomePage() {
   const owedToYou = friendRows.filter((f) => f.owes > 0n).slice(0, 3);
   const youOwe = friendRows.filter((f) => f.iOwe > 0n).slice(0, 3);
 
-  const groupTypeById = new Map(
-    groups.map((g) => [
-      g.id,
-      GROUP_TYPES.find((t) => t.id.toUpperCase() === g.type) ??
-        GROUP_TYPES[GROUP_TYPES.length - 1]!,
-    ]),
-  );
   const groupRows = deriveGroupRows(groups, balances).map((g) => ({
     ...g,
-    groupType: groupTypeById.get(g.id)!,
+    groupType: groupTypeFor(g.type),
   }));
   const groupsWithBalance = groupRows.filter((g) => g.balance !== 0n);
 

@@ -2,27 +2,26 @@
 
 // DASH-04 Friend Detail -- docs/ABRO_FRONTEND_SPEC.md §3 (lines 383-436).
 //
-// Assumption (mock-data limitation): `Activity` in ~/lib/mock-data.ts has no
-// `friendId` field, so there's no exact link from an activity to "this
-// friend". Heuristic: an activity "belongs" to a friend if the friend's
-// first name shows up in its `title` or `sub` text -- e.g. activity a2
-// ("Abel settled up" / "Paid you directly") matches friend "Abel Tesfaye",
-// a3 ("Uber to Bole" / "You & Hana Girma") matches "Hana Girma". This is a
-// stand-in for a real relation: it will miss anything that doesn't happen
-// to mention the friend by name (e.g. group expenses with generic subs)
-// and, for friends never named in the small mock set (e.g. "Nesredin
-// Haile", "Dawit Alemu"), it legitimately turns up nothing -- rendered as
-// an honest empty state, not a bug. Phase 8's real API returns
-// expenses/settlements scoped to a friend directly, removing the need for
-// this heuristic entirely.
-//
-// Tab split: once an activity is matched to this friend via the heuristic
-// above, the Expenses/Settlements tabs split on `Activity.type`
-// ('expense' | 'settlement'), which mock-data.ts does carry as a real
-// discriminant -- no need to guess further there. Because the matched
-// subset is small and heuristic-derived, either tab can legitimately be
-// empty for a given friend; that's a reflection of the small mock set, not
-// missing settlement data.
+// Phase 8 (docs/WIRING_PLAN.md), slice 4: rewired from ~/lib/mock-data.ts
+// to real apps/api calls, replacing the old mock-only "does the activity
+// text mention this friend's first name" heuristic with a real relation:
+//  - Friend + balance: GET /friends/ + GET /balances/summary via the same
+//    deriveFriendRows() Friends/Balances/Home use (so the sign convention
+//    goes through friendOweSplit() like everywhere else). apps/api has no
+//    GET /friends/{id}; an id not in the list is "Friend not found".
+//  - History: GET /expenses?friendId= -- personal (non-group) expenses
+//    both of you are party to, which is exactly what the pairwise balance
+//    above is computed from (apps/api/queries/balances.sql's personal
+//    scope), so the list and the number reconcile. Group expenses with
+//    this friend are deliberately absent from both -- they live in each
+//    group's own balance. Tabs split on splitType SETTLEMENT (ADR-003).
+//  - One request of up to HISTORY_LIMIT rows (apps/api's max page size),
+//    no pagination UI yet -- a personal history with one friend past 100
+//    rows is well beyond MVP usage; the Activity screen pages if needed.
+//  - Rows are not clickable (EXP-09 still mock-only), same as Home and
+//    Activity. "Settle Up"/"Add expense" still hand off to the mock
+//    settle/expense flows until their own slices -- /settle with an
+//    unknown friendId falls back to its own friend picker, not a crash.
 //
 // Balance section: built as a custom card (mirroring the prototype's
 // FriendDetailScreen, App.tsx:2098) rather than reusing `BalanceCard` from
@@ -44,27 +43,72 @@ import { ActivityItem, Avatar, BackButton, EmptyState, MoneyDisplay } from '@abr
 import { Plus, Receipt, UserX, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { ACTIVITIES, type Activity, FRIENDS } from '~/lib/mock-data';
+import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { ApiError } from '~/lib/api-client';
+import { me } from '~/lib/auth-api';
+import { type FriendRow, deriveFriendRows, getBalancesSummary } from '~/lib/balances-api';
+import { type ActivityDisplay, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
+import { listFriends } from '~/lib/friends-api';
+
+/** apps/api's GET /expenses max `limit` -- see header comment. */
+const HISTORY_LIMIT = 100;
+
+type HistoryRow = ActivityDisplay & { id: string; isSettlement: boolean };
+
+interface FriendDetailData {
+  /** Null when this id isn't one of your friends. */
+  friend: FriendRow | null;
+  history: HistoryRow[];
+}
 
 type Tab = 'expenses' | 'settlements';
-
-/** See header comment: friendId-to-activity matching heuristic. */
-function mentionsFriend(activity: Activity, friendName: string): boolean {
-  const firstName = friendName.split(' ')[0]?.toLowerCase();
-  if (!firstName) {
-    return false;
-  }
-  return `${activity.title} ${activity.sub}`.toLowerCase().includes(firstName);
-}
 
 export default function FriendDetailPage() {
   const params = useParams<{ friendId: string }>();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('expenses');
 
-  const friend = FRIENDS.find((f) => f.id === params.friendId);
+  const [data, setData] = useState<FriendDetailData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setError(null);
+    setData(null);
+    Promise.all([
+      me(),
+      listFriends(),
+      getBalancesSummary(),
+      listExpenses({ friendId: params.friendId, limit: HISTORY_LIMIT }),
+    ])
+      .then(([profile, friends, balances, expenses]) => {
+        const friend = deriveFriendRows(friends, balances).find((f) => f.id === params.friendId);
+        setData({
+          friend: friend ?? null,
+          history: expenses.map((e) => ({
+            id: e.id,
+            isSettlement: e.splitType === 'SETTLEMENT',
+            // Personal expenses only (see header), so no group names needed.
+            ...toActivityDisplay(e, profile.id, new Map()),
+          })),
+        });
+      })
+      .catch((err) => {
+        setError(err instanceof ApiError ? err.message : 'Could not load this friend.');
+      });
+  };
+
+  useEffect(load, [params.friendId]);
+
+  if (error) {
+    return <ErrorState message={error} onRetry={load} />;
+  }
+  if (!data) {
+    return <LoadingState />;
+  }
+
+  const { friend } = data;
 
   if (!friend) {
     return (
@@ -83,9 +127,8 @@ export default function FriendDetailPage() {
   const balance: MinorUnits = friend.owes - friend.iOwe;
   const absBalance = balance < 0n ? -balance : balance;
 
-  const friendActivity = ACTIVITIES.filter((a) => mentionsFriend(a, friend.name));
-  const expenses = friendActivity.filter((a) => a.type === 'expense');
-  const settlements = friendActivity.filter((a) => a.type === 'settlement');
+  const expenses = data.history.filter((a) => !a.isSettlement);
+  const settlements = data.history.filter((a) => a.isSettlement);
   const shown = tab === 'expenses' ? expenses : settlements;
 
   return (
@@ -152,7 +195,7 @@ export default function FriendDetailPage() {
               title={tab === 'expenses' ? 'No shared expenses' : 'No settlements yet'}
               description={
                 tab === 'expenses'
-                  ? `No expenses matched to ${friend.name} in the mock activity feed.`
+                  ? `You and ${friend.name} have no personal expenses yet.`
                   : `You and ${friend.name} haven't settled up yet.`
               }
             />
@@ -166,7 +209,6 @@ export default function FriendDetailPage() {
                 amount={a.amount}
                 dir={a.dir}
                 time={a.time}
-                onClick={tab === 'expenses' ? () => router.push(`/expenses/${a.id}`) : undefined}
               />
             ))
           )}
