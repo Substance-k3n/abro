@@ -7,6 +7,53 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-008: Receipt storage server — RustFS, superseding ADR-006's MinIO choice
+
+**Status:** Accepted
+
+**Context:** MinIO stopped being distributable as open source in
+practice: its Docker Hub images were removed earlier (already worked
+around by moving to `quay.io/minio/*`), and by September 2026 both
+`quay.io/minio/minio` and `quay.io/minio/mc` require authentication
+(HTTP 401) while the `minio/minio` GitHub repo is archived (last
+release October 2025). Every CI run's `api` job failed at "Start
+MinIO" before running any code, and a fresh clone couldn't
+`docker compose up` either — only machines with the image already
+cached still worked.
+
+**Decision:** Replace the MinIO _server_ with **RustFS**
+(`rustfs/rustfs`, Apache-2.0, pinned to `1.0.0`) in
+`infra/docker/dev/compose.yml` and CI. Everything else in ADR-006
+stands: upload-through-API, presigned reads, one receipt per expense.
+
+- apps/api keeps `minio-go/v7` — despite the name it's a generic S3
+  client, and switching server needed zero Go code changes.
+- Bucket provisioning uses the AWS CLI (`amazon/aws-cli` in compose,
+  the runner's preinstalled `aws` in CI), since `mc` is gone too.
+- Same ports (9460 API / 9461 console) and same default credentials
+  (`abro-minio` / `password123`), so existing `apps/api/.env` files
+  keep working; the key name is now just a legacy label.
+- RustFS runs as UID/GID 10001: compose chowns its named volume with a
+  one-shot helper (as RustFS's own example compose does); CI uses a
+  tmpfs owned by that UID.
+
+**Alternatives considered:** SeaweedFS (mature, but more setup — S3
+config file, different startup model — and far more system than ABRO
+needs); Garage (lightweight, but cluster layout and key creation are
+imperative CLI steps, awkward in compose/CI); mirroring the last
+cached MinIO image into our own registry (zero change, but frozen on
+an archived, unmaintained version).
+
+**Consequences:** RustFS is a young project (1.0.0 released September 2026) — acceptable for a dev/CI dependency, re-evaluate before
+self-hosting it in production (a managed S3/R2/B2 bucket stays a
+config-only change either way). Local dev: the compose service is now
+`s3` (container `abro-s3`) with a new `s3-data` volume — run
+`docker compose -f infra/docker/dev/compose.yml up -d --remove-orphans`
+once to drop the old `minio` containers. Receipts stored in the old
+local MinIO volume aren't migrated (dev data only).
+
+---
+
 ## ADR-007: Backend rewrite — Go, superseding ADR-002
 
 **Status:** Accepted
@@ -75,7 +122,8 @@ CI-green at the time of this rewrite.
 
 ## ADR-006: Receipt storage — MinIO (S3-compatible), upload-through-API, presigned reads
 
-**Status:** Accepted
+**Status:** Accepted — storage _server_ choice (MinIO) superseded by
+ADR-008 (RustFS); the upload/read design below still stands.
 
 **Context:** `docs/ABRO_PRD.md` §36 specifies receipts (JPG/PNG/WebP,
 authenticated access, expense-level authorization, private storage)

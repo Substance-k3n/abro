@@ -21,7 +21,7 @@ abro/
 │   ├── config/        Shared tsconfig base
 │   └── ui/             Reserved: design system ported from the Figma Make prototype
 ├── infra/
-│   └── docker/dev/     Local Postgres + MinIO for development
+│   └── docker/dev/     Local Postgres + RustFS (S3) for development
 └── docs/
     ├── ABRO_PRD.md              Product requirements (source of truth for scope)
     ├── ABRO_FRONTEND_SPEC.md    42-screen frontend inventory & phased plan
@@ -40,7 +40,7 @@ needed, just no longer the live implementation.
 | Frontend    | Next.js, TypeScript, Tailwind CSS, PWA                                 |
 | Backend     | Go, `chi`, `pgx`/`sqlc`, `golang-migrate`                              |
 | Database    | PostgreSQL                                                             |
-| Storage     | MinIO (S3-compatible), `minio-go`                                      |
+| Storage     | RustFS in dev (S3-compatible, ADR-008), `minio-go` client              |
 | Monorepo    | pnpm workspaces + Turborepo (JS side); `apps/api` is a plain Go module |
 | Lint/format | oxlint + Prettier (JS); `gofmt`/`go vet` (Go)                          |
 | Git hooks   | Husky + lint-staged + commitlint                                       |
@@ -53,7 +53,7 @@ for ETB) — never a float — end to end, per `docs/ABRO_PRD.md` §28.
 ```bash
 pnpm install
 
-# start local Postgres + MinIO
+# start local Postgres + RustFS (S3-compatible receipt storage)
 docker compose -f infra/docker/dev/compose.yml up -d
 
 # apply Go backend migrations (golang-migrate; install once with
