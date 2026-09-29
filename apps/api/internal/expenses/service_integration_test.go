@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -306,6 +307,69 @@ func TestService_ListPaging(t *testing.T) {
 			}
 			assert.Equal(t, want, got, "query %+v", q)
 		}
+	})
+}
+
+func TestService_ListSearch(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	payer := e.makeProfile(t, "Payer")
+	friend := e.makeProfile(t, "Friend")
+	e.makeFriends(t, payer.ID, friend.ID)
+
+	create := func(name, category, notes string) {
+		t.Helper()
+		in := baseInput("EQUAL", name, "100", equalParticipants(payer.ID, friend.ID))
+		in.Category = category
+		if notes != "" {
+			in.Notes = &notes
+		}
+		require.NoError(t, in.Validate())
+		expense, err := e.svc.Create(ctx, payer.ID, in)
+		require.NoError(t, err)
+		e.trackExpense(expense.ID)
+	}
+	create("Dinner at Yod Abyssinia", "Food", "")
+	create("Taxi", "Transport", "airport run")
+	create("50% off coffee beans", "Food", "")
+	create("a_b test", "Food", "")
+
+	names := func(q apitypes.ListExpensesQuery) []string {
+		t.Helper()
+		require.NoError(t, q.Validate())
+		rows, err := e.svc.List(ctx, payer.ID, q)
+		require.NoError(t, err)
+		out := make([]string, len(rows))
+		for i, r := range rows {
+			out[i] = r.Name
+		}
+		return out
+	}
+
+	t.Run("matches name case-insensitively", func(t *testing.T) {
+		assert.Equal(t, []string{"Dinner at Yod Abyssinia"}, names(apitypes.ListExpensesQuery{Search: "yOD"}))
+	})
+
+	t.Run("matches notes and category too", func(t *testing.T) {
+		assert.Equal(t, []string{"Taxi"}, names(apitypes.ListExpensesQuery{Search: "AIRPORT"}))
+		assert.Equal(t, []string{"Taxi"}, names(apitypes.ListExpensesQuery{Search: "transport"}))
+	})
+
+	t.Run("treats % and _ literally, not as LIKE wildcards", func(t *testing.T) {
+		assert.Equal(t, []string{"50% off coffee beans"}, names(apitypes.ListExpensesQuery{Search: "%"}))
+		assert.Equal(t, []string{"a_b test"}, names(apitypes.ListExpensesQuery{Search: "_"}))
+	})
+
+	t.Run("combines with the friend filter, and blank means no filter", func(t *testing.T) {
+		assert.Equal(t, []string{"Taxi"},
+			names(apitypes.ListExpensesQuery{FriendID: idutil.String(friend.ID), Search: "taxi"}))
+		assert.Len(t, names(apitypes.ListExpensesQuery{Search: "   "}), 4)
+		assert.Empty(t, names(apitypes.ListExpensesQuery{Search: "no such expense"}))
+	})
+
+	t.Run("rejects a query over 100 characters", func(t *testing.T) {
+		q := apitypes.ListExpensesQuery{Search: strings.Repeat("a", apitypes.MaxExpenseSearchLength+1)}
+		assert.Error(t, q.Validate())
 	})
 }
 
