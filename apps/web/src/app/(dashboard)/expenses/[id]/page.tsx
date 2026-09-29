@@ -9,14 +9,13 @@
 //    in this app yet (EXP-01/EXP-08 both deferred it), so there's
 //    nothing to show a thumbnail for. apps/api's receipt routes exist.
 //  - Actions menu: "Download receipt"/"Share expense" dropped for the
-//    same reason. "Edit expense" is hidden until EXP-10 is wired (slice
-//    7c) -- the edit screen still reads mock data and would show "not
-//    found" for a real id. Settlements never get Edit: apps/api's
-//    update path can't produce a SETTLEMENT (ADR-003).
-//  - The menu shows only when you *might* be allowed to delete: you
-//    paid, or it's a group expense (a group admin may too). apps/api's
-//    requireEditAuthority is the real check -- a group member who isn't
-//    an admin gets its NOT_EDIT_AUTHORIZED message inline.
+//    same reason. "Edit expense" opens EXP-10; settlements never get
+//    it -- apps/api's update path can't produce a SETTLEMENT (ADR-003).
+//  - The menu shows only when you *might* be allowed to edit or
+//    delete: you paid, or it's a group expense (a group admin may too).
+//    apps/api's requireEditAuthority is the real check -- a group
+//    member who isn't an admin gets its NOT_EDIT_AUTHORIZED message
+//    inline (here for delete, on EXP-10 for edit).
 //  - Delete asks for confirmation in-page (no browser confirm()
 //    dialog), then soft-deletes and returns to Activity. Balances are
 //    derived from expenses, so they update with no further call.
@@ -31,7 +30,7 @@
 
 import { EmptyState } from '@abro/ui';
 import { ETB, formatMoney } from '@abro/types';
-import { ArrowLeft, MoreHorizontal, Receipt, Trash2 } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Pencil, Receipt, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -186,6 +185,15 @@ export default function ExpenseDetailPage() {
             </button>
             {menuOpen && (
               <div className="neo-raised-sm absolute right-0 top-11 z-10 flex w-44 flex-col gap-1 rounded-2xl p-2">
+                {expense.splitType !== 'SETTLEMENT' && (
+                  <Link
+                    href={`/expenses/${expense.id}/edit`}
+                    className="flex items-center gap-2 rounded-xl px-3 py-2 text-[0.82rem] font-medium"
+                    style={{ color: 'var(--t-secondary)' }}
+                  >
+                    <Pencil size={15} strokeWidth={2} /> Edit expense
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={() => {

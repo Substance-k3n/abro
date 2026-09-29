@@ -99,8 +99,15 @@ export type GroupType = (typeof GROUP_TYPES)[number];
  * ~/lib/mock-data.ts's GROUP_TYPES table (client-side reference data,
  * not mock facts), falling back to "Other" for an unknown value -- the
  * one place this match lives, shared by Home, Balances and Groups. */
-export function groupTypeFor(type: string): GroupType {
-  return (
-    GROUP_TYPES.find((t) => t.id.toUpperCase() === type) ?? GROUP_TYPES[GROUP_TYPES.length - 1]!
-  );
+export function groupTypeFor(type: string): GroupType & { tint: string } {
+  const found =
+    GROUP_TYPES.find((t) => t.id.toUpperCase() === type) ?? GROUP_TYPES[GROUP_TYPES.length - 1]!;
+  return { ...found, tint: tintOf(found.color) };
+}
+
+/** A faint background of `color`. color-mix rather than appending a hex
+ * alpha (`${color}22`), which breaks for colors that are CSS variables
+ * (Trip's `var(--c-amber)`). */
+export function tintOf(color: string): string {
+  return `color-mix(in srgb, ${color} 13%, transparent)`;
 }

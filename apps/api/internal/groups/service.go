@@ -162,6 +162,18 @@ func (s *Service) Update(ctx context.Context, userID, groupID pgtype.UUID, in ap
 		return db.Group{}, err
 	}
 
+	// GRP-07: amounts are stored as bare minor units, so switching the
+	// currency under existing expenses would silently relabel them.
+	if in.Currency != nil && *in.Currency != before.Currency {
+		hasExpenses, err := s.q.GroupHasExpenses(ctx, groupID)
+		if err != nil {
+			return db.Group{}, err
+		}
+		if hasExpenses {
+			return db.Group{}, httpx.Conflict("CURRENCY_LOCKED", "The currency can't change once the group has expenses.")
+		}
+	}
+
 	params := db.UpdateGroupParams{ID: groupID, Name: optionalText(in.Name), Currency: optionalText(in.Currency), Description: optionalText(in.Description)}
 	if in.Type != nil {
 		params.Type = db.NullGroupType{GroupType: db.GroupType(*in.Type), Valid: true}
@@ -284,6 +296,20 @@ func (s *Service) RemoveMember(ctx context.Context, actorID, groupID, targetUser
 		}
 	}
 
+	// A member who leaves loses access to the group, so they'd no longer
+	// see (or be able to settle) what they owe or are owed there. Decided
+	// with the user 2026-09-29: block until their net in the group is 0.
+	nets, err := s.memberNets(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if nets[targetUserID] != 0 {
+		if actorID == targetUserID {
+			return httpx.Conflict("OUTSTANDING_BALANCE", "Settle up in this group before leaving it.")
+		}
+		return httpx.Conflict("OUTSTANDING_BALANCE", "This member has an unsettled balance in the group. Settle up before removing them.")
+	}
+
 	if _, err := s.q.UpdateGroupMemberStatus(ctx, db.UpdateGroupMemberStatusParams{ID: target.ID, Status: db.GroupMemberStatusLEFT}); err != nil {
 		return err
 	}
@@ -332,6 +358,72 @@ func (s *Service) UpdateMemberRole(ctx context.Context, actorID, groupID, target
 	}
 
 	return updated, nil
+}
+
+// Delete soft-deletes a group (GRP-07's Danger Zone). Only its creator
+// may, while still an active member, and only once every member's net
+// in it is 0 -- the group's expenses stay as facts, but nobody can see
+// the group afterwards, so an open balance would be stranded.
+func (s *Service) Delete(ctx context.Context, actorID, groupID pgtype.UUID) error {
+	group, err := s.requireGroup(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	if _, err := s.RequireActiveMembership(ctx, groupID, actorID); err != nil {
+		return err
+	}
+	if group.CreatedByID != actorID {
+		return httpx.Forbidden("NOT_GROUP_CREATOR", "Only the person who created this group can delete it.")
+	}
+
+	nets, err := s.memberNets(ctx, groupID)
+	if err != nil {
+		return err
+	}
+	for _, net := range nets {
+		if net != 0 {
+			return httpx.Conflict("OUTSTANDING_BALANCE", "Everyone must be settled up before this group can be deleted.")
+		}
+	}
+
+	// Collected before the delete: afterwards the group reads as not found.
+	others, err := s.q.ListActiveMemberIDsExcept(ctx, db.ListActiveMemberIDsExceptParams{GroupID: groupID, UserID: actorID})
+	if err != nil {
+		return err
+	}
+	actor, err := s.q.GetProfileByID(ctx, actorID)
+	if err != nil {
+		return err
+	}
+	if err := s.q.SoftDeleteGroup(ctx, db.SoftDeleteGroupParams{ID: groupID, DeletedByID: actorID}); err != nil {
+		return err
+	}
+	return s.notifications.NotifyMany(ctx, others, notifications.TypeGroupMembershipChange,
+		"Group deleted", fmt.Sprintf("%s deleted the group %q.", actor.DisplayName, group.Name))
+}
+
+// memberNets is each user's net position in a group (paid minus owed,
+// over non-deleted expenses, settlements included), the same figures as
+// balances.Service.GetGroupSummary -- recomputed here because the
+// balances package already depends on this one. Users with no expenses
+// in the group are absent, i.e. 0.
+func (s *Service) memberNets(ctx context.Context, groupID pgtype.UUID) (map[pgtype.UUID]int64, error) {
+	paid, err := s.q.GetGroupPaidSums(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	owed, err := s.q.GetGroupOwedSums(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	nets := map[pgtype.UUID]int64{}
+	for _, p := range paid {
+		nets[p.PaidByID] += p.Total
+	}
+	for _, o := range owed {
+		nets[o.UserID] -= o.Total
+	}
+	return nets, nil
 }
 
 // RequireActiveMembership is used by the expenses module to validate

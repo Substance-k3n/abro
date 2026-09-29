@@ -581,6 +581,16 @@ func (s *Service) requireVisible(ctx context.Context, actorID, expenseID pgtype.
 }
 
 func (s *Service) requireEditAuthority(ctx context.Context, actorID pgtype.UUID, expense db.Expense) error {
+	// A deleted group's expenses are frozen: its members were all settled
+	// when it was deleted, and editing or deleting one would reopen a
+	// balance nobody can see any more.
+	if expense.GroupID.Valid {
+		if _, err := s.q.GetGroupByID(ctx, expense.GroupID); errors.Is(err, pgx.ErrNoRows) {
+			return httpx.NotFound("GROUP_NOT_FOUND", "No such group.")
+		} else if err != nil {
+			return err
+		}
+	}
 	if expense.PaidByID == actorID {
 		return nil
 	}

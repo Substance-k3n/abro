@@ -711,7 +711,7 @@ supported (apps/api matches email/phone only).
 Manual browser verification against a live API still pending (local
 Docker wasn't reachable from the session).
 
-### Slice 7 — Expenses (EXP-01…EXP-10) `[in progress]`
+### Slice 7 — Expenses (EXP-01…EXP-10) `[done]`
 
 Frontend only -- apps/api's `/expenses` routes already cover create,
 read, edit, delete, notes and receipts. Three PRs, one per concern:
@@ -773,8 +773,8 @@ created once. As Bob: the group payer list offers Alice and Carol
       open this page (Search also records the query, like its other
       results).
 
-Deviations (Confirmed): "Edit expense" is hidden until slice 7c wires
-EXP-10 (it still reads mock data); settlements never get Edit. apps/api
+Deviations (Confirmed): "Edit expense" was hidden until slice 7c
+wired EXP-10; settlements never get Edit. apps/api
 stores no creator/editor on an expense, so the activity log shows
 created/updated dates only. Receipt and notes-thread UI still not built.
 
@@ -788,12 +788,128 @@ no menu; a random uuid and `not-a-uuid` → "Expense not found". As Alice
 Alice↔Bob balance −15025 → 0, `GET` → 404. Rows open the detail page
 from Home, Friend Detail and Search (query saved to recent searches).
 
-**7c — Edit (EXP-10) `[todo]`:** `PATCH` resubmits the whole expense,
-but apps/api stores only final amounts, not percentages/share weights.
-Decided (user, 2026-09-29): if amount and participants are unchanged,
-resend the stored amounts as EXACT (a PERCENTAGE/SHARES expense then
-shows as "Exact split"); if either changes, recalculate as EQUAL (the
-screen's existing behavior).
+**7c — Edit (EXP-10) `[done]`.** Branch:
+`feature/expense-edit-api-integration`.
+
+- [x] `/expenses/[id]/edit` loads `GET /expenses/{id}` and saves with
+      `PATCH /expenses/{id}` (`updateExpense`), then returns to the
+      detail page. Unknown/deleted/not-visible ids show "Expense not
+      found"; a settlement shows "Settlements can't be edited".
+- [x] Editable: name, category, amount, date, note, participants.
+      Payer and group are resent unchanged. If you paid, your row is
+      locked in (as in EXP-03).
+- [x] Addable people mirror apps/api's `prepareWrite`: your friends
+      (personal) or the group's ACTIVE members (group). Current
+      participants always show so they can be removed.
+- [x] Split on save is `~/lib/expense-split.ts`'s `editedSplit`.
+      apps/api stores only final amounts, not percentages or share
+      weights. Decided (user, 2026-09-29): if amount and participants
+      are unchanged, resend the stored amounts -- an EQUAL expense
+      stays EQUAL (participants sent largest share first, since
+      apps/api gives the remainder to the first ones and returns them
+      unordered), anything else goes as EXACT (so PERCENTAGE/SHARES
+      then read "Exact split"). If either changes, recalculate as
+      EQUAL, with the spec's warning copy and a preview.
+- [x] Server refusals (`NOT_EDIT_AUTHORIZED`, `NOT_FRIENDS`, membership)
+      show above Update and the form keeps your edits.
+- [x] EXP-09's actions menu has "Edit expense" again (not for
+      settlements).
+
+Deviations (Confirmed): no per-method re-editing (exact/percentage/
+shares inputs) -- the wizard's split screens aren't reused here.
+Category is still the static `CATEGORIES` list.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+`editedSplit` checked by hand against six cases (unchanged EQUAL with
+the remainder on a non-first participant, unchanged PERCENTAGE,
+inconsistent EQUAL → EXACT, amount changed, participant removed,
+participant swapped). Browser, real API, the 7a seed (Alice friends with
+Bob and Carol; all three in "Lalibela Trip"): as Alice, personal EQUAL
+"Dinner" 1000 (Carol stored 333.34) renamed only → still Equal,
+333.33/333.34/333.33 unchanged; group PERCENTAGE "Hotel" (Carol paid,
+Alice admin) date-only edit → "Exact", 333.40/333.30/333.30, Carol
+still payer; Hotel amount → 900 shows both warnings and saves Equal
+300 × 3; Bob removed from Dinner → 500/500, Alice↔Bob balance 0,
+clicking your own payer row does nothing; settlement and random-uuid
+edit URLs show their empty states. As Bob (not admin, not payer),
+editing Hotel → "Only the payer or a group admin can edit this
+expense." inline, form kept, nothing stored; his participant list
+includes Carol (group member, not his friend).
+
+### Slice 8 — Groups (GRP-01…GRP-08) `[in progress]`
+
+Four PRs: backend rules first, then the screens.
+
+**8a — Group integrity rules (backend) `[done]`.** Branch:
+`feature/groups-integrity-rules`. See ADR-009.
+
+- [x] Leave/remove refused with `OUTSTANDING_BALANCE` while the
+      member's group net isn't 0.
+- [x] `DELETE /groups/{id}`: creator only, everyone settled, soft
+      delete (`0011_group_soft_delete`); the group then reads as not
+      found everywhere, its expenses are frozen, and its recurring
+      templates are skipped.
+- [x] Currency change refused with `CURRENCY_LOCKED` once the group
+      has expenses.
+
+**Verified:** `go vet` clean, full `go test ./...` passes against the
+local DB with the new migration. New integration tests cover leave and
+remove blocked, then allowed after a settlement; currency before vs.
+after an expense; delete as non-creator, delete while unsettled, then
+the group gone from lookups and lists with its expenses intact; an
+invite to a deleted group disappearing; a deleted group's expense
+frozen and dropped from the list; and the recurring due-list skipping
+it.
+
+**8b — Group detail + read-only tabs (GRP-03/04/05/08) `[done]`.**
+Branch: `feature/group-detail-api-integration`. Frontend only.
+
+- [x] `~/lib/group-view.tsx`: one loader for every `/groups/[id]`
+      screen -- you, the group with members, and each person's net from
+      `GET /balances/groups/{id}` -- plus the shared loading / "Group
+      not found" (404/403/400) / error states. `getGroupBalances` and
+      `getSimplifiedPayments` live in `~/lib/balances-api.ts`.
+- [x] GRP-03 detail: real type, member count, description, your net
+      (Settle Up only when you owe), the latest 5 expenses, balances
+      for everyone (a member who left with a balance shows "(left)"),
+      and real Admin/Member roles. The settings icon shows for admins
+      only.
+- [x] GRP-04 expenses: `GET /expenses?groupId=` with "Load more" (30
+      per page), filters over what's loaded; your position per row is
+      what others owe you (you paid) or your share. Settlements are
+      labelled.
+- [x] GRP-05/GRP-08: nets and apps/api's simplified plan
+      (`/balances/groups/{id}/simplified`) -- no client-side
+      recomputation. Shared `~/components/PaymentRow.tsx`; only your
+      own payments link to /settle (ADR-003).
+- [x] `groupTypeFor()` now returns a `tint` (color-mix), fixing the
+      invalid `${color}22` background for CSS-variable colors (Trip) on
+      Home, Groups, Balances and Search.
+
+Deviations (Confirmed): no pairwise "full network" view (apps/api
+exposes nets and the plan only); the "N instead of M payments" count
+shows N only. /settle, GRP-06 members and GRP-07 settings still read
+mock data (8d, slice 9).
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API, the slice 7 seed plus a Bob-paid Taxi 100 (A 33.34,
+B 33.33, C 33.33) and a 150 settlement Bob→Carol. Hand check:
+Carol +416.67, Bob −83.33, Alice −333.34, which sums to 0. As Bob:
+
+- Detail shows −83.33 with Settle Up, those three balances, real
+  roles, and no settings icon.
+- Expenses: Taxi +66.67, Hotel −300, the settlement labelled; the
+  "Your expenses" and category filters work.
+- Balances/Simplified: Alice→Carol 333.34 and Bob→Carol 83.33,
+  matching apps/api; only Bob's own payment links to /settle.
+- A random uuid and `not-a-uuid` both show "Group not found".
+- After Carol left (the pre-8a API still allowed it), she's listed
+  "Carol Test (left) +416.67".
+
+**8c — create group + invites `[todo]`**, **8d — members + settings
+`[todo]`.** User decisions (2026-09-29): hide GRP-07's default split
+method and notification toggles (no backend field); invites need an
+accept UI (there's none anywhere yet).
 
 ### Slice 8 — Groups (GRP-01…GRP-08) `[in progress]`
 

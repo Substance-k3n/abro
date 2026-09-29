@@ -2,104 +2,87 @@
 
 // GRP-05 Group Balances -- docs/ABRO_FRONTEND_SPEC.md §5 (lines 1312-
 // 1360). Individual view (net position per member) and Simplified view
-// (minimum-transaction payment plan), toggled.
+// (who pays whom), toggled. Phase 8 slice 8b: nets from
+// GET /balances/groups/{id} and the plan from its /simplified sibling,
+// both via ~/lib/balances-api.ts -- apps/api computes both, so the
+// browser never re-derives a balance.
 //
 // Deviations:
-//  - "Who owes whom (full network)" (spec's Individual Balances bullet):
-//    this app has no real pairwise expense/settlement graph modeled --
-//    only aggregate net positions (GROUP_BALANCES, ~/lib/mock-data.ts).
-//    Synthesizing a plausible-but-fake pairwise graph just to show
-//    something under "full network" would be exactly the kind of
-//    fabricated data this project's workflow explicitly avoids. Shows
-//    net positions only (which the spec's own "Individual Balance
-//    List" component description asks for -- avatar, name, net
-//    balance), honestly labeled as such.
-//  - Simplified view calls @abro/types' simplifyDebts() directly -- the
-//    same tested function apps/api uses server-side (ABRO_PRD.md §18) --
-//    over this group's GROUP_BALANCES entries.
-//  - "Simplify toggle (if enabled in settings)": gated on
-//    Group.simplifyDebts (GRP-07's Financial Settings toggle, added
-//    alongside this screen) -- when off, only the Individual view is
-//    offered (no method toggle shown at all, since there's nothing to
-//    toggle between).
-//  - "Mark as settled" links into the real /settle flow (Phase 6) only
-//    for payments where you're the payer -- apps/api/internal/
-//    settlements/service.go only lets the debtor record a settlement
-//    (ADR-003), so a payment owed *to* you stays a disabled placeholder
-//    (same reasoning as every other destructive/state-changing mock
-//    action with no valid path from this session, e.g. Remove friend).
+//  - "Who owes whom (full network)": apps/api exposes net positions and
+//    the simplified plan, not a raw pairwise graph, so Individual shows
+//    nets only (the spec's own "Individual Balance List" component).
+//  - The Simplified view is offered only when the group's "Simplify
+//    debts" setting is on (GRP-07); off, only Individual shows.
+//  - "Mark as settled" opens /settle only for payments you make --
+//    apps/api only lets the debtor record a settlement (ADR-003); a
+//    payment owed to you stays disabled.
+//  - Someone who left the group but still has a balance is listed,
+//    marked "(left)", so no debt disappears from view.
 
-import { ETB, type NetPosition, formatMoney, simplifyDebts } from '@abro/types';
-import { Avatar, EmptyState } from '@abro/ui';
-import { ArrowLeft, ArrowRight, Handshake, Users } from 'lucide-react';
-import Link from 'next/link';
+import { ETB, abs, formatMoney } from '@abro/types';
+import { EmptyState } from '@abro/ui';
+import { ArrowLeft, Handshake } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { ME } from '~/lib/expense-draft';
-import { GROUPS, GROUP_BALANCES, resolveParticipants } from '~/lib/mock-data';
+import { PaymentRow } from '~/components/PaymentRow';
+import { type SimplifiedPayment, getSimplifiedPayments } from '~/lib/balances-api';
+import { type GroupView, GroupViewLoader, PersonAvatar, nameIn } from '~/lib/group-view';
 
 type View = 'individual' | 'simplified';
 
 export default function GroupBalancesPage() {
   const params = useParams<{ id: string }>();
+  const [payments, setPayments] = useState<SimplifiedPayment[]>([]);
+
+  return (
+    <GroupViewLoader
+      groupId={params.id}
+      extra={() => getSimplifiedPayments(params.id).then(setPayments)}
+    >
+      {(view) => <GroupBalances view={view} payments={payments} />}
+    </GroupViewLoader>
+  );
+}
+
+function GroupBalances({ view, payments }: { view: GroupView; payments: SimplifiedPayment[] }) {
   const router = useRouter();
-  const [view, setView] = useState<View>('individual');
+  const [mode, setMode] = useState<View>('individual');
+  const { group, activeMembers, nets } = view;
 
-  const group = GROUPS.find((g) => g.id === params.id);
-
-  if (!group) {
-    return (
-      <div className="fade-in px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
-        <button
-          onClick={() => router.push('/groups')}
-          className="mb-4 flex items-center gap-1 text-[0.85rem] font-medium"
-          style={{ color: 'var(--accent)' }}
-        >
-          <ArrowLeft size={16} strokeWidth={2} /> Groups
-        </button>
-        <EmptyState
-          icon={<Users size={26} strokeWidth={1.5} />}
-          title="Group not found"
-          description="This group doesn't exist, or the link may be out of date."
-        />
-      </div>
-    );
-  }
-
-  const balances = GROUP_BALANCES[group.id] ?? {};
-  const memberRows = resolveParticipants(['me', ...group.memberIds]);
-  const allSettled = Object.values(balances).every((b) => b === 0n);
-
-  const positions: NetPosition[] = Object.entries(balances).map(([userId, netBalance]) => ({
-    userId,
-    netBalance,
-  }));
-  const payments = simplifyDebts(positions);
+  const ids = [
+    ...activeMembers.map((m) => m.userId),
+    ...[...nets.keys()].filter((id) => !activeMembers.some((m) => m.userId === id)),
+  ];
+  const allSettled = [...nets.values()].every((b) => b === 0n);
 
   return (
     <div className="fade-in px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <div className="mb-5 flex items-center justify-between">
         <button
           onClick={() => router.push(`/groups/${group.id}`)}
-          className="flex items-center gap-1 text-[0.85rem] font-medium"
+          className="flex min-w-0 items-center gap-1 text-[0.85rem] font-medium"
           style={{ color: 'var(--accent)' }}
         >
-          <ArrowLeft size={16} strokeWidth={2} /> {group.name}
+          <ArrowLeft size={16} strokeWidth={2} className="shrink-0" />
+          <span className="truncate">{group.name}</span>
         </button>
-        <h2 className="font-display text-[1.05rem] font-bold" style={{ color: 'var(--t-primary)' }}>
+        <h2
+          className="font-display shrink-0 px-2 text-[1.05rem] font-bold"
+          style={{ color: 'var(--t-primary)' }}
+        >
           Group Balances
         </h2>
         <div className="w-[60px]" />
       </div>
 
-      {group.simplifyDebts && (
+      {group.simplifyDebts && !allSettled && (
         <div className="neo-inset-sm mb-5 flex gap-1 rounded-[14px] p-1">
           {(['individual', 'simplified'] as const).map((v) => (
             <button
               key={v}
-              onClick={() => setView(v)}
-              className={`neo-tab flex-1 border-none capitalize ${view === v ? 'active' : ''}`}
+              onClick={() => setMode(v)}
+              className={`neo-tab flex-1 border-none capitalize ${mode === v ? 'active' : ''}`}
             >
               {v}
             </button>
@@ -113,21 +96,29 @@ export default function GroupBalancesPage() {
           title="All settled up!"
           description="No outstanding balances in this group."
         />
-      ) : view === 'individual' ? (
+      ) : mode === 'individual' ? (
         <div className="flex flex-col gap-2.5">
-          {memberRows.map((p) => {
-            const bal = balances[p.id] ?? 0n;
+          {ids.map((id) => {
+            const bal = nets.get(id) ?? 0n;
             return (
               <div
-                key={p.id}
+                key={id}
                 className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
               >
-                <Avatar initials={p.initials} color={p.color} size={38} />
+                <PersonAvatar view={view} userId={id} size={38} />
                 <span
                   className="flex-1 text-[0.88rem] font-semibold"
                   style={{ color: 'var(--t-primary)' }}
                 >
-                  {p.id === ME ? 'You' : p.name}
+                  {nameIn(view, id)}
+                  {!activeMembers.some((m) => m.userId === id) && (
+                    <span
+                      className="ml-1.5 text-[0.7rem] font-normal"
+                      style={{ color: 'var(--t-dim)' }}
+                    >
+                      (left)
+                    </span>
+                  )}
                 </span>
                 <span
                   className="font-mono text-[0.88rem] font-bold"
@@ -135,9 +126,7 @@ export default function GroupBalancesPage() {
                     color: bal > 0n ? 'var(--c-green)' : bal < 0n ? 'var(--c-red)' : 'var(--t-dim)',
                   }}
                 >
-                  {bal === 0n
-                    ? 'Settled'
-                    : `${bal > 0n ? '+' : '-'}${formatMoney(bal < 0n ? -bal : bal, ETB)}`}
+                  {bal === 0n ? 'Settled' : `${bal > 0n ? '+' : '-'}${formatMoney(abs(bal), ETB)}`}
                 </span>
               </div>
             );
@@ -145,56 +134,9 @@ export default function GroupBalancesPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {payments.map((tx) => {
-            const from = resolveParticipants([tx.fromUserId])[0]!;
-            const to = resolveParticipants([tx.toUserId])[0]!;
-            return (
-              <div
-                key={`${tx.fromUserId}-${tx.toUserId}`}
-                className="neo-raised-sm flex items-center gap-2.5 rounded-2xl px-3.5 py-3"
-              >
-                <Avatar initials={from.initials} color={from.color} size={32} />
-                <span
-                  className="text-[0.85rem] font-medium"
-                  style={{ color: 'var(--t-secondary)' }}
-                >
-                  {from.id === ME ? 'You' : from.name.split(' ')[0]}
-                </span>
-                <ArrowRight size={14} strokeWidth={2} style={{ color: 'var(--t-dim)' }} />
-                <Avatar initials={to.initials} color={to.color} size={32} />
-                <span
-                  className="flex-1 text-[0.85rem] font-medium"
-                  style={{ color: 'var(--t-secondary)' }}
-                >
-                  {to.id === ME ? 'You' : to.name.split(' ')[0]}
-                </span>
-                <span
-                  className="mr-1 font-mono text-[0.85rem] font-bold"
-                  style={{ color: 'var(--t-primary)' }}
-                >
-                  {formatMoney(tx.amount, ETB)}
-                </span>
-                {tx.fromUserId === ME ? (
-                  <Link
-                    href={`/settle?groupId=${group.id}&toUserId=${tx.toUserId}`}
-                    className="neo-btn shrink-0 rounded-lg px-2.5 py-1.5 text-[0.72rem] font-semibold"
-                  >
-                    Settle
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    disabled
-                    title="They need to record this from their side"
-                    className="neo-flat shrink-0 cursor-not-allowed rounded-lg px-2.5 py-1.5 text-[0.72rem] font-medium opacity-50"
-                    style={{ color: 'var(--t-muted)' }}
-                  >
-                    Settle
-                  </button>
-                )}
-              </div>
-            );
-          })}
+          {payments.map((tx) => (
+            <PaymentRow key={`${tx.fromUserId}-${tx.toUserId}`} view={view} payment={tx} />
+          ))}
         </div>
       )}
     </div>

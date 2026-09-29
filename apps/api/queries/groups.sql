@@ -11,7 +11,7 @@ RETURNING *;
 -- name: ListMyActiveGroups :many
 SELECT g.* FROM groups g
 JOIN group_members gm ON gm.group_id = g.id
-WHERE gm.user_id = $1 AND gm.status = 'ACTIVE'
+WHERE gm.user_id = $1 AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
 ORDER BY g.created_at DESC;
 
 -- name: ListMyActiveGroupsWithStats :many
@@ -30,21 +30,27 @@ SELECT sqlc.embed(g),
                 g.created_at)::timestamptz AS last_activity_at
 FROM groups g
 JOIN group_members gm ON gm.group_id = g.id
-WHERE gm.user_id = $1 AND gm.status = 'ACTIVE'
+WHERE gm.user_id = $1 AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
 ORDER BY g.created_at DESC;
 
 -- name: ListMyInvites :many
 SELECT gm.joined_at AS invited_at, g.*
 FROM group_members gm
 JOIN groups g ON g.id = gm.group_id
-WHERE gm.user_id = $1 AND gm.status = 'INVITED'
+WHERE gm.user_id = $1 AND gm.status = 'INVITED' AND g.deleted_at IS NULL
 ORDER BY gm.joined_at DESC;
 
 -- name: GetGroupByID :one
-SELECT * FROM groups WHERE id = $1;
+-- A deleted group reads as not found (0011_group_soft_delete).
+SELECT * FROM groups WHERE id = $1 AND deleted_at IS NULL;
 
 -- name: GetGroupMember :one
-SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2;
+-- Every membership check (groups, expenses, balances, settlements,
+-- recurring) goes through this, so a deleted group's memberships read
+-- as not found too.
+SELECT gm.* FROM group_members gm
+JOIN groups g ON g.id = gm.group_id
+WHERE gm.group_id = $1 AND gm.user_id = $2 AND g.deleted_at IS NULL;
 
 -- name: ListGroupMembersWithProfiles :many
 SELECT gm.id, gm.group_id, gm.user_id, gm.role, gm.status, gm.joined_at,
@@ -87,3 +93,12 @@ WHERE group_id = $1 AND role = 'ADMIN' AND status = 'ACTIVE' AND user_id != $2;
 -- name: ListActiveMemberIDsExcept :many
 SELECT user_id FROM group_members
 WHERE group_id = $1 AND status = 'ACTIVE' AND user_id != $2;
+
+-- name: GroupHasExpenses :one
+-- GRP-07: the currency can't change once the group has any expense
+-- (including settlements) -- it would relabel every stored amount.
+SELECT EXISTS (SELECT 1 FROM expenses WHERE group_id = $1 AND deleted_at IS NULL);
+
+-- name: SoftDeleteGroup :exec
+UPDATE groups SET deleted_at = now(), deleted_by_id = $2, updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL;
