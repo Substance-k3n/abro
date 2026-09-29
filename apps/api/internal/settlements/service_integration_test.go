@@ -19,6 +19,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/expenses"
 	"github.com/Substance-k3n/abro/apps/api/internal/friends"
 	"github.com/Substance-k3n/abro/apps/api/internal/groups"
+	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 	"github.com/Substance-k3n/abro/apps/api/internal/settlements"
@@ -256,6 +257,77 @@ func TestService_Create(t *testing.T) {
 		personal, err := e.balances.GetPairwiseBalance(ctx, a.ID, b.ID, pgtype.UUID{})
 		require.NoError(t, err)
 		assert.Equal(t, int64(0), personal)
+	})
+
+	t.Run("group settlements are checked against group nets, not the pair's shared expenses", func(t *testing.T) {
+		e := setup(t)
+		a := e.makeProfile(t, "A")
+		b := e.makeProfile(t, "B")
+		c := e.makeProfile(t, "C")
+		e.makeFriends(t, a.ID, b.ID)
+		e.makeFriends(t, a.ID, c.ID)
+		ctx := context.Background()
+
+		group, err := e.groups.Create(ctx, a.ID, apitypes.CreateGroupInput{
+			Name: "Trip", MemberIDs: []string{idutil.String(b.ID), idutil.String(c.ID)},
+		})
+		require.NoError(t, err)
+		_, err = e.groups.AcceptInvite(ctx, b.ID, group.ID)
+		require.NoError(t, err)
+		_, err = e.groups.AcceptInvite(ctx, c.ID, group.ID)
+		require.NoError(t, err)
+
+		// C pays 900 for all three (300 each); B pays 99 for all three
+		// (33 each). Nets: A -333, B -234, C +567. A's pairwise debt to
+		// C is only 300 -- the other 33 is owed to B.
+		_, err = e.expenses.Create(ctx, c.ID, expenseInput("EQUAL", "Hotel", "900", &group.ID, nil, equalParticipants(a.ID, b.ID, c.ID)))
+		require.NoError(t, err)
+		_, err = e.expenses.Create(ctx, b.ID, expenseInput("EQUAL", "Taxi", "99", &group.ID, nil, equalParticipants(a.ID, b.ID, c.ID)))
+		require.NoError(t, err)
+
+		nets := func() map[string]int64 {
+			positions, err := e.balances.GetGroupSummary(ctx, group.ID)
+			require.NoError(t, err)
+			out := map[string]int64{}
+			for _, p := range positions {
+				out[p.UserID] = p.NetBalance
+			}
+			return out
+		}
+		before := nets()
+		require.Equal(t, int64(-333), before[idutil.String(a.ID)])
+		require.Equal(t, int64(-234), before[idutil.String(b.ID)])
+		require.Equal(t, int64(567), before[idutil.String(c.ID)])
+
+		codeOf := func(err error) string {
+			var apiErr *httpx.APIError
+			require.ErrorAs(t, err, &apiErr)
+			return apiErr.Code
+		}
+
+		// C owes nothing; B is owed nothing (net < 0); more than A owes.
+		_, err = e.svc.Create(ctx, c.ID, settleInput(a.ID, "10", &group.ID))
+		assert.Equal(t, "NO_OUTSTANDING_DEBT", codeOf(err))
+		_, err = e.svc.Create(ctx, a.ID, settleInput(b.ID, "10", &group.ID))
+		assert.Equal(t, "RECIPIENT_NOT_OWED", codeOf(err))
+		_, err = e.svc.Create(ctx, a.ID, settleInput(c.ID, "334", &group.ID))
+		assert.Equal(t, "EXCEEDS_OUTSTANDING_DEBT", codeOf(err))
+
+		// The simplified plan's A -> C 333 is payable (pairwise alone
+		// would have capped it at 300), and only A's and C's nets move.
+		_, err = e.svc.Create(ctx, a.ID, settleInput(c.ID, "333", &group.ID))
+		require.NoError(t, err)
+		after := nets()
+		assert.Equal(t, int64(0), after[idutil.String(a.ID)])
+		assert.Equal(t, int64(-234), after[idutil.String(b.ID)])
+		assert.Equal(t, int64(234), after[idutil.String(c.ID)])
+
+		// B's settlement is capped by C's remaining 234.
+		_, err = e.svc.Create(ctx, b.ID, settleInput(c.ID, "234", &group.ID))
+		require.NoError(t, err)
+		for id, net := range nets() {
+			assert.Equal(t, int64(0), net, "net for %s", id)
+		}
 	})
 
 	t.Run("rejects a group settlement when either party is not an active member", func(t *testing.T) {

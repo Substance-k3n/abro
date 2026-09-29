@@ -7,6 +7,46 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-010: Group settlements are validated against group nets
+
+**Status:** Accepted (user decision, 2026-09-29)
+
+**Context:** `POST /settlements` capped a group settlement at the
+_pairwise_ debt, meaning what the settler owes the recipient through
+their shared expenses in that group. Every group screen shows _nets_
+instead (paid − owed per member, `GET /balances/groups/{id}`), and the
+simplified plan (`/simplified`, ABRO_PRD.md §18) routes payments
+between nets. So a plan payment could exceed the pair's shared debt and
+be refused.
+
+Example: C pays 900 for A, B and C, and B pays 99 for all three. The
+nets are A −333, B −234, C +567. The plan says A → C 333, but A's
+pairwise debt to C is only 300, and pairwise also let A pay B, whom the
+group view shows as owing.
+
+**Decision:** Inside a group, a settlement is allowed when the settler's
+net is below 0 (`NO_OUTSTANDING_DEBT` otherwise) and the recipient's is
+above 0 (`RECIPIENT_NOT_OWED` otherwise). The amount is capped at
+`min(−settlerNet, recipientNet)` (`EXCEEDS_OUTSTANDING_DEBT`).
+Personal settlements keep the pairwise check.
+
+**Alternatives considered:** keep pairwise and make the simplified view
+informational only. Rejected: the app would show two different answers
+to "who do I owe in this group", and the plan couldn't be acted on.
+
+**Consequences:**
+
+- Every simplified-plan payment is payable. A settlement moves only the
+  settler's and recipient's nets, each toward 0.
+- The pair's pairwise balance inside the group can go "backwards"
+  (e.g. C now owes A 33 pairwise). Nothing displays pairwise group
+  balances, and friend balances count personal expenses only
+  (`GetSummary`), so no screen changes.
+- Settlements stay plain expense rows (ADR-003); only the validation
+  changed.
+
+---
+
 ## ADR-009: Group integrity rules — settled-only leave/remove/delete, soft-deleted groups, locked currency
 
 **Status:** Accepted (user decisions, 2026-09-29)
