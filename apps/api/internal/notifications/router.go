@@ -25,6 +25,8 @@ func NewHandler(svc *Service, q db.Querier) *Handler {
 func (h *Handler) Mount(r chi.Router) {
 	r.Use(authpkg.RequireSession(h.q))
 	r.Get("/", httpx.Wrap(h.list))
+	r.Get("/preferences", httpx.Wrap(h.preferences))
+	r.Patch("/preferences", httpx.Wrap(h.updatePreferences))
 	r.Patch("/read-all", httpx.Wrap(h.markAllRead))
 	r.Patch("/{id}/read", httpx.Wrap(h.markRead))
 }
@@ -76,5 +78,33 @@ func (h *Handler) markRead(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	httpx.WriteJSON(w, http.StatusOK, apitypes.ToNotification(notification))
+	return nil
+}
+
+// preferences: GET /notifications/preferences -> {"EXPENSE_ADDED": true, ...}
+// for every notification type (SET-02).
+func (h *Handler) preferences(w http.ResponseWriter, r *http.Request) error {
+	user := authpkg.CurrentUser(r.Context())
+	prefs, err := h.svc.Preferences(r.Context(), user.ID)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, prefs)
+	return nil
+}
+
+// updatePreferences: PATCH /notifications/preferences with a partial
+// {"TYPE": bool} map; answers with the full, updated map.
+func (h *Handler) updatePreferences(w http.ResponseWriter, r *http.Request) error {
+	var changes map[string]bool
+	if err := httpx.DecodeJSON(r, &changes); err != nil {
+		return err
+	}
+	user := authpkg.CurrentUser(r.Context())
+	prefs, err := h.svc.UpdatePreferences(r.Context(), user.ID, changes)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, prefs)
 	return nil
 }

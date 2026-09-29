@@ -1061,6 +1061,40 @@ As Carol:
   Success shows 250 still owed (apps/api: 25000).
 - Settling with Bob (not a friend) → "Nothing to settle".
 
+### Slice 10 — Profile & settings (PRF-01, SET-01…SET-03) `[in progress]`
+
+User decisions (2026-09-29):
+
+- Build per-type notification opt-out (in-app only; quiet hours
+  dropped).
+- Trim SET-03 Privacy & Security to what's real: sign-in method and
+  sign out. Drop password, 2FA, sessions and the visibility selectors.
+- Defer delete account and export data. They touch other people's
+  balances and need their own ADR.
+
+**10a — Notification preferences (backend) `[done]`.** Branch:
+`feature/notification-preferences`.
+
+- [x] Migration `0012_notification_opt_outs` (`user_id`, `type`,
+      primary key on both). A row means "off"; no row means "on", so
+      existing users need no backfill. Rows cascade with the profile.
+- [x] `GET /notifications/preferences` returns `{TYPE: bool}` for all
+      8 types. `PATCH` takes a partial map, rejects an unknown type
+      before writing anything, and returns the full map.
+- [x] `Notify` is a no-op for an opted-out type, and `NotifyMany` filters
+      opted-out recipients in the insert itself. No caller changed.
+
+**Verified:** full `go test ./...` passes. New tests cover:
+
+- defaults (all on);
+- an opt-out skipped by both Notify and NotifyMany for that user only,
+  with other types still arriving;
+- re-enabling (idempotent) restoring delivery;
+- an unknown type rejected with nothing applied.
+
+The migration down and up were both run. HTTP GET/PATCH checked with
+curl, including a `VALIDATION_ERROR` for an unknown type.
+
 ### Later slices `[todo]`
 
 Groups (`GRP-0x`), settlement

@@ -408,6 +408,12 @@ type Notification struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type NotificationOptOut struct {
+	UserID    pgtype.UUID        `json:"user_id"`
+	Type      string             `json:"type"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type OauthAccount struct {
 	ID                pgtype.UUID        `json:"id"`
 	UserID            pgtype.UUID        `json:"user_id"`
