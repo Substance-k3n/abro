@@ -35,3 +35,20 @@ export function markAllNotificationsRead(): Promise<void> {
 export function markNotificationRead(id: string): Promise<Notification> {
   return api.patch(`/notifications/${id}/read`);
 }
+
+/** Every notification type apps/api sends (notifications.AllTypes),
+ * mapped to whether you get it. */
+export type NotificationPreferences = Record<string, boolean>;
+
+/** GET /notifications/preferences -- all types, on unless you opted out. */
+export function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return api.get('/notifications/preferences');
+}
+
+/** PATCH /notifications/preferences with only the types to change;
+ * answers with the full, updated map. */
+export function updateNotificationPreferences(
+  changes: NotificationPreferences,
+): Promise<NotificationPreferences> {
+  return api.patch('/notifications/preferences', changes);
+}
