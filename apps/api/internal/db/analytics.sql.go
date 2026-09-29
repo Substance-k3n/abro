@@ -57,7 +57,7 @@ SELECT g.id AS group_id, g.name AS group_name, sum(e.amount)::bigint AS total_sp
 FROM group_members gm
 JOIN groups g ON g.id = gm.group_id
 JOIN expenses e ON e.group_id = g.id
-WHERE gm.user_id = $1 AND gm.status = 'ACTIVE'
+WHERE gm.user_id = $1 AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
   AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
   AND e.expense_date >= $2 AND e.expense_date < $3
   AND (e.paid_by_id = $1

@@ -17,7 +17,7 @@ import {
 } from '@abro/types';
 
 import { type ExpenseDraft, ME, type SplitMethod } from './expense-draft';
-import type { CreateExpenseInput } from './expenses-api';
+import type { AuthExpense, CreateExpenseInput, ExpenseParticipantInput } from './expenses-api';
 
 /** Parses a raw decimal-string form input into MinorUnits, treating
  * anything unparseable or negative as 0n. Inputs get their own "is this
@@ -194,5 +194,45 @@ export function toCreateExpenseInput(draft: ExpenseDraft, meId: string): CreateE
           return { userId };
       }
     }),
+  };
+}
+
+/** EXP-10's split for an edited expense. apps/api stores only each
+ * participant's final amount (no percentages or share weights), so:
+ *  - amount and participants unchanged: resend the stored amounts
+ *    as they are. An EQUAL expense stays EQUAL -- participants go
+ *    largest share first, since apps/api hands the remainder to the
+ *    first participants in request order and returns them unordered.
+ *    Anything else goes as EXACT, so a PERCENTAGE/SHARES expense then
+ *    reads "Exact split" (same amounts, method label lost).
+ *  - otherwise: an EQUAL split of the new amount over `participantIds`,
+ *    in that order.
+ * Decided with the user 2026-09-29 (docs/WIRING_PLAN.md slice 7c). */
+export function editedSplit(
+  original: AuthExpense,
+  amount: MinorUnits,
+  participantIds: string[],
+): { splitType: CreateExpenseInput['splitType']; participants: ExpenseParticipantInput[] } {
+  const originalIds = original.participants.map((p) => p.user.id);
+  const unchanged =
+    amount === BigInt(original.amount) &&
+    participantIds.length === originalIds.length &&
+    participantIds.every((id) => originalIds.includes(id));
+
+  if (!unchanged) {
+    return { splitType: 'EQUAL', participants: participantIds.map((userId) => ({ userId })) };
+  }
+
+  const stored = [...original.participants].sort((a, b) => {
+    const diff = BigInt(b.amount) - BigInt(a.amount);
+    return diff > 0n ? 1 : diff < 0n ? -1 : 0;
+  });
+  const equal = splitEqually(amount, stored.length);
+  if (original.splitType === 'EQUAL' && stored.every((p, i) => BigInt(p.amount) === equal[i])) {
+    return { splitType: 'EQUAL', participants: stored.map((p) => ({ userId: p.user.id })) };
+  }
+  return {
+    splitType: 'EXACT',
+    participants: stored.map((p) => ({ userId: p.user.id, amount: p.amount })),
   };
 }

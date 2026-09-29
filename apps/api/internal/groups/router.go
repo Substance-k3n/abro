@@ -29,6 +29,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/invites", httpx.Wrap(h.listInvites))
 	r.Get("/{id}", httpx.Wrap(h.findOne))
 	r.Patch("/{id}", httpx.Wrap(h.update))
+	r.Delete("/{id}", httpx.Wrap(h.remove))
 	r.Post("/{id}/members", httpx.Wrap(h.addMember))
 	r.Post("/{id}/invite/accept", httpx.Wrap(h.acceptInvite))
 	r.Patch("/{id}/members/{userId}", httpx.Wrap(h.updateMemberRole))
@@ -133,6 +134,20 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	httpx.WriteJSON(w, http.StatusOK, toAuthGroupRow(updated))
+	return nil
+}
+
+func (h *Handler) remove(w http.ResponseWriter, r *http.Request) error {
+	groupID, err := parseIDParam(r, "id")
+	if err != nil {
+		return err
+	}
+
+	user := authpkg.CurrentUser(r.Context())
+	if err := h.svc.Delete(r.Context(), user.ID, groupID); err != nil {
+		return err
+	}
+	w.WriteHeader(http.StatusNoContent)
 	return nil
 }
 

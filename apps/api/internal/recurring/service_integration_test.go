@@ -41,6 +41,7 @@ func getenv(key, fallback string) string {
 type env struct {
 	svc         *recurring.Service
 	expenses    *expenses.Service
+	groupsSvc   *groups.Service
 	notifySvc   *notifications.Service
 	pool        *pgxpool.Pool
 	makeProfile func(t *testing.T, label string) db.Profile
@@ -73,6 +74,8 @@ func setup(t *testing.T) env {
 		pool.Exec(ctx, `DELETE FROM recurring_expenses WHERE template_expense_id IN (SELECT id FROM expenses WHERE paid_by_id = ANY($1::uuid[]))`, profiles)
 		pool.Exec(ctx, `DELETE FROM expense_participants WHERE expense_id IN (SELECT id FROM expenses WHERE paid_by_id = ANY($1::uuid[]))`, profiles)
 		pool.Exec(ctx, `DELETE FROM expenses WHERE paid_by_id = ANY($1::uuid[])`, profiles)
+		pool.Exec(ctx, `DELETE FROM group_members WHERE group_id IN (SELECT id FROM groups WHERE created_by_id = ANY($1::uuid[]))`, profiles)
+		pool.Exec(ctx, `DELETE FROM groups WHERE created_by_id = ANY($1::uuid[])`, profiles)
 		pool.Exec(ctx, `DELETE FROM friendships WHERE user_id = ANY($1::uuid[]) OR friend_id = ANY($1::uuid[])`, profiles)
 		pool.Exec(ctx, `DELETE FROM notifications WHERE user_id = ANY($1::uuid[])`, profiles)
 		pool.Exec(ctx, `DELETE FROM profiles WHERE id = ANY($1::uuid[])`, profiles)
@@ -94,7 +97,7 @@ func setup(t *testing.T) env {
 		require.NoError(t, err)
 	}
 
-	return env{svc: svc, expenses: expensesSvc, notifySvc: notifySvc, pool: pool, makeProfile: makeProfile, makeFriends: makeFriendsFn}
+	return env{svc: svc, expenses: expensesSvc, groupsSvc: groupsSvc, notifySvc: notifySvc, pool: pool, makeProfile: makeProfile, makeFriends: makeFriendsFn}
 }
 
 func equalParticipants(userIDs ...pgtype.UUID) []apitypes.ExpenseParticipantRaw {
@@ -183,6 +186,32 @@ func TestService_SetEnabled(t *testing.T) {
 }
 
 func TestService_GenerateDue(t *testing.T) {
+	t.Run("skips a due template whose group was deleted", func(t *testing.T) {
+		e := setup(t)
+		ctx := context.Background()
+		payer := e.makeProfile(t, "Payer")
+
+		group, err := e.groupsSvc.Create(ctx, payer.ID, apitypes.CreateGroupInput{Name: "Flat"})
+		require.NoError(t, err)
+		// Payer-only split keeps every net at 0, so the group can be deleted.
+		in := recurringInput("Deleted-group rent", "500", "WEEKLY", "2024-01-01T00:00:00Z", equalParticipants(payer.ID))
+		groupID := idutil.String(group.ID)
+		in.GroupID = &groupID
+		created, err := e.svc.Create(ctx, payer.ID, in)
+		require.NoError(t, err)
+		require.NoError(t, e.groupsSvc.Delete(ctx, payer.ID, group.ID))
+
+		// Checked on the due-list query itself: GenerateDue runs every due
+		// template in the shared test database, not just this test's.
+		due, err := db.New(e.pool).ListDueRecurringExpenses(ctx, pgtype.Timestamptz{
+			Time: time.Date(2024, 1, 8, 0, 0, 0, 0, time.UTC), Valid: true,
+		})
+		require.NoError(t, err)
+		for _, r := range due {
+			assert.NotEqual(t, created.ID, r.ID)
+		}
+	})
+
 	t.Run("generates an independent Expense for a due template and advances nextRunAt by one period", func(t *testing.T) {
 		e := setup(t)
 		payer := e.makeProfile(t, "Payer")

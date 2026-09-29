@@ -39,7 +39,11 @@ type Querier interface {
 	GetExpenseByID(ctx context.Context, id pgtype.UUID) (Expense, error)
 	GetExpenseParticipant(ctx context.Context, arg GetExpenseParticipantParams) (ExpenseParticipant, error)
 	GetFriendshipByID(ctx context.Context, id pgtype.UUID) (Friendship, error)
+	// A deleted group reads as not found (0011_group_soft_delete).
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, error)
+	// Every membership check (groups, expenses, balances, settlements,
+	// recurring) goes through this, so a deleted group's memberships read
+	// as not found too.
 	GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMember, error)
 	GetGroupOwedSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupOwedSumsRow, error)
 	GetGroupPaidSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupPaidSumsRow, error)
@@ -78,8 +82,13 @@ type Querier interface {
 	// Total Spending / Your Contribution / Your Share / amount owed for the
 	// period.
 	GetUserTotals(ctx context.Context, arg GetUserTotalsParams) (GetUserTotalsRow, error)
+	// GRP-07: the currency can't change once the group has any expense
+	// (including settlements) -- it would relabel every stored amount.
+	GroupHasExpenses(ctx context.Context, groupID pgtype.UUID) (bool, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
+	// Skips templates in a deleted group: generating one would fail with
+	// GROUP_NOT_FOUND, and GenerateDue stops at its first error.
 	ListDueRecurringExpenses(ctx context.Context, nextRunAt pgtype.Timestamptz) ([]RecurringExpense, error)
 	ListExpenseNotesWithAuthor(ctx context.Context, expenseID pgtype.UUID) ([]ListExpenseNotesWithAuthorRow, error)
 	ListExpenseParticipantsForExpenseIDs(ctx context.Context, expenseIds []pgtype.UUID) ([]ListExpenseParticipantsForExpenseIDsRow, error)
@@ -135,6 +144,7 @@ type Querier interface {
 	SearchFriendByEmailOrPhone(ctx context.Context, arg SearchFriendByEmailOrPhoneParams) (Profile, error)
 	SetIdempotencyKeyResponse(ctx context.Context, arg SetIdempotencyKeyResponseParams) error
 	SoftDeleteExpense(ctx context.Context, arg SoftDeleteExpenseParams) error
+	SoftDeleteGroup(ctx context.Context, arg SoftDeleteGroupParams) error
 	TouchSessionLastUsed(ctx context.Context, id pgtype.UUID) error
 	// Editing an expense resubmits the whole thing -- a full overwrite, not a
 	// partial COALESCE update (see updateExpenseSchema == createExpenseSchema).

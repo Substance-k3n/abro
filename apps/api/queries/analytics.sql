@@ -50,7 +50,7 @@ SELECT g.id AS group_id, g.name AS group_name, sum(e.amount)::bigint AS total_sp
 FROM group_members gm
 JOIN groups g ON g.id = gm.group_id
 JOIN expenses e ON e.group_id = g.id
-WHERE gm.user_id = sqlc.arg('user_id') AND gm.status = 'ACTIVE'
+WHERE gm.user_id = sqlc.arg('user_id') AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
   AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
   AND e.expense_date >= sqlc.arg('start_date') AND e.expense_date < sqlc.arg('end_date')
   AND (e.paid_by_id = sqlc.arg('user_id')

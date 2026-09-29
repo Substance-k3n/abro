@@ -376,6 +376,8 @@ type Group struct {
 	CreatedByID   pgtype.UUID        `json:"created_by_id"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByID   pgtype.UUID        `json:"deleted_by_id"`
 }
 
 type GroupMember struct {

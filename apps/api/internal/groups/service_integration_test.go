@@ -17,6 +17,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/friends"
 	"github.com/Substance-k3n/abro/apps/api/internal/groups"
+	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 )
@@ -54,6 +55,8 @@ func setup(t *testing.T) env {
 	t.Cleanup(func() {
 		ctx := context.Background()
 		for _, g := range createdGroups {
+			pool.Exec(ctx, `DELETE FROM expense_participants WHERE expense_id IN (SELECT id FROM expenses WHERE group_id = $1)`, g)
+			pool.Exec(ctx, `DELETE FROM expenses WHERE group_id = $1`, g)
 			pool.Exec(ctx, `DELETE FROM group_members WHERE group_id = $1`, g)
 			pool.Exec(ctx, `DELETE FROM groups WHERE id = $1`, g)
 		}
@@ -512,6 +515,142 @@ func TestService(t *testing.T) {
 		assert.Equal(t, int32(2), row.MemberCount)
 		assert.True(t, row.LastActivityAt.Time.Equal(live), "got %s", row.LastActivityAt.Time)
 	})
+}
+
+// activeGroup creates a group owned by owner with member already ACTIVE.
+func activeGroup(t *testing.T, e env, owner, member db.Profile) groups.Group {
+	t.Helper()
+	ctx := context.Background()
+	e.makeFriends(t, owner.ID, member.ID)
+	group, err := e.svc.Create(ctx, owner.ID, apitypes.CreateGroupInput{
+		Name: "Trip", Type: strPtr("TRIP"), Currency: strPtr("ETB"),
+		MemberIDs: []string{idutil.String(member.ID)},
+	})
+	require.NoError(t, err)
+	e.trackGroup(group.ID)
+	_, err = e.svc.AcceptInvite(ctx, member.ID, group.ID)
+	require.NoError(t, err)
+	return group
+}
+
+// addGroupExpense records `amount` paid by payer with the whole amount
+// owed by debtor -- written directly, since the expenses service isn't
+// part of this package's setup. debtor then owes payer `amount`.
+func addGroupExpense(t *testing.T, e env, groupID, payer, debtor pgtype.UUID, amount int64, splitType string) {
+	t.Helper()
+	ctx := context.Background()
+	var expenseID pgtype.UUID
+	require.NoError(t, e.pool.QueryRow(ctx, `INSERT INTO expenses
+		(group_id, name, category, amount, paid_by_id, split_type, expense_date)
+		VALUES ($1, 'Test', 'Food', $2, $3, $4, now()) RETURNING id`,
+		groupID, amount, payer, splitType).Scan(&expenseID))
+	_, err := e.pool.Exec(ctx, `INSERT INTO expense_participants (expense_id, user_id, amount)
+		VALUES ($1, $2, $3)`, expenseID, debtor, amount)
+	require.NoError(t, err)
+}
+
+func TestGroupIntegrityRules(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("blocks leaving, or removal, while the member's group net is non-zero", func(t *testing.T) {
+		e := setup(t)
+		owner := e.makeProfile(t, "Owner")
+		member := e.makeProfile(t, "Member")
+		group := activeGroup(t, e, owner, member)
+		addGroupExpense(t, e, group.ID, owner.ID, member.ID, 5000, "EXACT")
+
+		err := e.svc.RemoveMember(ctx, member.ID, group.ID, member.ID)
+		assertAPIError(t, err, "OUTSTANDING_BALANCE")
+		err = e.svc.RemoveMember(ctx, owner.ID, group.ID, member.ID)
+		assertAPIError(t, err, "OUTSTANDING_BALANCE")
+
+		// A settlement back to the owner brings both nets to 0 (ADR-003:
+		// the settler pays, the recipient is the participant).
+		addGroupExpense(t, e, group.ID, member.ID, owner.ID, 5000, "SETTLEMENT")
+		require.NoError(t, e.svc.RemoveMember(ctx, member.ID, group.ID, member.ID))
+	})
+
+	t.Run("refuses a currency change once the group has expenses, allows it before", func(t *testing.T) {
+		e := setup(t)
+		owner := e.makeProfile(t, "Owner")
+		member := e.makeProfile(t, "Member")
+		group := activeGroup(t, e, owner, member)
+
+		updated, err := e.svc.Update(ctx, owner.ID, group.ID, apitypes.UpdateGroupInput{Currency: strPtr("USD")})
+		require.NoError(t, err)
+		assert.Equal(t, "USD", updated.Currency)
+
+		addGroupExpense(t, e, group.ID, owner.ID, member.ID, 100, "EXACT")
+		_, err = e.svc.Update(ctx, owner.ID, group.ID, apitypes.UpdateGroupInput{Currency: strPtr("ETB")})
+		assertAPIError(t, err, "CURRENCY_LOCKED")
+
+		// Resending the current currency (a full settings save) is fine.
+		_, err = e.svc.Update(ctx, owner.ID, group.ID, apitypes.UpdateGroupInput{Currency: strPtr("USD"), Name: strPtr("Renamed")})
+		require.NoError(t, err)
+	})
+
+	t.Run("delete: creator only, blocked until everyone is settled, then the group is gone", func(t *testing.T) {
+		e := setup(t)
+		owner := e.makeProfile(t, "Owner")
+		member := e.makeProfile(t, "Member")
+		group := activeGroup(t, e, owner, member)
+		addGroupExpense(t, e, group.ID, owner.ID, member.ID, 700, "EXACT")
+
+		assertAPIError(t, e.svc.Delete(ctx, member.ID, group.ID), "NOT_GROUP_CREATOR")
+		assertAPIError(t, e.svc.Delete(ctx, owner.ID, group.ID), "OUTSTANDING_BALANCE")
+
+		addGroupExpense(t, e, group.ID, member.ID, owner.ID, 700, "SETTLEMENT")
+		require.NoError(t, e.svc.Delete(ctx, owner.ID, group.ID))
+
+		_, err := e.svc.FindByID(ctx, owner.ID, group.ID)
+		assertAPIError(t, err, "NOT_GROUP_MEMBER")
+		_, err = e.svc.RequireActiveMembership(ctx, group.ID, member.ID)
+		assertAPIError(t, err, "NOT_GROUP_MEMBER")
+		for _, user := range []pgtype.UUID{owner.ID, member.ID} {
+			mine, err := e.svc.ListMineWithStats(ctx, user)
+			require.NoError(t, err)
+			for _, row := range mine {
+				assert.NotEqual(t, group.ID, row.Group.ID)
+			}
+		}
+		assertAPIError(t, e.svc.Delete(ctx, owner.ID, group.ID), "GROUP_NOT_FOUND")
+
+		// The expenses themselves are untouched facts.
+		var count int
+		require.NoError(t, e.pool.QueryRow(ctx,
+			`SELECT count(*) FROM expenses WHERE group_id = $1 AND deleted_at IS NULL`, group.ID).Scan(&count))
+		assert.Equal(t, 2, count)
+	})
+
+	t.Run("a pending invite to a deleted group disappears", func(t *testing.T) {
+		e := setup(t)
+		owner := e.makeProfile(t, "Owner")
+		invitee := e.makeProfile(t, "Invitee")
+		e.makeFriends(t, owner.ID, invitee.ID)
+		group, err := e.svc.Create(ctx, owner.ID, apitypes.CreateGroupInput{
+			Name: "Trip", MemberIDs: []string{idutil.String(invitee.ID)},
+		})
+		require.NoError(t, err)
+		e.trackGroup(group.ID)
+
+		invites, err := e.svc.ListMyInvites(ctx, invitee.ID)
+		require.NoError(t, err)
+		require.Len(t, invites, 1)
+
+		require.NoError(t, e.svc.Delete(ctx, owner.ID, group.ID))
+		invites, err = e.svc.ListMyInvites(ctx, invitee.ID)
+		require.NoError(t, err)
+		assert.Empty(t, invites)
+		_, err = e.svc.AcceptInvite(ctx, invitee.ID, group.ID)
+		assertAPIError(t, err, "MEMBERSHIP_NOT_FOUND")
+	})
+}
+
+func assertAPIError(t *testing.T, err error, code string) {
+	t.Helper()
+	var apiErr *httpx.APIError
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, code, apiErr.Code)
 }
 
 func strPtr(s string) *string { return &s }

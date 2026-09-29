@@ -31,7 +31,7 @@ func (q *Queries) CountActiveAdminsExcept(ctx context.Context, arg CountActiveAd
 const createGroup = `-- name: CreateGroup :one
 INSERT INTO groups (name, type, currency, description, simplify_debts, created_by_id)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at
+RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id
 `
 
 type CreateGroupParams struct {
@@ -63,6 +63,8 @@ func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Group
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.DeletedByID,
 	)
 	return i, err
 }
@@ -100,9 +102,10 @@ func (q *Queries) CreateGroupMember(ctx context.Context, arg CreateGroupMemberPa
 }
 
 const getGroupByID = `-- name: GetGroupByID :one
-SELECT id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at FROM groups WHERE id = $1
+SELECT id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id FROM groups WHERE id = $1 AND deleted_at IS NULL
 `
 
+// A deleted group reads as not found (0011_group_soft_delete).
 func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, error) {
 	row := q.db.QueryRow(ctx, getGroupByID, id)
 	var i Group
@@ -116,12 +119,16 @@ func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, erro
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.DeletedByID,
 	)
 	return i, err
 }
 
 const getGroupMember = `-- name: GetGroupMember :one
-SELECT id, group_id, user_id, role, status, joined_at FROM group_members WHERE group_id = $1 AND user_id = $2
+SELECT gm.id, gm.group_id, gm.user_id, gm.role, gm.status, gm.joined_at FROM group_members gm
+JOIN groups g ON g.id = gm.group_id
+WHERE gm.group_id = $1 AND gm.user_id = $2 AND g.deleted_at IS NULL
 `
 
 type GetGroupMemberParams struct {
@@ -129,6 +136,9 @@ type GetGroupMemberParams struct {
 	UserID  pgtype.UUID `json:"user_id"`
 }
 
+// Every membership check (groups, expenses, balances, settlements,
+// recurring) goes through this, so a deleted group's memberships read
+// as not found too.
 func (q *Queries) GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMember, error) {
 	row := q.db.QueryRow(ctx, getGroupMember, arg.GroupID, arg.UserID)
 	var i GroupMember
@@ -141,6 +151,19 @@ func (q *Queries) GetGroupMember(ctx context.Context, arg GetGroupMemberParams) 
 		&i.JoinedAt,
 	)
 	return i, err
+}
+
+const groupHasExpenses = `-- name: GroupHasExpenses :one
+SELECT EXISTS (SELECT 1 FROM expenses WHERE group_id = $1 AND deleted_at IS NULL)
+`
+
+// GRP-07: the currency can't change once the group has any expense
+// (including settlements) -- it would relabel every stored amount.
+func (q *Queries) GroupHasExpenses(ctx context.Context, groupID pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, groupHasExpenses, groupID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const listActiveMemberIDsExcept = `-- name: ListActiveMemberIDsExcept :many
@@ -229,9 +252,9 @@ func (q *Queries) ListGroupMembersWithProfiles(ctx context.Context, groupID pgty
 }
 
 const listMyActiveGroups = `-- name: ListMyActiveGroups :many
-SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at FROM groups g
+SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id FROM groups g
 JOIN group_members gm ON gm.group_id = g.id
-WHERE gm.user_id = $1 AND gm.status = 'ACTIVE'
+WHERE gm.user_id = $1 AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
 ORDER BY g.created_at DESC
 `
 
@@ -254,6 +277,8 @@ func (q *Queries) ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([
 			&i.CreatedByID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.DeletedByID,
 		); err != nil {
 			return nil, err
 		}
@@ -266,7 +291,7 @@ func (q *Queries) ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([
 }
 
 const listMyActiveGroupsWithStats = `-- name: ListMyActiveGroupsWithStats :many
-SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at,
+SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id,
        (SELECT count(*) FROM group_members m
         WHERE m.group_id = g.id AND m.status = 'ACTIVE')::int AS member_count,
        COALESCE((SELECT max(e.created_at) FROM expenses e
@@ -274,7 +299,7 @@ SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.crea
                 g.created_at)::timestamptz AS last_activity_at
 FROM groups g
 JOIN group_members gm ON gm.group_id = g.id
-WHERE gm.user_id = $1 AND gm.status = 'ACTIVE'
+WHERE gm.user_id = $1 AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
 ORDER BY g.created_at DESC
 `
 
@@ -310,6 +335,8 @@ func (q *Queries) ListMyActiveGroupsWithStats(ctx context.Context, userID pgtype
 			&i.Group.CreatedByID,
 			&i.Group.CreatedAt,
 			&i.Group.UpdatedAt,
+			&i.Group.DeletedAt,
+			&i.Group.DeletedByID,
 			&i.MemberCount,
 			&i.LastActivityAt,
 		); err != nil {
@@ -324,10 +351,10 @@ func (q *Queries) ListMyActiveGroupsWithStats(ctx context.Context, userID pgtype
 }
 
 const listMyInvites = `-- name: ListMyInvites :many
-SELECT gm.joined_at AS invited_at, g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at
+SELECT gm.joined_at AS invited_at, g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id
 FROM group_members gm
 JOIN groups g ON g.id = gm.group_id
-WHERE gm.user_id = $1 AND gm.status = 'INVITED'
+WHERE gm.user_id = $1 AND gm.status = 'INVITED' AND g.deleted_at IS NULL
 ORDER BY gm.joined_at DESC
 `
 
@@ -342,6 +369,8 @@ type ListMyInvitesRow struct {
 	CreatedByID   pgtype.UUID        `json:"created_by_id"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByID   pgtype.UUID        `json:"deleted_by_id"`
 }
 
 func (q *Queries) ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]ListMyInvitesRow, error) {
@@ -364,6 +393,8 @@ func (q *Queries) ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]List
 			&i.CreatedByID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.DeletedByID,
 		); err != nil {
 			return nil, err
 		}
@@ -399,6 +430,21 @@ func (q *Queries) ReinviteGroupMember(ctx context.Context, id pgtype.UUID) (Grou
 	return i, err
 }
 
+const softDeleteGroup = `-- name: SoftDeleteGroup :exec
+UPDATE groups SET deleted_at = now(), deleted_by_id = $2, updated_at = now()
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+type SoftDeleteGroupParams struct {
+	ID          pgtype.UUID `json:"id"`
+	DeletedByID pgtype.UUID `json:"deleted_by_id"`
+}
+
+func (q *Queries) SoftDeleteGroup(ctx context.Context, arg SoftDeleteGroupParams) error {
+	_, err := q.db.Exec(ctx, softDeleteGroup, arg.ID, arg.DeletedByID)
+	return err
+}
+
 const updateGroup = `-- name: UpdateGroup :one
 UPDATE groups
 SET name = COALESCE($1, name),
@@ -408,7 +454,7 @@ SET name = COALESCE($1, name),
     simplify_debts = COALESCE($5, simplify_debts),
     updated_at = now()
 WHERE id = $6
-RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at
+RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id
 `
 
 type UpdateGroupParams struct {
@@ -440,6 +486,8 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.DeletedByID,
 	)
 	return i, err
 }
