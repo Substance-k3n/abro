@@ -178,3 +178,17 @@ export function toActivityDisplay(
     time,
   };
 }
+
+/** GET /expenses/{id}. apps/api answers 404 EXPENSE_NOT_FOUND for an
+ * unknown or deleted id and 403 NOT_VISIBLE for one you're not party
+ * to -- EXP-09 treats both as "not found". */
+export function getExpense(id: string): Promise<AuthExpense> {
+  return api.get(`/expenses/${id}`);
+}
+
+/** DELETE /expenses/{id} -- a soft delete (the row stays, `deletedAt`
+ * is set, and it drops out of every list and balance). Only the payer
+ * or a group admin may; anyone else gets 403 NOT_EDIT_AUTHORIZED. */
+export function deleteExpense(id: string): Promise<void> {
+  return api.delete(`/expenses/${id}`);
+}

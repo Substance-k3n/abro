@@ -756,8 +756,37 @@ nothing stored, retry with the same key after re-adding him →
 created once. As Bob: the group payer list offers Alice and Carol
 (not his friend), the personal one only Alice.
 
-**7b — Expense detail (EXP-09) `[todo]`:** `GET /expenses/{id}`,
-delete via `DELETE`. Notes/receipts out of scope.
+**7b — Expense detail (EXP-09) `[done]`.** Branch:
+`feature/expense-detail-api-integration`.
+
+- [x] `(dashboard)/expenses/[id]` reads `GET /expenses/{id}`
+      (`getExpense`); unknown, deleted or not-visible ids (404/403,
+      or a malformed id's 400) all show "Expense not found".
+- [x] Delete: in-page confirmation, then `DELETE /expenses/{id}`
+      (soft delete) and back to Activity. The actions menu shows only
+      when you paid or it's a group expense (a group admin may delete);
+      apps/api's `requireEditAuthority` decides, and its message shows
+      inline when it refuses.
+- [x] Participant rows link to Friend Detail only for your friends (a
+      group expense can include people who aren't).
+- [x] Activity rows on Home, Activity, Friend Detail and Search now
+      open this page (Search also records the query, like its other
+      results).
+
+Deviations (Confirmed): "Edit expense" is hidden until slice 7c wires
+EXP-10 (it still reads mock data); settlements never get Edit. apps/api
+stores no creator/editor on an expense, so the activity log shows
+created/updated dates only. Receipt and notes-thread UI still not built.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API (slice 7a's seeded users): as Bob, "Hotel" (group,
+Carol paid) shows the stored 333.40/333.30/333.30 split with only Alice
+linked; Delete → "Only the payer or a group admin can edit this
+expense." inline, nothing deleted; Alice's personal "Coffee beans" shows
+no menu; a random uuid and `not-a-uuid` → "Expense not found". As Alice
+(payer) deleting "Coffee beans" → back on Activity, row gone,
+Alice↔Bob balance −15025 → 0, `GET` → 404. Rows open the detail page
+from Home, Friend Detail and Search (query saved to recent searches).
 
 **7c — Edit (EXP-10) `[todo]`:** `PATCH` resubmits the whole expense,
 but apps/api stores only final amounts, not percentages/share weights.

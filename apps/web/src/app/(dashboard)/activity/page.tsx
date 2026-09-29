@@ -27,14 +27,14 @@
 //    not heuristic: Settlements = splitType SETTLEMENT, Expenses =
 //    everything else, Groups = has a groupId. A filter can show few rows
 //    until more pages are loaded -- "Load more" stays available.
-//  - Rows are not clickable: `/expenses/[id]` (EXP-09) is still mock-only
-//    and would show "not found" for a real id -- same deviation as Home.
+//  - Rows open the expense's detail page (EXP-09, real since slice 7b).
 //  - Friend Detail's "View all-time spending" link passes `?friendId=`,
 //    which this screen doesn't read yet (it didn't against mock data
 //    either); Friend Detail already lists that full history itself.
 
 import { ActivityItem, EmptyState } from '@abro/ui';
 import { Receipt, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
@@ -75,6 +75,7 @@ interface FeedData {
 }
 
 export default function ActivityPage() {
+  const router = useRouter();
   const [filter, setFilter] = useState<FilterKey>('all');
   const [query, setQuery] = useState('');
   const [data, setData] = useState<FeedData | null>(null);
@@ -197,6 +198,7 @@ export default function ActivityPage() {
               amount={a.amount}
               dir={a.dir}
               time={a.time}
+              onClick={() => router.push(`/expenses/${a.id}`)}
             />
           ))}
         </div>

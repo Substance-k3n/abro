@@ -27,10 +27,8 @@
 //    lookup table (client-side reference data, not mock *facts* -- see
 //    that file's own header note) -- matched case-insensitively against
 //    apps/api's UPPERCASE `type` enum values.
-//  - Recent Activity rows are not clickable -- they'd link to
-//    `/expenses/[id]`, which is still mock-data-only (Phase 4 hasn't
-//    been rewired yet) and would show "not found" for a real expense
-//    id. Re-enable once that slice lands.
+//  - Recent Activity rows open the expense's detail page (EXP-09, real
+//    since slice 7b).
 //  - Avatar color (yours and every friend's) is deterministically
 //    derived from their id (~/lib/identity.ts), not stored -- no real
 //    Profile field for it exists (AUTH-06/PRF-01's color picker is
@@ -49,6 +47,7 @@ import {
 import { ETB } from '@abro/types';
 import { Bell, Handshake, Plus, Receipt, Settings, Users } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
@@ -89,6 +88,7 @@ interface HomeData {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [data, setData] = useState<HomeData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -381,6 +381,7 @@ export default function HomePage() {
                 dir={a.dir}
                 time={a.time}
                 currency={ETB}
+                onClick={() => router.push(`/expenses/${recentActivity[i]!.id}`)}
               />
             ))}
           </div>

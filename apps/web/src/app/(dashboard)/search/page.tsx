@@ -75,8 +75,8 @@
 //    browser, best-effort -- storage errors are ignored), recorded when
 //    you open a result or press Enter. Suggestions: not built (no data
 //    source for them yet).
-//  - Expense rows are not clickable (EXP-09 is still mock-only), same as
-//    Home/Activity. Group rows link to GRP-03, still mock-only until the
+//  - Expense rows open the expense's detail page (EXP-09) and, like
+//    every other result, record the search. Group rows link to GRP-03, still mock-only until the
 //    groups slice (degrades to its own "Group not found" state).
 //  - PersonRow/ActivityItem render as <button>s, so result rows navigate
 //    via onClick + router.push rather than being wrapped in a Link.
@@ -202,9 +202,10 @@ function GroupResultRow({ group, onOpen }: { group: GroupListItem; onOpen: () =>
   );
 }
 
-function ExpenseResultRow({ row }: { row: ExpenseRow }) {
+function ExpenseResultRow({ row, onOpen }: { row: ExpenseRow; onOpen: () => void }) {
   return (
     <ActivityItem
+      onClick={onOpen}
       category={row.category}
       title={row.title}
       sub={row.sub}
@@ -332,6 +333,11 @@ export default function SearchPage() {
     matchedExpenses.length === EXPENSE_LIMIT ? `${EXPENSE_LIMIT}+` : String(matchedExpenses.length);
 
   const totalMatches = matchedPeople.length + matchedGroups.length + matchedExpenses.length;
+
+  const openExpense = (id: string) => {
+    rememberQuery();
+    router.push(`/expenses/${id}`);
+  };
 
   const personRow = (f: FriendRow) => (
     <PersonRow
@@ -479,7 +485,7 @@ export default function SearchPage() {
                   <div className="flex flex-col gap-2.5">
                     {expenseStatus}
                     {matchedExpenses.slice(0, ALL_TAB_CAP).map((row) => (
-                      <ExpenseResultRow key={row.id} row={row} />
+                      <ExpenseResultRow key={row.id} row={row} onOpen={() => openExpense(row.id)} />
                     ))}
                   </div>
                 </div>
@@ -510,7 +516,7 @@ export default function SearchPage() {
               (matchedExpenses.length > 0 ? (
                 <div className="flex flex-col gap-2.5">
                   {matchedExpenses.map((row) => (
-                    <ExpenseResultRow key={row.id} row={row} />
+                    <ExpenseResultRow key={row.id} row={row} onOpen={() => openExpense(row.id)} />
                   ))}
                   {matchedExpenses.length === EXPENSE_LIMIT && (
                     <p className="text-center text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
