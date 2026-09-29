@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -192,6 +193,8 @@ func (s *Service) List(ctx context.Context, actorID pgtype.UUID, q apitypes.List
 		limit = 50
 	}
 
+	pattern := likePattern(q.Search)
+
 	var rows []db.Expense
 	var err error
 	switch {
@@ -203,21 +206,34 @@ func (s *Service) List(ctx context.Context, actorID pgtype.UUID, q apitypes.List
 		if _, err := s.groups.RequireActiveMembership(ctx, groupID, actorID); err != nil {
 			return nil, err
 		}
-		rows, err = s.q.ListExpensesByGroup(ctx, db.ListExpensesByGroupParams{GroupID: groupID, Limit: limit, Offset: q.Offset})
+		rows, err = s.q.ListExpensesByGroup(ctx, db.ListExpensesByGroupParams{GroupID: groupID, Pattern: pattern, RowLimit: limit, RowOffset: q.Offset})
 	case q.FriendID != "":
 		friendID, parseErr := idutil.Parse(q.FriendID)
 		if parseErr != nil {
 			return []Expense{}, nil
 		}
-		rows, err = s.q.ListExpensesWithFriend(ctx, db.ListExpensesWithFriendParams{UserID: actorID, UserID_2: friendID, Limit: limit, Offset: q.Offset})
+		rows, err = s.q.ListExpensesWithFriend(ctx, db.ListExpensesWithFriendParams{UserID: actorID, FriendID: friendID, Pattern: pattern, RowLimit: limit, RowOffset: q.Offset})
 	default:
-		rows, err = s.q.ListMyExpenses(ctx, db.ListMyExpensesParams{UserID: actorID, Limit: limit, Offset: q.Offset})
+		rows, err = s.q.ListMyExpenses(ctx, db.ListMyExpensesParams{UserID: actorID, Pattern: pattern, RowLimit: limit, RowOffset: q.Offset})
 	}
 	if err != nil {
 		return nil, err
 	}
 
 	return s.loadExpenses(ctx, rows)
+}
+
+// likePattern turns a user's search text into the ILIKE pattern the list
+// queries expect: NULL (no filter) for empty input, otherwise a
+// substring match with LIKE's own metacharacters escaped so "50%" or
+// "a_b" match literally instead of acting as wildcards. Backslash is
+// escaped first since it's Postgres's default LIKE escape character.
+func likePattern(search string) pgtype.Text {
+	if search == "" {
+		return pgtype.Text{}
+	}
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(search)
+	return pgtype.Text{String: "%" + escaped + "%", Valid: true}
 }
 
 func (s *Service) AddNote(ctx context.Context, actorID, expenseID pgtype.UUID, content string) (db.ListExpenseNotesWithAuthorRow, error) {

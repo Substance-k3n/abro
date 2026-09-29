@@ -54,39 +54,34 @@
 // DASH screens established (neo-raised-sm rows, neo-tab pills,
 // EmptyState, SectionLabel).
 //
-// Deviations/assumptions (mock-data-driven, same reasoning pattern as
-// Activity's and Friends' header comments):
-//  - Settlements search category is omitted: there's no dedicated
-//    settlement mock array/shape/detail-route to search into or link
-//    out to (ACTIVITIES carries a couple of `type: 'settlement'` rows,
-//    but the spec treats Settlements as its own top-level category
-//    alongside Expenses, not a filter on the expense feed). Deferred
-//    until a real Settlement model exists.
-//  - Recent searches / Suggestions are omitted from the empty-query
-//    state: both need a persistence layer (localStorage at minimum, or
-//    a real API) that doesn't exist yet -- out of scope for a
-//    mock-data screen. A neutral prompt is shown instead.
-//  - Loading state is skipped: search runs synchronously over small
-//    in-memory arrays, nothing to await.
-//  - Expenses: ACTIVITIES stands in for search purposes -- `title`/`sub`
-//    are matched and rendered via ActivityItem, the same substitution
-//    Home/Activity already make. Rows whose `type` is `'expense'` link
-//    to `/expenses/[id]` (EXP-09, added in Phase 4's last PR); a
-//    `'settlement'` row still links to `/activity` since there's no
-//    settlement detail route.
-//  - People: matched across both `FRIENDS` (has a real balance, shown
-//    via MoneyDisplay per spec) and `SEARCH_RESULTS` (a `SearchPerson`
-//    shape with no balance field -- these read as non-friend people
-//    discoverable by search, so their row shows `@username` in place of
-//    a balance). Both link to `/friends/[id]`, not yet a built route
-//    (same deferred-route pattern Friends'/Groups' list pages already
-//    use for their own links).
-//  - PersonRow/ActivityItem render as <button>s, so their result rows
-//    navigate via onClick + router.push rather than being wrapped in a
-//    Link (which would nest a button inside an anchor).
+// Phase 8 (docs/WIRING_PLAN.md), slice 5: rewired from ~/lib/mock-data.ts
+// to real apps/api data. Deviations/assumptions (Confirmed):
+//  - People = your friends only, matched client-side by name, with their
+//    real balance (deriveFriendRows()). Non-friends are deliberately not
+//    searchable: apps/api's GET /friends/search is exact email/phone
+//    match by design ("so you can't browse the user directory") --
+//    adding someone new stays the Add Friend screen's job.
+//  - Groups = your groups, matched client-side by name (a user's group
+//    list is small), showing type + real member count (GET /groups/'s
+//    memberCount).
+//  - Expenses = server-side GET /expenses?q= (name/category/notes,
+//    across everything you can see -- not just a loaded page),
+//    debounced SEARCH_DEBOUNCE_MS, first EXPENSE_LIMIT matches. The
+//    spec's separate Settlements category is covered here: settlements
+//    are expense rows named "Settlement" (ADR-003), so "settle" finds
+//    them. Out-of-order responses are dropped (only the latest query's
+//    result is applied).
+//  - Recent searches: last RECENT_MAX queries in localStorage (per
+//    browser, best-effort -- storage errors are ignored), recorded when
+//    you open a result or press Enter. Suggestions: not built (no data
+//    source for them yet).
+//  - Expense rows are not clickable (EXP-09 is still mock-only), same as
+//    Home/Activity. Group rows link to GRP-03, still mock-only until the
+//    groups slice (degrades to its own "Group not found" state).
+//  - PersonRow/ActivityItem render as <button>s, so result rows navigate
+//    via onClick + router.push rather than being wrapped in a Link.
 //  - "All" tab caps each category to ALL_TAB_CAP results so the mixed
-//    view stays scannable; the per-category tabs (Expenses/People/
-//    Groups) show every match.
+//    view stays scannable; the per-category tabs show every match.
 
 import {
   ActivityItem,
@@ -97,21 +92,23 @@ import {
   PersonRow,
   SectionLabel,
 } from '@abro/ui';
-import { Search as SearchIcon, X } from 'lucide-react';
+import { Clock, Search as SearchIcon, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
+import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { ApiError } from '~/lib/api-client';
+import { me } from '~/lib/auth-api';
+import { type FriendRow, deriveFriendRows, getBalancesSummary } from '~/lib/balances-api';
 import {
-  ACTIVITIES,
-  type Activity,
-  FRIENDS,
-  type Friend,
-  GROUPS,
-  type Group,
-  SEARCH_RESULTS,
-  type SearchPerson,
-} from '~/lib/mock-data';
+  type ActivityDisplay,
+  type AuthExpense,
+  listExpenses,
+  toActivityDisplay,
+} from '~/lib/expenses-api';
+import { listFriends } from '~/lib/friends-api';
+import { type GroupListItem, groupTypeFor, listGroups } from '~/lib/groups-api';
 
 type TabKey = 'all' | 'expenses' | 'people' | 'groups';
 
@@ -122,16 +119,43 @@ const TABS: { key: TabKey; label: string }[] = [
   { key: 'groups', label: 'Groups' },
 ];
 
-/** How many results per category the "All" tab shows before capping --
- * see header comment. */
+/** How many results per category the "All" tab shows. */
 const ALL_TAB_CAP = 3;
+const SEARCH_DEBOUNCE_MS = 300;
+/** Expense matches fetched per search -- see header comment. */
+const EXPENSE_LIMIT = 30;
+const RECENT_KEY = 'abro.recentSearches';
+const RECENT_MAX = 5;
 
-type PersonResult = { kind: 'friend'; data: Friend } | { kind: 'searchPerson'; data: SearchPerson };
+function loadRecent(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
-/** A friend's net balance (`owes` minus `iOwe`), rendered the same way
- * Home/Groups color a signed balance -- green when they're owed,
- * red when owing, a neutral "Settled" label at zero. */
-function FriendBalance({ friend }: { friend: Friend }) {
+function saveRecent(list: string[]) {
+  try {
+    localStorage.setItem(RECENT_KEY, JSON.stringify(list));
+  } catch {
+    // Storage unavailable (private mode, blocked) -- recents just don't persist.
+  }
+}
+
+interface BaseData {
+  meId: string;
+  friends: FriendRow[];
+  groups: GroupListItem[];
+  groupNameById: Map<string, string>;
+}
+
+type ExpenseRow = ActivityDisplay & { id: string };
+
+/** A friend's net balance, colored the same way Home/Friends do -- green
+ * when they owe you, red when you owe them, "Settled" at zero. */
+function FriendBalance({ friend }: { friend: FriendRow }) {
   const net = friend.owes - friend.iOwe;
   if (net === 0n) {
     return (
@@ -149,47 +173,19 @@ function FriendBalance({ friend }: { friend: Friend }) {
   );
 }
 
-function PersonResultRow({ result }: { result: PersonResult }) {
-  const router = useRouter();
-  if (result.kind === 'friend') {
-    const f = result.data;
-    return (
-      <PersonRow
-        initials={f.initials}
-        color={f.color}
-        name={f.name}
-        right={<FriendBalance friend={f} />}
-        onClick={() => router.push(`/friends/${f.id}`)}
-      />
-    );
-  }
-  const p = result.data;
-  return (
-    <PersonRow
-      initials={p.initials}
-      color={p.color}
-      name={p.name}
-      right={
-        <span className="text-[0.78rem]" style={{ color: 'var(--t-dim)' }}>
-          {p.username}
-        </span>
-      }
-      onClick={() => router.push(`/friends/${p.id}`)}
-    />
-  );
-}
-
-function GroupResultRow({ group }: { group: Group }) {
+function GroupResultRow({ group, onOpen }: { group: GroupListItem; onOpen: () => void }) {
+  const type = groupTypeFor(group.type);
   return (
     <Link
       href={`/groups/${group.id}`}
+      onClick={onOpen}
       className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
     >
       <div
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]"
-        style={{ background: `${group.color}22`, color: group.color }}
+        style={{ background: `${type.color}22`, color: type.color }}
       >
-        <GroupIcon icon={group.icon} size={19} />
+        <GroupIcon icon={type.icon} size={19} />
       </div>
       <div className="min-w-0 flex-1">
         <p
@@ -199,26 +195,32 @@ function GroupResultRow({ group }: { group: Group }) {
           {group.name}
         </p>
         <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
-          {group.type} · {group.members} members
+          {type.label} · {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'}
         </p>
       </div>
     </Link>
   );
 }
 
-function ExpenseResultRow({ activity }: { activity: Activity }) {
-  const router = useRouter();
+function ExpenseResultRow({ row }: { row: ExpenseRow }) {
   return (
     <ActivityItem
-      category={activity.category}
-      title={activity.title}
-      sub={activity.sub}
-      amount={activity.amount}
-      dir={activity.dir}
-      time={activity.time}
-      onClick={() =>
-        router.push(activity.type === 'expense' ? `/expenses/${activity.id}` : '/activity')
-      }
+      category={row.category}
+      title={row.title}
+      sub={row.sub}
+      amount={row.amount}
+      dir={row.dir}
+      time={row.time}
+    />
+  );
+}
+
+function NoResults({ what, query }: { what: string; query: string }) {
+  return (
+    <EmptyState
+      icon={<SearchIcon size={26} strokeWidth={1.5} />}
+      title="No results"
+      description={`No ${what} match "${query}".`}
     />
   );
 }
@@ -228,36 +230,132 @@ export default function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
   const [tab, setTab] = useState<TabKey>('all');
+  const [base, setBase] = useState<BaseData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [recent, setRecent] = useState<string[]>([]);
+
+  // Expense search state -- `expensesFor` is the query the current
+  // `expenses` belong to, so a slow older response can't overwrite a
+  // newer one and "loading" is simply "results aren't for this query yet".
+  const [expenses, setExpenses] = useState<AuthExpense[]>([]);
+  const [expensesFor, setExpensesFor] = useState('');
+  const [expenseError, setExpenseError] = useState<string | null>(null);
+  const latestQuery = useRef('');
+
+  const load = () => {
+    setError(null);
+    setBase(null);
+    Promise.all([me(), listFriends(), listGroups(), getBalancesSummary()])
+      .then(([profile, friends, groups, balances]) => {
+        setBase({
+          meId: profile.id,
+          friends: deriveFriendRows(friends, balances),
+          groups,
+          groupNameById: new Map(groups.map((g) => [g.id, g.name])),
+        });
+      })
+      .catch((err) => {
+        setError(err instanceof ApiError ? err.message : 'Could not load search.');
+      });
+  };
+
+  useEffect(load, []);
+
+  useEffect(() => {
+    setRecent(loadRecent());
+  }, []);
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+  }, [base]);
 
-  const q = query.trim().toLowerCase();
+  const trimmed = query.trim();
+  const q = trimmed.toLowerCase();
+
+  useEffect(() => {
+    latestQuery.current = trimmed;
+    setExpenseError(null);
+    if (!trimmed) {
+      setExpenses([]);
+      setExpensesFor('');
+      return;
+    }
+    const timer = setTimeout(() => {
+      listExpenses({ search: trimmed, limit: EXPENSE_LIMIT })
+        .then((rows) => {
+          if (latestQuery.current === trimmed) {
+            setExpenses(rows);
+            setExpensesFor(trimmed);
+          }
+        })
+        .catch((err) => {
+          if (latestQuery.current === trimmed) {
+            setExpenseError(err instanceof ApiError ? err.message : 'Could not search expenses.');
+            setExpensesFor(trimmed);
+          }
+        });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [trimmed]);
+
+  const rememberQuery = () => {
+    if (!trimmed) {
+      return;
+    }
+    const next = [trimmed, ...recent.filter((r) => r.toLowerCase() !== q)].slice(0, RECENT_MAX);
+    setRecent(next);
+    saveRecent(next);
+  };
+
+  const clearRecent = () => {
+    setRecent([]);
+    saveRecent([]);
+  };
+
+  if (error) {
+    return <ErrorState message={error} onRetry={load} />;
+  }
+  if (!base) {
+    return <LoadingState />;
+  }
+
   const hasQuery = q.length > 0;
-
-  const matchedFriends: PersonResult[] = hasQuery
-    ? FRIENDS.filter((f) => f.name.toLowerCase().includes(q)).map((data) => ({
-        kind: 'friend' as const,
-        data,
-      }))
+  const matchedPeople = hasQuery
+    ? base.friends.filter((f) => f.name.toLowerCase().includes(q))
     : [];
-  const matchedSearchPeople: PersonResult[] = hasQuery
-    ? SEARCH_RESULTS.filter((p) => p.name.toLowerCase().includes(q)).map((data) => ({
-        kind: 'searchPerson' as const,
-        data,
-      }))
-    : [];
-  const matchedPeople = [...matchedFriends, ...matchedSearchPeople];
-
-  const matchedGroups = hasQuery ? GROUPS.filter((g) => g.name.toLowerCase().includes(q)) : [];
-
-  const matchedExpenses = hasQuery
-    ? ACTIVITIES.filter((a) => a.title.toLowerCase().includes(q) || a.sub.toLowerCase().includes(q))
-    : [];
+  const matchedGroups = hasQuery ? base.groups.filter((g) => g.name.toLowerCase().includes(q)) : [];
+  const expensesLoading = hasQuery && expensesFor !== trimmed;
+  const matchedExpenses: ExpenseRow[] = expensesLoading
+    ? []
+    : expenses.map((e) => ({ id: e.id, ...toActivityDisplay(e, base.meId, base.groupNameById) }));
+  const expenseCountLabel =
+    matchedExpenses.length === EXPENSE_LIMIT ? `${EXPENSE_LIMIT}+` : String(matchedExpenses.length);
 
   const totalMatches = matchedPeople.length + matchedGroups.length + matchedExpenses.length;
-  const trimmedQuery = query.trim();
+
+  const personRow = (f: FriendRow) => (
+    <PersonRow
+      key={f.id}
+      initials={f.initials}
+      color={f.color}
+      name={f.name}
+      right={<FriendBalance friend={f} />}
+      onClick={() => {
+        rememberQuery();
+        router.push(`/friends/${f.id}`);
+      }}
+    />
+  );
+
+  const expenseStatus = expenseError ? (
+    <p className="text-[0.8rem]" style={{ color: 'var(--c-red)' }}>
+      {expenseError}
+    </p>
+  ) : expensesLoading ? (
+    <p className="text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
+      Searching expenses…
+    </p>
+  ) : null;
 
   return (
     <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
@@ -275,8 +373,14 @@ export default function SearchPage() {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              rememberQuery();
+            }
+          }}
           placeholder="Search friends, groups, and expenses"
           aria-label="Search"
+          maxLength={100}
           className="neo-input pl-11 pr-11"
         />
         {query && (
@@ -306,16 +410,44 @@ export default function SearchPage() {
 
       {/* Results */}
       {!hasQuery ? (
-        <EmptyState
-          icon={<SearchIcon size={26} strokeWidth={1.5} />}
-          title="Search ABRO"
-          description="Find friends, groups, and expenses."
-        />
-      ) : totalMatches === 0 ? (
+        recent.length > 0 ? (
+          <div>
+            <div className="flex items-center justify-between">
+              <SectionLabel>Recent searches</SectionLabel>
+              <button
+                onClick={clearRecent}
+                className="border-none bg-transparent text-[0.75rem] font-medium"
+                style={{ color: 'var(--accent)' }}
+              >
+                Clear
+              </button>
+            </div>
+            <div className="flex flex-col gap-2">
+              {recent.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setQuery(r)}
+                  className="neo-raised-sm flex items-center gap-3 rounded-2xl border-none px-3.5 py-3 text-left text-[0.88rem]"
+                  style={{ color: 'var(--t-secondary)' }}
+                >
+                  <Clock size={15} style={{ color: 'var(--t-dim)' }} />
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            icon={<SearchIcon size={26} strokeWidth={1.5} />}
+            title="Search ABRO"
+            description="Find friends, groups, and expenses."
+          />
+        )
+      ) : totalMatches === 0 && !expensesLoading && !expenseError ? (
         <EmptyState
           icon={<SearchIcon size={26} strokeWidth={1.5} />}
           title="No results"
-          description={`Nothing matches "${trimmedQuery}".`}
+          description={`Nothing matches "${trimmed}".`}
         />
       ) : (
         <div className="flex flex-col gap-6">
@@ -325,9 +457,7 @@ export default function SearchPage() {
                 <div>
                   <SectionLabel>People ({matchedPeople.length})</SectionLabel>
                   <div className="flex flex-col gap-2">
-                    {matchedPeople.slice(0, ALL_TAB_CAP).map((r) => (
-                      <PersonResultRow key={`${r.kind}-${r.data.id}`} result={r} />
-                    ))}
+                    {matchedPeople.slice(0, ALL_TAB_CAP).map(personRow)}
                   </div>
                 </div>
               )}
@@ -336,17 +466,20 @@ export default function SearchPage() {
                   <SectionLabel>Groups ({matchedGroups.length})</SectionLabel>
                   <div className="flex flex-col gap-2">
                     {matchedGroups.slice(0, ALL_TAB_CAP).map((g) => (
-                      <GroupResultRow key={g.id} group={g} />
+                      <GroupResultRow key={g.id} group={g} onOpen={rememberQuery} />
                     ))}
                   </div>
                 </div>
               )}
-              {matchedExpenses.length > 0 && (
+              {(matchedExpenses.length > 0 || expenseStatus) && (
                 <div>
-                  <SectionLabel>Expenses ({matchedExpenses.length})</SectionLabel>
+                  <SectionLabel>
+                    Expenses{matchedExpenses.length > 0 ? ` (${expenseCountLabel})` : ''}
+                  </SectionLabel>
                   <div className="flex flex-col gap-2.5">
-                    {matchedExpenses.slice(0, ALL_TAB_CAP).map((a) => (
-                      <ExpenseResultRow key={a.id} activity={a} />
+                    {expenseStatus}
+                    {matchedExpenses.slice(0, ALL_TAB_CAP).map((row) => (
+                      <ExpenseResultRow key={row.id} row={row} />
                     ))}
                   </div>
                 </div>
@@ -356,48 +489,39 @@ export default function SearchPage() {
 
           {tab === 'people' &&
             (matchedPeople.length > 0 ? (
-              <div className="flex flex-col gap-2">
-                {matchedPeople.map((r) => (
-                  <PersonResultRow key={`${r.kind}-${r.data.id}`} result={r} />
-                ))}
-              </div>
+              <div className="flex flex-col gap-2">{matchedPeople.map(personRow)}</div>
             ) : (
-              <EmptyState
-                icon={<SearchIcon size={26} strokeWidth={1.5} />}
-                title="No results"
-                description={`No people match "${trimmedQuery}".`}
-              />
+              <NoResults what="people" query={trimmed} />
             ))}
 
           {tab === 'groups' &&
             (matchedGroups.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {matchedGroups.map((g) => (
-                  <GroupResultRow key={g.id} group={g} />
+                  <GroupResultRow key={g.id} group={g} onOpen={rememberQuery} />
                 ))}
               </div>
             ) : (
-              <EmptyState
-                icon={<SearchIcon size={26} strokeWidth={1.5} />}
-                title="No results"
-                description={`No groups match "${trimmedQuery}".`}
-              />
+              <NoResults what="groups" query={trimmed} />
             ))}
 
           {tab === 'expenses' &&
-            (matchedExpenses.length > 0 ? (
-              <div className="flex flex-col gap-2.5">
-                {matchedExpenses.map((a) => (
-                  <ExpenseResultRow key={a.id} activity={a} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                icon={<SearchIcon size={26} strokeWidth={1.5} />}
-                title="No results"
-                description={`No expenses match "${trimmedQuery}".`}
-              />
-            ))}
+            (expenseStatus ??
+              (matchedExpenses.length > 0 ? (
+                <div className="flex flex-col gap-2.5">
+                  {matchedExpenses.map((row) => (
+                    <ExpenseResultRow key={row.id} row={row} />
+                  ))}
+                  {matchedExpenses.length === EXPENSE_LIMIT && (
+                    <p className="text-center text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
+                      Showing the {EXPENSE_LIMIT} most recent matches. Refine your search to narrow
+                      it down.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <NoResults what="expenses" query={trimmed} />
+              )))}
         </div>
       )}
     </div>
