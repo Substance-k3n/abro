@@ -11,13 +11,14 @@
 //    this app yet, and there's nothing to wire a receipt field to.
 //  - "Save as draft" was already deferred back in EXP-01 (no draft-
 //    persistence layer this phase -- see expense-draft.tsx).
-//  - "Create Expense" has no real API to call yet (Phase 8 wires that
-//    in) -- clicking it resets the wizard draft and returns to /home,
-//    simulating a successful create against mock data. There's
-//    deliberately no success toast/snackbar -- no such component exists
-//    in this app yet, and inventing one just for this button is more
-//    than this pass needs; the draft resetting and the wizard closing
-//    is itself the signal that it "worked."
+//  - Phase 8: "Create Expense" calls POST /expenses (~/lib/expense-
+//    split.ts's toCreateExpenseInput builds the body; apps/api
+//    recomputes every share from it). On success the draft resets and
+//    the wizard returns to /home, where the new expense shows in Recent
+//    Activity -- still no toast, none exists in this app yet. A server
+//    rejection (e.g. NOT_FRIENDS, PERCENTAGES_MUST_SUM_TO_100) is shown
+//    above the button and the draft is kept, so the user can fix it and
+//    retry with the same idempotency key.
 //  - Spec's "Validation Check" list (Total matches split / all
 //    participants assigned / all required fields filled) is rendered
 //    as an actual checklist using isSplitValid + a non-empty check,
@@ -28,10 +29,20 @@
 import { ETB, formatMoney } from '@abro/types';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 
+import { ApiError } from '~/lib/api-client';
+import { useExpenseDirectory } from '~/lib/expense-directory';
 import { ME, useExpenseDraft } from '~/lib/expense-draft';
-import { computeShares, isSplitValid, parseAmount } from '~/lib/expense-split';
-import { CATEGORIES, CURRENT_USER, FRIENDS, GROUPS, resolveParticipants } from '~/lib/mock-data';
+import {
+  computeShares,
+  isSplitValid,
+  parseAmount,
+  toCreateExpenseInput,
+} from '~/lib/expense-split';
+import { createExpense } from '~/lib/expenses-api';
+import { groupTypeFor } from '~/lib/groups-api';
+import { CATEGORIES } from '~/lib/mock-data';
 
 const METHOD_LABEL: Record<string, string> = {
   equal: 'Equal',
@@ -43,28 +54,34 @@ const METHOD_LABEL: Record<string, string> = {
 export default function AddExpenseReviewPage() {
   const router = useRouter();
   const { draft, update, reset } = useExpenseDraft();
+  const { me, group, resolve } = useExpenseDirectory();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const total = parseAmount(draft.amountInput);
-  const participants = resolveParticipants(draft.participantIds);
+  const participants = draft.participantIds.map(resolve);
   const shares = computeShares(draft, draft.participantIds, total);
   const sumOk = isSplitValid(draft, draft.participantIds, total);
   const hasFields = draft.name.trim().length > 0 && total > 0n && draft.category.length > 0;
   const hasParticipants = draft.participantIds.length > 0;
-  const canCreate = sumOk && hasFields && hasParticipants;
+  const canCreate = sumOk && hasFields && hasParticipants && !submitting;
 
   const category = CATEGORIES.find((c) => c.label === draft.category);
-  const group = draft.groupId ? GROUPS.find((g) => g.id === draft.groupId) : null;
-  const payer =
-    draft.payerId === ME
-      ? { name: 'You', initials: CURRENT_USER.initials, color: CURRENT_USER.color }
-      : FRIENDS.find((f) => f.id === draft.payerId);
+  const payer = resolve(draft.payerId);
 
-  const createExpense = () => {
-    // Mock create -- no apps/api endpoint to call yet (Phase 8). Reset
-    // the draft so a fresh /expenses/new starts clean, then leave the
-    // wizard.
-    reset();
-    router.push('/home');
+  const submit = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await createExpense(toCreateExpenseInput(draft, me.id), draft.idempotencyKey);
+      reset();
+      router.push('/home');
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : 'Could not create the expense. Please try again.',
+      );
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -108,7 +125,7 @@ export default function AddExpenseReviewPage() {
           />
           <Row label="Date" value={draft.date} />
           <Row label="Amount" value={formatMoney(total, ETB)} mono />
-          {group && <Row label="Group" value={`${group.icon} ${group.name}`} />}
+          {group && <Row label="Group" value={`${groupTypeFor(group.type).icon} ${group.name}`} />}
         </div>
       </div>
 
@@ -129,28 +146,23 @@ export default function AddExpenseReviewPage() {
             Edit
           </button>
         </div>
-        {payer && (
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-bold text-white"
-              style={{ background: payer.color }}
-            >
-              {payer.initials}
-            </div>
-            <span
-              className="flex-1 text-[0.88rem] font-semibold"
-              style={{ color: 'var(--t-primary)' }}
-            >
-              {payer.name}
-            </span>
-            <span
-              className="font-mono text-[0.9rem] font-bold"
-              style={{ color: 'var(--t-primary)' }}
-            >
-              {formatMoney(total, ETB)}
-            </span>
+        <div className="flex items-center gap-2.5">
+          <div
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[0.7rem] font-bold text-white"
+            style={{ background: payer.color }}
+          >
+            {payer.initials}
           </div>
-        )}
+          <span
+            className="flex-1 text-[0.88rem] font-semibold"
+            style={{ color: 'var(--t-primary)' }}
+          >
+            {payer.name}
+          </span>
+          <span className="font-mono text-[0.9rem] font-bold" style={{ color: 'var(--t-primary)' }}>
+            {formatMoney(total, ETB)}
+          </span>
+        </div>
       </div>
 
       {/* Split breakdown */}
@@ -244,12 +256,22 @@ export default function AddExpenseReviewPage() {
         />
       </div>
 
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl px-3.5 py-2.5 text-[0.8rem] font-medium"
+          style={{ background: 'var(--red-bg)', color: 'var(--c-red)' }}
+        >
+          {error}
+        </p>
+      )}
+
       <button
-        onClick={createExpense}
+        onClick={submit}
         disabled={!canCreate}
         className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
       >
-        Create Expense
+        {submitting ? 'Creating…' : 'Create Expense'}
       </button>
     </div>
   );

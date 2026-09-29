@@ -13,16 +13,17 @@
 import { ETB, formatMoney } from '@abro/types';
 import { useRouter } from 'next/navigation';
 
+import { useExpenseDirectory } from '~/lib/expense-directory';
 import { ME, useExpenseDraft } from '~/lib/expense-draft';
 import { computeShares, isSplitValid, parseAmount } from '~/lib/expense-split';
-import { resolveParticipants } from '~/lib/mock-data';
 
 export default function AddExpenseSharesSplitPage() {
   const router = useRouter();
   const { draft, update } = useExpenseDraft();
 
   const total = parseAmount(draft.amountInput);
-  const participants = resolveParticipants(draft.participantIds);
+  const { resolve } = useExpenseDirectory();
+  const participants = draft.participantIds.map(resolve);
   const totalShares = draft.participantIds.reduce(
     (sum, id) => sum + Math.max(1, draft.shares[id] ?? 1),
     0,
