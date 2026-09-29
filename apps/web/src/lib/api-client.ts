@@ -60,6 +60,7 @@ export const api = {
     }),
   patch: <T>(path: string, data?: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
 /** `${API_URL}/auth/google` is a real page navigation (the OAuth

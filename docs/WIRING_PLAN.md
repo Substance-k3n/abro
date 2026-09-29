@@ -642,6 +642,36 @@ badges, +300 / Settled for Alice and -300 for Bekele (who correctly
 doesn't see Alice's solo group). Home/Friends/Balances/Notifications
 re-checked after the shared-component refactor, no console errors.
 
+### Slice 6 — Friend requests `[done]`
+
+Branch: `feature/friend-requests-api-integration`.
+
+Found while auditing what blocks a new user: DASH-03's "Add Friend"
+button linked to `/friends/add`, a route that never existed (404), and
+the frontend had no way to send or accept a friend request -- so a
+fresh account could never get a friend, and so never split anything.
+apps/api's friends module already had every endpoint needed; frontend
+only.
+
+- [x] `~/lib/friends-api.ts` -- `searchUsers`, `listIncomingRequests`,
+      `sendFriendRequest`, `acceptFriendRequest`, `declineFriendRequest`
+      (plus `api.delete` on the shared client). `searchUsers` lowercases
+      email queries: `profiles.email` is stored normalized but
+      `GET /friends/search` compares the raw query case-sensitively.
+- [x] `/friends/add` -- exact email/phone lookup (apps/api deliberately
+      never fuzzy-searches the directory), then "Add" sends the request.
+- [x] `/friends` -- a "Friend requests" section with Accept/Decline;
+      accepting reloads so the new friend appears through the same
+      `deriveFriendRows()` path as everyone else.
+
+Deviations (Confirmed): no outgoing/sent-requests list (no apps/api
+endpoint for it); no unfriend UI yet; searching by username isn't
+supported (apps/api matches email/phone only).
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Manual browser verification against a live API still pending (local
+Docker wasn't reachable from the session).
+
 ### Later slices `[todo]`
 
 Search (`DASH-08`), expenses (`EXP-0x`), groups (`GRP-0x`), settlement
