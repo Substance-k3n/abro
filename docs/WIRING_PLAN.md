@@ -988,7 +988,25 @@ In "Bob Flat" (Alice is a plain member): "Only admins can change these
 settings.", the fields are disabled, there's no Save or Delete, and
 Leave → /groups with Bob Flat gone.
 
-### Slice 9 — Settle up (STL-01…STL-05) `[in progress]`
+### Slice 9 — Settle up (STL-01…STL-05) `[done]`
+
+**9a — Group settlements by net (backend) `[done]`.** Branch:
+`feature/group-settlements-by-net`. See ADR-010.
+
+- [x] `settlements.Service.outstanding`: personal settlements stay
+      pairwise. Inside a group the settler's net must be below 0 and the
+      recipient's above 0, capped at `min(−settlerNet, recipientNet)`.
+      New code `RECIPIENT_NOT_OWED`.
+
+**Verified:** full `go test ./...` passes. A new integration test
+(nets A −333, B −234, C +567) checks:
+
+- the three refusals;
+- A → C 333 accepted (pairwise would cap it at 300);
+- only A's and C's nets move;
+- B → C 234 then brings every net to 0.
+
+The test fails against the old pairwise code.
 
 **9b — Settle flow + history (frontend) `[done]`.** Branch:
 `feature/settle-api-integration`. Relies on 9a's net rule (#41) for
