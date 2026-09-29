@@ -906,10 +906,41 @@ Carol +416.67, Bob −83.33, Alice −333.34, which sums to 0. As Bob:
 - After Carol left (the pre-8a API still allowed it), she's listed
   "Carol Test (left) +416.67".
 
-**8c — create group + invites `[todo]`**, **8d — members + settings
-`[todo]`.** User decisions (2026-09-29): hide GRP-07's default split
-method and notification toggles (no backend field); invites need an
-accept UI (there's none anywhere yet).
+**8c — Create group + invites (GRP-01/02, DASH-05) `[done]`.** Branch:
+`feature/group-create-invites-api-integration`. Frontend only.
+
+- [x] GRP-02 lists your real friends (with balances, via
+      `deriveFriendRows`) and "Create Group" / "Skip" call
+      `POST /groups/` (`createGroup`) with the UPPERCASE type,
+      currency and description. Picked friends are invited, not
+      added, and the screen says so. Errors show inline and the button
+      is disabled while the request runs (groups have no idempotency
+      key). Opening the step without a draft goes back to GRP-01.
+- [x] Groups (DASH-05) lists pending invites (`GET /groups/invites`)
+      above the groups, with Join (`POST /groups/{id}/invite/accept`,
+      then reload) and Decline (`DELETE /groups/{id}/members/{you}`,
+      since apps/api has no decline route; it marks the invite LEFT).
+- [x] GRP-01's name is capped at apps/api's 80 characters, and the
+      selected type tile uses `tintOf` (8b's color-mix fix).
+
+Deviations (Confirmed): no email/phone invites (apps/api invites
+friends only).
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API:
+
+- As Bob, GRP-01 "Bob Flat" (Household, description "Bole apartment")
+  → GRP-02 inviting Alice → Create. Stored as HOUSEHOLD/ETB with the
+  description; Bob ADMIN ACTIVE, Alice MEMBER INVITED.
+- A second invite ("Bob Gym") was added via the API. As Alice, Groups
+  showed "Group invites (2)":
+  - Decline on Bob Gym → gone, and her membership is LEFT.
+  - Join on Bob Flat → it appears under Settled with 2 members.
+- Opening /groups/new/members directly → redirected to /groups/new.
+
+**8d — members + settings `[todo]`.** User decisions (2026-09-29):
+hide GRP-07's default split method and notification toggles (no
+backend field).
 
 ### Later slices `[todo]`
 

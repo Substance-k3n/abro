@@ -53,6 +53,46 @@ export function getGroup(id: string): Promise<AuthGroup> {
   return api.get(`/groups/${id}`);
 }
 
+/** apps/api's CreateGroupInput. `type` is the UPPERCASE enum
+ * (FRIENDS/TRIP/...); `memberIds` must all be your friends, and each
+ * is added as INVITED -- they join once they accept. */
+export interface CreateGroupInput {
+  name: string;
+  type: string;
+  currency: string;
+  description?: string;
+  memberIds: string[];
+}
+
+/** POST /groups/ -- you become its only ACTIVE member (and admin). */
+export function createGroup(input: CreateGroupInput): Promise<AuthGroup> {
+  return api.post('/groups/', input);
+}
+
+export interface GroupInvite {
+  /** `members` is always `[]` here. */
+  group: AuthGroup;
+  invitedAt: string;
+}
+
+/** GET /groups/invites -- groups you've been invited to and haven't
+ * answered yet. */
+export function listGroupInvites(): Promise<GroupInvite[]> {
+  return api.get('/groups/invites');
+}
+
+/** POST /groups/{id}/invite/accept -- you become an ACTIVE member. */
+export function acceptGroupInvite(groupId: string): Promise<unknown> {
+  return api.post(`/groups/${groupId}/invite/accept`);
+}
+
+/** Declining is leaving: apps/api has no separate decline route, and
+ * DELETE /groups/{id}/members/{you} marks your INVITED row LEFT (an
+ * admin can re-invite you later). */
+export function declineGroupInvite(groupId: string, myId: string): Promise<void> {
+  return api.delete(`/groups/${groupId}/members/${myId}`);
+}
+
 export type GroupType = (typeof GROUP_TYPES)[number];
 
 /** Icon/color/label for a real group's UPPERCASE `type` enum, via

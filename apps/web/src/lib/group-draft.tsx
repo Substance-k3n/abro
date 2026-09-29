@@ -20,8 +20,9 @@ export interface GroupDraft {
    * USD/EUR here doesn't change any formatting or math downstream. */
   currency: string;
   description: string;
-  /** FRIENDS ids -- does not include 'me' (~/lib/expense-draft.ts's ME
-   * sentinel), since you're always a group's creator/member implicitly. */
+  /** Your friends' profile ids -- not including you: the creator is
+   * always the group's first ACTIVE member (and admin). Each is sent as
+   * an invite (slice 8c). */
   memberIds: string[];
 }
 

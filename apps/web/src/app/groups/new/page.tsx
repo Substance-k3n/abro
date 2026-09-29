@@ -13,10 +13,12 @@
 //  - No separate review step (the prototype has a 3rd "Review" step;
 //    spec's GRP-01/GRP-02 only describes two screens) -- same reasoning
 //    as EXP-08 not adding an extra success screen beyond the spec.
+//  - Name max 80 characters, apps/api's limit.
 
 import { useRouter } from 'next/navigation';
 
 import { useGroupDraft } from '~/lib/group-draft';
+import { tintOf } from '~/lib/groups-api';
 import { GROUP_TYPES } from '~/lib/mock-data';
 
 const NAME_SUGGESTIONS = ['Roommates', 'Family', 'Road Trip'];
@@ -54,6 +56,7 @@ export default function CreateGroupDetailsPage() {
         <input
           className="neo-input"
           placeholder="e.g. Friday Friends"
+          maxLength={80}
           value={draft.name}
           onChange={(e) => update({ name: e.target.value })}
           style={{ color: 'var(--t-primary)' }}
@@ -96,7 +99,7 @@ export default function CreateGroupDetailsPage() {
             >
               <span
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[1rem]"
-                style={{ background: draft.type === t.id ? `${t.color}22` : 'transparent' }}
+                style={{ background: draft.type === t.id ? tintOf(t.color) : 'transparent' }}
               >
                 {t.icon}
               </span>
