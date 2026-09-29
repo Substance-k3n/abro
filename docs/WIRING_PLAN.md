@@ -795,6 +795,37 @@ resend the stored amounts as EXACT (a PERCENTAGE/SHARES expense then
 shows as "Exact split"); if either changes, recalculate as EQUAL (the
 screen's existing behavior).
 
+### Slice 8 — Groups (GRP-01…GRP-07) `[in progress]`
+
+Four PRs: backend rules first, then the screens.
+
+**8a — Group integrity rules (backend) `[done]`.** Branch:
+`feature/groups-integrity-rules`. See ADR-009.
+
+- [x] Leave/remove refused with `OUTSTANDING_BALANCE` while the
+      member's group net isn't 0.
+- [x] `DELETE /groups/{id}`: creator only, everyone settled, soft
+      delete (`0011_group_soft_delete`); the group then reads as not
+      found everywhere, its expenses are frozen, and its recurring
+      templates are skipped.
+- [x] Currency change refused with `CURRENCY_LOCKED` once the group
+      has expenses.
+
+**Verified:** `go vet` clean, full `go test ./...` passes against the
+local DB with the new migration. New integration tests cover leave and
+remove blocked, then allowed after a settlement; currency before vs.
+after an expense; delete as non-creator, delete while unsettled, then
+the group gone from lookups and lists with its expenses intact; an
+invite to a deleted group disappearing; a deleted group's expense
+frozen and dropped from the list; and the recurring due-list skipping
+it.
+
+**8b — Group detail + tabs (read) `[todo]`**, **8c — create group +
+invites `[todo]`**, **8d — members + settings `[todo]`.** User
+decisions (2026-09-29): hide GRP-07's default split method and
+notification toggles (no backend field); invites need an accept UI
+(there's none anywhere yet).
+
 ### Later slices `[todo]`
 
 Groups (`GRP-0x`), settlement

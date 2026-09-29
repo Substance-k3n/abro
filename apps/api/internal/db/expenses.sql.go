@@ -406,7 +406,7 @@ const listMyExpenses = `-- name: ListMyExpenses :many
 SELECT id, group_id, name, category, amount, currency, paid_by_id, split_type, expense_date, receipt_path, notes, conversion_id, deleted_at, deleted_by_id, created_at, updated_at, updated_by_id FROM expenses e
 WHERE e.deleted_at IS NULL AND (
     (e.group_id IS NULL AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $1))
-    OR (e.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = e.group_id AND gm.user_id = $1 AND gm.status = 'ACTIVE'))
+    OR (e.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM group_members gm JOIN groups g ON g.id = gm.group_id WHERE gm.group_id = e.group_id AND gm.user_id = $1 AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL))
 )
   AND ($2::text IS NULL
        OR e.name ILIKE $2 OR e.category ILIKE $2 OR e.notes ILIKE $2)

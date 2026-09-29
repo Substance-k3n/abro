@@ -55,7 +55,7 @@ WHERE ep.expense_id = ANY(sqlc.arg('expense_ids')::uuid[]);
 SELECT * FROM expenses e
 WHERE e.deleted_at IS NULL AND (
     (e.group_id IS NULL AND EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = sqlc.arg('user_id')))
-    OR (e.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM group_members gm WHERE gm.group_id = e.group_id AND gm.user_id = sqlc.arg('user_id') AND gm.status = 'ACTIVE'))
+    OR (e.group_id IS NOT NULL AND EXISTS (SELECT 1 FROM group_members gm JOIN groups g ON g.id = gm.group_id WHERE gm.group_id = e.group_id AND gm.user_id = sqlc.arg('user_id') AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL))
 )
   AND (sqlc.narg('pattern')::text IS NULL
        OR e.name ILIKE sqlc.narg('pattern') OR e.category ILIKE sqlc.narg('pattern') OR e.notes ILIKE sqlc.narg('pattern'))
