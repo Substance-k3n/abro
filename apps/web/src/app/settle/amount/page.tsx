@@ -1,35 +1,35 @@
 'use client';
 
 // STL-02 Settle Up - Enter Amount -- docs/ABRO_FRONTEND_SPEC.md §6
-// (lines 1592-1639).
+// (lines 1592-1639). Phase 8 slice 9b: who you're paying and the most
+// you can settle come from ~/lib/settlements-api.ts's loadSettleTarget
+// (apps/api's own rule, ADR-010 for groups); apps/api re-checks on
+// submit.
 //
 // Deviations:
-//  - "Calculator-style keypad on mobile" isn't built -- same call as
-//    EXP-01's amount input (see its header comment): a plain
-//    `type="number"` input already gets the OS numeric keypad.
-//  - No date/currency picker here -- currency is fixed (ETB-only app,
-//    same as everywhere else); there's no per-settlement date field in
-//    this screen at all (STL-03 has a read-only "Today", see its
-//    header comment).
+//  - No calculator keypad: a `type="number"` input already gets the OS
+//    numeric keypad (same call as EXP-01).
+//  - No date/currency picker: a settlement is recorded "now", in ETB.
+//  - Nothing to settle (they're not your friend / not in the group, or
+//    you don't owe them) shows a message instead of an amount form.
 //
-// Reads `toUserId`/`groupId` from its own `?toUserId=`/`?groupId=` query
-// params (every entry point -- STL-01's rows and its own `?friendId=`/
-// `?groupId=` redirect -- passes them this way) rather than trusting
-// SettleDraftProvider to already hold them: a context update made by
-// the page navigating here and this page's first render are two
-// different components, with no guarantee the update commits before
-// this page reads it. Confirmed by a real repro during development.
-// Resolved values are mirrored into the shared draft via effect so
-// Confirm/Success (later steps) can keep reading from context alone.
+// Reads `toUserId`/`groupId` from its own query params (every entry
+// point passes them this way) rather than trusting the draft to hold
+// them already -- the previous route's context update may not have
+// committed yet. Resolved values are mirrored into the draft so
+// Confirm/Success can read them from context.
 
-import { ArrowRight, ChevronLeft } from 'lucide-react';
+import { ArrowRight, ChevronLeft, Handshake } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
 import { ETB, formatMoney, toDecimal } from '@abro/types';
+import { EmptyState } from '@abro/ui';
 
+import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { ApiError } from '~/lib/api-client';
 import { parseAmount } from '~/lib/expense-split';
-import { getOutstanding, resolveParticipants } from '~/lib/mock-data';
+import { type SettleTarget, loadSettleTarget } from '~/lib/settlements-api';
 import { useSettleDraft } from '~/lib/settle-draft';
 
 export default function SettleAmountPage() {
@@ -44,27 +44,69 @@ function SettleAmountForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { draft, update } = useSettleDraft();
+  const [target, setTarget] = useState<SettleTarget | null | 'loading'>('loading');
+  const [error, setError] = useState<string | null>(null);
 
   const toUserId = searchParams.get('toUserId');
   const groupId = searchParams.get('groupId');
-  const outstanding = toUserId ? getOutstanding(toUserId, groupId) : 0n;
 
-  useEffect(() => {
-    if (!toUserId || outstanding <= 0n) {
-      router.replace('/settle');
+  const load = () => {
+    setError(null);
+    setTarget('loading');
+    if (!toUserId) {
+      setTarget(null);
       return;
     }
-    if (draft.toUserId !== toUserId || draft.groupId !== groupId) {
-      update({ toUserId, groupId });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toUserId, groupId, outstanding]);
+    loadSettleTarget(toUserId, groupId)
+      .then((t) => {
+        setTarget(t);
+        if (t && (draft.toUserId !== toUserId || draft.groupId !== groupId)) {
+          update({ toUserId, groupId, amountInput: '' });
+        }
+      })
+      .catch((err) => {
+        if (err instanceof ApiError && [400, 403, 404].includes(err.status)) {
+          setTarget(null);
+          return;
+        }
+        setError(err instanceof ApiError ? err.message : 'Could not load this balance.');
+      });
+  };
 
-  if (!toUserId || outstanding <= 0n) {
-    return null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [toUserId, groupId]);
+
+  if (error) {
+    return <ErrorState message={error} onRetry={load} />;
+  }
+  if (target === 'loading') {
+    return <LoadingState />;
+  }
+  if (!target || target.outstanding <= 0n) {
+    return (
+      <div className="flex flex-col gap-4">
+        <button
+          onClick={() => router.push('/settle')}
+          className="flex items-center gap-1 self-start text-[0.85rem] font-medium"
+          style={{ color: 'var(--accent)' }}
+        >
+          <ChevronLeft size={16} strokeWidth={2.5} /> Settle Up
+        </button>
+        <EmptyState
+          icon={<Handshake size={26} strokeWidth={1.5} />}
+          title="Nothing to settle"
+          description={
+            target
+              ? `You don't owe ${target.person.displayName.split(' ')[0]} anything${target.group ? ' in this group' : ''} right now.`
+              : "This person isn't one of your friends, or isn't in this group."
+          }
+        />
+      </div>
+    );
   }
 
-  const person = resolveParticipants([toUserId])[0]!;
+  const { outstanding, person } = target;
+  const firstName = person.displayName.split(' ')[0];
   const amount = parseAmount(draft.amountInput);
   const isValid = amount > 0n && amount <= outstanding;
   const isPartial = amount > 0n && amount < outstanding;
@@ -84,14 +126,16 @@ function SettleAmountForm() {
           <ChevronLeft size={16} strokeWidth={2.5} /> Back
         </button>
         <h2 className="font-display text-[1.05rem] font-bold" style={{ color: 'var(--t-primary)' }}>
-          Settle with {person.name.split(' ')[0]}
+          Settle with {firstName}
         </h2>
         <div className="w-[60px]" />
       </div>
 
       <div className="neo-inset-sm rounded-2xl px-4 py-3 text-center">
         <p className="mb-1 text-[0.76rem]" style={{ color: 'var(--t-dim)' }}>
-          You owe {person.name.split(' ')[0]}
+          {target.group
+            ? `You can settle with ${firstName} in ${target.group.name}`
+            : `You owe ${firstName}`}
         </p>
         <p
           className="font-display text-[1.4rem] font-extrabold tracking-tight"
@@ -156,7 +200,7 @@ function SettleAmountForm() {
       </div>
 
       <button
-        onClick={() => router.push('/settle/confirm')}
+        onClick={() => router.push(`/settle/confirm`)}
         disabled={!isValid}
         className="neo-btn-accent font-display mt-2 flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
       >

@@ -16,31 +16,35 @@
 // just-submitted values.
 //
 // Same known limitation as expense-draft.tsx: no persistence across a
-// hard refresh -- in-memory only, fine for a mock-data-only phase.
+// hard refresh -- in-memory only (STL-02 re-derives who/what from its
+// URL; STL-03/04 send you back to /settle if the draft is empty).
+//
+// Phase 8 slice 9b: `method`/`note` are gone -- apps/api stores neither
+// (user decision 2026-09-29). `idempotencyKey` makes Confirm safe to
+// retry; `recorded` is what STL-04 shows after a successful submit.
 
 import { type ReactNode, createContext, useContext, useState } from 'react';
 
 export interface SettleDraft {
-  /** FRIENDS id being settled with. Never 'me' -- see mock-data.ts'
-   * SettlementRecord header comment on why this app can only ever be
-   * the payer. */
+  /** Who you're paying. Never you -- apps/api only lets the debtor
+   * record a settlement (ADR-003). */
   toUserId: string | null;
   /** null = personal (no group) settlement. */
   groupId: string | null;
-  /** Raw decimal string as typed, same draft-string-until-submit
-   * convention as expense-draft.tsx's amountInput -- parsed via
-   * expense-split.ts's parseAmount when needed. */
+  /** Raw decimal string as typed, parsed with expense-split.ts's
+   * parseAmount when needed. */
   amountInput: string;
-  method: string;
-  note: string;
+  idempotencyKey: string;
+  /** Set by STL-03 once apps/api has recorded the settlement. */
+  recorded: { personName: string; amount: bigint } | null;
 }
 
 export const emptySettleDraft = (): SettleDraft => ({
   toUserId: null,
   groupId: null,
   amountInput: '',
-  method: 'Cash',
-  note: '',
+  idempotencyKey: crypto.randomUUID(),
+  recorded: null,
 });
 
 interface SettleDraftContextValue {
