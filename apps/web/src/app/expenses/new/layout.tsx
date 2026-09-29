@@ -13,6 +13,10 @@
 // apps treat multi-step entry forms (fewer exit points, full attention
 // on the flow).
 //
+// ExpenseDirectoryProvider (~/lib/expense-directory.tsx) loads the
+// real people/groups every step picks from; steps render only once it
+// has, so no step needs its own loading state for that data.
+//
 // Step indicator groups routes into 5 stops matching the spec's actual
 // screen count (EXP-01 Details, EXP-02 Payer, EXP-03 Participants,
 // EXP-04..07 Split, EXP-08 Review) -- the prototype's own indicator only
@@ -27,6 +31,8 @@
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { ExpenseDirectoryProvider } from '~/lib/expense-directory';
 import { ExpenseDraftProvider } from '~/lib/expense-draft';
 
 const STEPS = [
@@ -85,7 +91,13 @@ export default function AddExpenseLayout({ children }: { children: ReactNode }) 
     <ExpenseDraftProvider>
       <div className="fade-in mx-auto max-w-xl px-5 py-6 md:px-8 md:py-8">
         <StepIndicator />
-        {children}
+        <ExpenseDirectoryProvider
+          fallback={({ error, retry }) =>
+            error ? <ErrorState message={error} onRetry={retry} /> : <LoadingState />
+          }
+        >
+          {children}
+        </ExpenseDirectoryProvider>
       </div>
     </ExpenseDraftProvider>
   );

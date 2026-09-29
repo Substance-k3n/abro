@@ -16,7 +16,8 @@ import {
   sum,
 } from '@abro/types';
 
-import type { ExpenseDraft } from './expense-draft';
+import { type ExpenseDraft, ME, type SplitMethod } from './expense-draft';
+import type { CreateExpenseInput } from './expenses-api';
 
 /** Parses a raw decimal-string form input into MinorUnits, treating
  * anything unparseable or negative as 0n. Inputs get their own "is this
@@ -29,6 +30,13 @@ export function parseAmount(input: string): MinorUnits {
     return 0n;
   }
   return fromDecimal(n, ETB.decimalDigits);
+}
+
+/** A percentage input as whole basis points (33.33 -> 3333), rounded
+ * the same way apps/api rounds it; 0 for blank/unparseable input. */
+export function percentageBasisPoints(input: string | undefined): number {
+  const pct = Number(input ?? '');
+  return Number.isFinite(pct) ? Math.round(pct * 100) : 0;
 }
 
 type SplitInputs = Pick<ExpenseDraft, 'splitMethod' | 'exactAmounts' | 'percentages' | 'shares'>;
@@ -71,10 +79,9 @@ export function computeShares(
   if (draft.splitMethod === 'percentage') {
     // Weights as basis points (percentage * 100) so splitByWeights, which
     // takes bigint weights, can work with fractional percentages too.
-    const weights = participantIds.map((id) => {
-      const pct = Number(draft.percentages[id] ?? '0');
-      return Number.isFinite(pct) && pct > 0 ? BigInt(Math.round(pct * 100)) : 0n;
-    });
+    const weights = participantIds.map((id) =>
+      BigInt(Math.max(0, percentageBasisPoints(draft.percentages[id]))),
+    );
     if (weights.every((w) => w === 0n)) {
       return Object.fromEntries(participantIds.map((id) => [id, 0n]));
     }
@@ -122,12 +129,16 @@ export function isSplitValid(
   }
 
   if (draft.splitMethod === 'percentage') {
-    const totalPct = sum(
-      participantIds.map((id) => fromDecimal(Number(draft.percentages[id] ?? '0') || 0, 2)),
-    );
-    // Within 0.01% (1 basis point) of 100 -- spec says "sum must equal
-    // 100%" but float-typed percentage inputs need a small epsilon.
-    return totalPct >= 9999n && totalPct <= 10001n;
+    // Mirrors apps/api's computeParticipantAmounts exactly: each
+    // percentage rounds to whole basis points, every one must be in
+    // (0, 100], and they must total exactly 10000 -- no epsilon, or the
+    // wizard would let through a split the server then rejects with
+    // PERCENTAGES_MUST_SUM_TO_100.
+    const basisPoints = participantIds.map((id) => percentageBasisPoints(draft.percentages[id]));
+    if (basisPoints.some((bp) => bp <= 0 || bp > 10000)) {
+      return false;
+    }
+    return basisPoints.reduce((a, b) => a + b, 0) === 10000;
   }
 
   // shares
@@ -144,4 +155,44 @@ export function enteredExactTotal(
   participantIds: readonly string[],
 ): MinorUnits {
   return sum(participantIds.map((id) => parseAmount(exactAmounts[id] ?? '')));
+}
+
+const SPLIT_TYPES: Record<SplitMethod, CreateExpenseInput['splitType']> = {
+  equal: 'EQUAL',
+  exact: 'EXACT',
+  percentage: 'PERCENTAGE',
+  shares: 'SHARES',
+};
+
+/** The draft as POST /expenses' body. `ME` becomes `meId` here and
+ * nowhere earlier (see expense-draft.tsx). Only the split method's own
+ * inputs are sent -- apps/api recomputes every share from them, so the
+ * amounts the wizard previewed are never trusted as-is. */
+export function toCreateExpenseInput(draft: ExpenseDraft, meId: string): CreateExpenseInput {
+  const realId = (id: string) => (id === ME ? meId : id);
+  const note = draft.note.trim();
+
+  return {
+    splitType: SPLIT_TYPES[draft.splitMethod],
+    name: draft.name.trim(),
+    category: draft.category,
+    amount: parseAmount(draft.amountInput).toString(),
+    ...(draft.groupId ? { groupId: draft.groupId } : {}),
+    paidById: realId(draft.payerId),
+    expenseDate: draft.date,
+    ...(note ? { notes: note } : {}),
+    participants: draft.participantIds.map((id) => {
+      const userId = realId(id);
+      switch (draft.splitMethod) {
+        case 'exact':
+          return { userId, amount: parseAmount(draft.exactAmounts[id] ?? '').toString() };
+        case 'percentage':
+          return { userId, percentage: Number(draft.percentages[id] ?? '0') };
+        case 'shares':
+          return { userId, shares: draft.shares[id] ?? 1 };
+        default:
+          return { userId };
+      }
+    }),
+  };
 }

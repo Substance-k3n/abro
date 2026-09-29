@@ -7,7 +7,18 @@
 // GET /groups/ in slice 4 for DASH-05, alongside `lastActivityAt`).
 
 import { api } from './api-client';
+import type { AuthProfile } from './auth-api';
 import { GROUP_TYPES } from './mock-data';
+
+/** apps/api/internal/apitypes/groups.go's GroupMember. */
+export interface GroupMember {
+  id: string;
+  userId: string;
+  role: 'ADMIN' | 'MEMBER';
+  status: 'INVITED' | 'ACTIVE' | 'LEFT';
+  joinedAt: string;
+  user: AuthProfile;
+}
 
 export interface AuthGroup {
   id: string;
@@ -19,7 +30,8 @@ export interface AuthGroup {
   createdById: string;
   createdAt: string;
   updatedAt: string;
-  members: unknown[];
+  /** Populated by getGroup() only -- always `[]` from listGroups(). */
+  members: GroupMember[];
 }
 
 /** GET /groups/'s element shape (apps/api/internal/apitypes/groups.go's
@@ -34,6 +46,11 @@ export interface GroupListItem extends AuthGroup {
 
 export function listGroups(): Promise<GroupListItem[]> {
   return api.get('/groups/');
+}
+
+/** GET /groups/{id} -- the one endpoint that populates `members`. */
+export function getGroup(id: string): Promise<AuthGroup> {
+  return api.get(`/groups/${id}`);
 }
 
 export type GroupType = (typeof GROUP_TYPES)[number];

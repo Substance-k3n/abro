@@ -20,16 +20,17 @@
 import { ETB, formatMoney, splitEqually } from '@abro/types';
 import { useRouter } from 'next/navigation';
 
+import { useExpenseDirectory } from '~/lib/expense-directory';
 import { ME, useExpenseDraft } from '~/lib/expense-draft';
 import { enteredExactTotal, isSplitValid, parseAmount } from '~/lib/expense-split';
-import { resolveParticipants } from '~/lib/mock-data';
 
 export default function AddExpenseExactSplitPage() {
   const router = useRouter();
   const { draft, update } = useExpenseDraft();
 
   const total = parseAmount(draft.amountInput);
-  const participants = resolveParticipants(draft.participantIds);
+  const { resolve } = useExpenseDirectory();
+  const participants = draft.participantIds.map(resolve);
   const entered = enteredExactTotal(draft.exactAmounts, draft.participantIds);
   const diff = total - entered;
   const valid = isSplitValid(draft, draft.participantIds, total);

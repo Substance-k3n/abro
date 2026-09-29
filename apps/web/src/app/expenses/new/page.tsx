@@ -15,9 +15,12 @@
 //  - "Save as draft" (spec's Components list) is deferred -- there's no
 //    draft-persistence layer yet (see expense-draft.tsx's header comment
 //    on why the wizard state is in-memory only for this phase).
-//  - Group selector is a flat list of pills (Personal + each GROUPS
-//    entry), not a dropdown/sheet -- GROUPS has only 3 mock entries, not
-//    enough to need a searchable picker yet.
+//  - Group selector is a flat list of pills (Personal + each of your
+//    real groups), not a dropdown/sheet -- revisit with a searchable
+//    picker if people end up in many groups.
+//  - Phase 8: picking a different group resets payer + participants to
+//    just you -- who's eligible differs per group (see
+//    ~/lib/expense-directory.tsx), so earlier picks may no longer be.
 //  - Phase 5 addition: a `?groupId=` query param (used by Group Detail's
 //    and Group Expenses' "Add expense" quick actions, per GRP-03/GRP-04)
 //    pre-selects that group once, on mount, without overriding a group
@@ -30,8 +33,10 @@ import { ArrowRight, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 
-import { useExpenseDraft } from '~/lib/expense-draft';
-import { CATEGORIES, GROUPS } from '~/lib/mock-data';
+import { useExpenseDirectory } from '~/lib/expense-directory';
+import { ME, useExpenseDraft } from '~/lib/expense-draft';
+import { groupTypeFor } from '~/lib/groups-api';
+import { CATEGORIES } from '~/lib/mock-data';
 
 const QUICK_NAMES = ['Lunch', 'Dinner', 'Coffee', 'Groceries'];
 
@@ -47,11 +52,18 @@ function AddExpenseDetailsForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { draft, update } = useExpenseDraft();
+  const { groups } = useExpenseDirectory();
+
+  const selectGroup = (groupId: string | null) => {
+    if (groupId !== draft.groupId) {
+      update({ groupId, payerId: ME, participantIds: [ME] });
+    }
+  };
 
   useEffect(() => {
     const groupId = searchParams.get('groupId');
-    if (groupId && draft.groupId === null && GROUPS.some((g) => g.id === groupId)) {
-      update({ groupId });
+    if (groupId && draft.groupId === null && groups.some((g) => g.id === groupId)) {
+      selectGroup(groupId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -175,7 +187,7 @@ function AddExpenseDetailsForm() {
         </label>
         <div className="flex flex-wrap gap-2">
           <button
-            onClick={() => update({ groupId: null })}
+            onClick={() => selectGroup(null)}
             className={`neo-flat rounded-xl border-none px-3.5 py-2 text-[0.8rem] font-medium ${draft.groupId === null ? 'ring-2' : ''}`}
             style={{
               color: draft.groupId === null ? 'var(--accent)' : 'var(--t-muted)',
@@ -184,17 +196,17 @@ function AddExpenseDetailsForm() {
           >
             Personal (no group)
           </button>
-          {GROUPS.map((g) => (
+          {groups.map((g) => (
             <button
               key={g.id}
-              onClick={() => update({ groupId: g.id })}
+              onClick={() => selectGroup(g.id)}
               className="neo-flat rounded-xl border-none px-3.5 py-2 text-[0.8rem] font-medium"
               style={{
                 color: draft.groupId === g.id ? 'var(--accent)' : 'var(--t-muted)',
                 ...(draft.groupId === g.id ? { boxShadow: '0 0 0 2px var(--accent)' } : {}),
               }}
             >
-              {g.icon} {g.name}
+              {groupTypeFor(g.type).icon} {g.name}
             </button>
           ))}
         </div>

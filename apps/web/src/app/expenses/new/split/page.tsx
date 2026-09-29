@@ -29,9 +29,9 @@ import { MoneyDisplay } from '@abro/ui';
 import { BarChart2, Hash, LayoutGrid, SplitSquareHorizontal } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
+import { useExpenseDirectory } from '~/lib/expense-directory';
 import { ME, type SplitMethod, useExpenseDraft } from '~/lib/expense-draft';
 import { computeShares, parseAmount } from '~/lib/expense-split';
-import { resolveParticipants } from '~/lib/mock-data';
 
 const METHODS: { id: SplitMethod; label: string; desc: string; icon: React.ReactNode }[] = [
   {
@@ -71,7 +71,8 @@ export default function AddExpenseSplitPage() {
   const { draft, update } = useExpenseDraft();
 
   const total = parseAmount(draft.amountInput);
-  const participants = resolveParticipants(draft.participantIds);
+  const { resolve } = useExpenseDirectory();
+  const participants = draft.participantIds.map(resolve);
 
   const selectMethod = (method: SplitMethod) => {
     update({ splitMethod: method });

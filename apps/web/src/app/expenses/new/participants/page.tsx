@@ -25,31 +25,42 @@
 //    at group-selection time; here it happens on landing on this step
 //    instead, since group selection (EXP-01) and participant selection
 //    (EXP-03) are now separate routes.
+//  - Phase 8: the list is ~/lib/expense-directory.tsx's `candidates`
+//    (friends for a personal expense, the group's active members for a
+//    group one), so the prototype's dimmed "not a group member" rows no
+//    longer exist -- apps/api would reject a non-member anyway.
 
 import { EmptyState, PersonRow } from '@abro/ui';
 import { Check, Search, Users, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { LoadingState } from '~/components/LoadStates';
+import { useExpenseDirectory } from '~/lib/expense-directory';
 import { ME, useExpenseDraft } from '~/lib/expense-draft';
-import { CURRENT_USER, FRIENDS, GROUPS } from '~/lib/mock-data';
+import { groupTypeFor } from '~/lib/groups-api';
 
 export default function AddExpenseParticipantsPage() {
   const router = useRouter();
   const { draft, update } = useExpenseDraft();
+  const { candidates, candidatesReady, group, resolve } = useExpenseDirectory();
   const [search, setSearch] = useState('');
-
-  const group = draft.groupId ? GROUPS.find((g) => g.id === draft.groupId) : null;
+  const you = resolve(ME);
 
   // One-time pre-select of group members, only while the draft is still
   // at its untouched default ([ME]) -- doesn't clobber a manual edit if
   // the user has already added/removed anyone.
   useEffect(() => {
-    if (group && draft.participantIds.length === 1 && draft.participantIds[0] === ME) {
-      update({ participantIds: [ME, ...group.memberIds] });
+    if (
+      group &&
+      candidatesReady &&
+      draft.participantIds.length === 1 &&
+      draft.participantIds[0] === ME
+    ) {
+      update({ participantIds: [ME, ...candidates.map((c) => c.id)] });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [group?.id]);
+  }, [group?.id, candidatesReady]);
 
   const isPayer = draft.payerId === ME;
   const youSelected = draft.participantIds.includes(ME);
@@ -66,21 +77,28 @@ export default function AddExpenseParticipantsPage() {
   };
 
   const query = search.trim().toLowerCase();
-  const filtered = query ? FRIENDS.filter((f) => f.name.toLowerCase().includes(query)) : FRIENDS;
+  const filtered = query
+    ? candidates.filter((f) => f.name.toLowerCase().includes(query))
+    : candidates;
 
-  const allFriendsSelected = FRIENDS.every((f) => draft.participantIds.includes(f.id));
+  const allFriendsSelected =
+    candidates.length > 0 && candidates.every((f) => draft.participantIds.includes(f.id));
   const toggleSelectAll = () => {
     update({
       participantIds: allFriendsSelected
         ? youSelected
           ? [ME]
           : []
-        : [...new Set([...draft.participantIds, ...FRIENDS.map((f) => f.id)])],
+        : [...new Set([...draft.participantIds, ...candidates.map((f) => f.id)])],
     });
   };
 
-  const selectedFriends = FRIENDS.filter((f) => draft.participantIds.includes(f.id));
+  const selectedFriends = candidates.filter((f) => draft.participantIds.includes(f.id));
   const totalSelected = draft.participantIds.length;
+
+  if (!candidatesReady) {
+    return <LoadingState />;
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -100,7 +118,7 @@ export default function AddExpenseParticipantsPage() {
 
       {group && (
         <div className="neo-inset-sm flex items-center gap-2 rounded-[14px] px-3.5 py-2.5">
-          <span style={{ color: 'var(--t-muted)' }}>{group.icon}</span>
+          <span style={{ color: 'var(--t-muted)' }}>{groupTypeFor(group.type).icon}</span>
           <p className="text-[0.8rem] font-medium" style={{ color: 'var(--t-muted)' }}>
             Showing members of <strong>{group.name}</strong>
           </p>
@@ -120,9 +138,9 @@ export default function AddExpenseParticipantsPage() {
             >
               <span
                 className="flex h-5 w-5 items-center justify-center rounded-full text-[0.6rem] font-bold text-white"
-                style={{ background: CURRENT_USER.color }}
+                style={{ background: you.color }}
               >
-                {CURRENT_USER.initials}
+                {you.initials}
               </span>
               You
               {!isPayer && (
@@ -161,7 +179,7 @@ export default function AddExpenseParticipantsPage() {
         />
         <input
           className="neo-input"
-          placeholder="Search friends"
+          placeholder={group ? 'Search members' : 'Search friends'}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{ paddingLeft: 40 }}
@@ -188,19 +206,27 @@ export default function AddExpenseParticipantsPage() {
       </button>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={<Users size={26} strokeWidth={1.5} />} title="No friends found" />
+        <EmptyState
+          icon={<Users size={26} strokeWidth={1.5} />}
+          title={
+            candidates.length === 0
+              ? group
+                ? 'No other members in this group'
+                : 'No friends yet'
+              : 'No one matches that search'
+          }
+        />
       ) : (
         <div className="flex flex-col gap-2">
           {filtered.map((f) => {
             const selected = draft.participantIds.includes(f.id);
-            const isGroupMember = group ? group.memberIds.includes(f.id) : true;
             return (
-              <div key={f.id} style={{ opacity: isGroupMember ? 1 : 0.6 }}>
+              <div key={f.id}>
                 <PersonRow
                   initials={f.initials}
                   color={f.color}
                   name={f.name}
-                  sub={group && isGroupMember ? 'Group member' : undefined}
+                  sub={group ? 'Group member' : undefined}
                   right={
                     <div
                       className="flex h-6 w-6 items-center justify-center rounded-lg"
