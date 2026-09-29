@@ -22,6 +22,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/expenses"
 	"github.com/Substance-k3n/abro/apps/api/internal/friends"
 	"github.com/Substance-k3n/abro/apps/api/internal/groups"
+	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
@@ -50,6 +51,7 @@ type env struct {
 	makeProfile  func(t *testing.T, label string) db.Profile
 	makeFriends  func(t *testing.T, a, b pgtype.UUID)
 	trackExpense func(id pgtype.UUID)
+	trackGroup   func(id pgtype.UUID)
 }
 
 func setup(t *testing.T) env {
@@ -116,6 +118,7 @@ func setup(t *testing.T) env {
 		svc: svc, groupsSvc: groupsSvc, notifySvc: notifySvc, receiptStore: receiptStore, pool: pool,
 		makeProfile: makeProfile, makeFriends: makeFriendsFn,
 		trackExpense: func(id pgtype.UUID) { expenseIDs = append(expenseIDs, id) },
+		trackGroup:   func(id pgtype.UUID) { groupIDs = append(groupIDs, id) },
 	}
 }
 
@@ -441,6 +444,47 @@ func TestService_GroupExpenses(t *testing.T) {
 
 		_, err = e.svc.FindByID(context.Background(), observer.ID, expense.ID)
 		assert.Error(t, err)
+	})
+
+	t.Run("an expense in a deleted group is frozen and drops out of the list", func(t *testing.T) {
+		e := setup(t)
+		ctx := context.Background()
+		owner := e.makeProfile(t, "Owner")
+		friend := e.makeProfile(t, "Friend")
+		e.makeFriends(t, owner.ID, friend.ID)
+
+		group, err := e.groupsSvc.Create(ctx, owner.ID, apitypes.CreateGroupInput{
+			Name: "Trip", MemberIDs: []string{idutil.String(friend.ID)},
+		})
+		require.NoError(t, err)
+		e.trackGroup(group.ID)
+		_, err = e.groupsSvc.AcceptInvite(ctx, friend.ID, group.ID)
+		require.NoError(t, err)
+
+		// Owner pays only for themselves, so every net stays 0 and the
+		// group can be deleted.
+		groupIDStr := idutil.String(group.ID)
+		in := baseInput("EQUAL", "Solo", "200", equalParticipants(owner.ID))
+		in.GroupID = &groupIDStr
+		expense, err := e.svc.Create(ctx, owner.ID, in)
+		require.NoError(t, err)
+		e.trackExpense(expense.ID)
+
+		require.NoError(t, e.groupsSvc.Delete(ctx, owner.ID, group.ID))
+
+		var apiErr *httpx.APIError
+		err = e.svc.SoftDelete(ctx, owner.ID, expense.ID)
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, "GROUP_NOT_FOUND", apiErr.Code)
+		_, err = e.svc.Update(ctx, owner.ID, expense.ID, in)
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, "GROUP_NOT_FOUND", apiErr.Code)
+
+		listed, err := e.svc.List(ctx, owner.ID, apitypes.ListExpensesQuery{})
+		require.NoError(t, err)
+		for _, x := range listed {
+			assert.NotEqual(t, expense.ID, x.ID)
+		}
 	})
 }
 

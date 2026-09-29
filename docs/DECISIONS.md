@@ -7,6 +7,64 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-009: Group integrity rules — settled-only leave/remove/delete, soft-deleted groups, locked currency
+
+**Status:** Accepted (user decisions, 2026-09-29)
+
+**Context:** Wiring the group screens (Phase 8 slice 8) showed three
+gaps in apps/api's group rules:
+
+- A member could leave, or be removed, while owing or being owed money.
+  Balances stay correct because they're calculated from expenses, but a
+  departed member can no longer open the group, so they can't see or
+  settle that debt.
+- There was no way to delete a group. GRP-07 asks for one (creator
+  only, not while balances are outstanding).
+- `PATCH /groups/{id}` accepted a currency change after expenses
+  existed. Amounts are stored as bare minor units, so 1000 ETB would
+  silently become 1000 USD.
+
+**Decision:**
+
+- **Leave/remove** (`DELETE /groups/{id}/members/{userId}`) is refused
+  with `409 OUTSTANDING_BALANCE` while the target's net in the group
+  (paid − owed over non-deleted expenses, settlements included, the
+  same figure as `GET /balances/groups/{id}`) isn't 0.
+- **Delete** (`DELETE /groups/{id}`) is a soft delete: migration
+  `0011_group_soft_delete` adds `groups.deleted_at`/`deleted_by_id`,
+  the same shape as expenses. It's allowed for the creator only (who
+  must still be an active member), and only when every member's net is 0.
+  The group's expenses stay in place as facts. From then on the group
+  reads as not found everywhere:
+  - `GetGroupByID` and `GetGroupMember` filter on `deleted_at IS NULL`,
+    so every membership check in groups, expenses, balances, settlements
+    and recurring inherits it.
+  - The group, invite, expense, recurring and analytics list queries
+    filter deleted groups out.
+  - An expense in a deleted group can't be edited or deleted
+    (`GROUP_NOT_FOUND`), because that would reopen a balance nobody can
+    see.
+  - Recurring templates in a deleted group are skipped by
+    `ListDueRecurringExpenses`. Otherwise `GenerateDue`, which stops at
+    its first error, would stall every user's recurring expenses.
+- **Currency** changes are refused with `409 CURRENCY_LOCKED` once the
+  group has any non-deleted expense. Resending the current currency is
+  fine.
+
+**Alternatives considered:** allowing leave with a UI warning only
+(rejected: it strands the debt from the debtor's view); a hard delete
+of the group (rejected: it destroys expense history, against
+"expenses are facts"); converting the currency on change (rejected:
+needs exchange rates ABRO doesn't have).
+
+**Consequences:** A group can only be deleted, or left, after settling
+up, which is the Settle flow's job (slice 9). A soft-deleted group has
+no restore path yet. A personal-expense participant can still open a
+deleted group's expense by direct link (read-only), since visibility
+for payers and participants doesn't depend on the group.
+
+---
+
 ## ADR-008: Receipt storage server — RustFS, superseding ADR-006's MinIO choice
 
 **Status:** Accepted
