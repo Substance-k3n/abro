@@ -642,9 +642,48 @@ badges, +300 / Settled for Alice and -300 for Bekele (who correctly
 doesn't see Alice's solo group). Home/Friends/Balances/Notifications
 re-checked after the shared-component refactor, no console errors.
 
+### Slice 5 — Search (DASH-08) `[done]`
+
+Branches: `feature/expenses-text-search` (PR #31, backend),
+`feature/search-api-integration` (this PR, frontend).
+
+Expenses had no server-side text search, and paging through
+`GET /expenses` in the browser can't honestly search a user's whole
+history -- same "fix the backend" call as slices 2 and 4: `GET
+/expenses` gained an optional `q` (PR #31: case-insensitive substring
+over name/category/notes, `%`/`_` matched literally, max 100 chars,
+combinable with `groupId`/`friendId` and paging).
+
+- [x] `~/lib/expenses-api.ts`'s `listExpenses({ search })` -> `q`.
+- [x] `/search` (DASH-08) -- People = your friends (client-side name
+      match, real balances via `deriveFriendRows()`), Groups = your
+      groups (client-side, type + real `memberCount`), Expenses =
+      debounced (300ms) server-side `q` search, first 30 matches with
+      a "30+" label and a refine hint beyond that; stale responses are
+      dropped. Settlements are covered by the expense search (they're
+      expense rows named "Settlement", ADR-003). Recent searches (last 5) persist in `localStorage`, recorded on Enter or opening a
+      result.
+
+Deviations (Confirmed): non-friends are deliberately not searchable --
+apps/api's `GET /friends/search` is exact email/phone match by design
+(no browsing the user directory); adding people stays Add Friend's
+job. Suggestions (spec) not built -- no data source yet. Expense rows
+not clickable and group rows land on mock-only GRP-03, same as slice 4.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean;
+`go vet`/`gofmt -l`/`go test ./...` clean (backend, with a test proven
+to fail if the LIKE escaping is removed). Browser, real API from PR #31
+with slice 4's two-user data: "lalibela" -> the group (Trip · 2
+members) + the hotel expense; "coffee" -> "Expenses (30+)" and the
+refine hint on the Expenses tab (35 real matches); "alice" -> Alice
+with the correct red 230.00 ETB, opening it lands on her real Friend
+Detail and records the search; "settle" -> the settlement; "%" -> No
+results; recent searches persist across reloads, newest first, and
+Clear empties them; no console errors.
+
 ### Later slices `[todo]`
 
-Search (`DASH-08`), expenses (`EXP-0x`), groups (`GRP-0x`), settlement
+Expenses (`EXP-0x`), groups (`GRP-0x`), settlement
 (`STL-0x`/`BAL-0x`), profile/settings preferences beyond auth
 (`PRF-01`'s stats/currency/language, `SET-0x`) -- each replaces its own
 slice of `~/lib/mock-data.ts`, reusing the `~/lib/*-api.ts` modules
