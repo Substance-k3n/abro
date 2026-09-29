@@ -18,7 +18,7 @@
 //  - One request of up to HISTORY_LIMIT rows (apps/api's max page size),
 //    no pagination UI yet -- a personal history with one friend past 100
 //    rows is well beyond MVP usage; the Activity screen pages if needed.
-//  - Rows are not clickable (EXP-09 still mock-only), same as Home and
+//  - Rows open the expense's detail page (EXP-09), same as Home and
 //    Activity. "Settle Up"/"Add expense" still hand off to the mock
 //    settle/expense flows until their own slices -- /settle with an
 //    unknown friendId falls back to its own friend picker, not a crash.
@@ -209,6 +209,7 @@ export default function FriendDetailPage() {
                 amount={a.amount}
                 dir={a.dir}
                 time={a.time}
+                onClick={() => router.push(`/expenses/${a.id}`)}
               />
             ))
           )}
