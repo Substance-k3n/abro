@@ -836,7 +836,7 @@ editing Hotel → "Only the payer or a group admin can edit this
 expense." inline, form kept, nothing stored; his participant list
 includes Carol (group member, not his friend).
 
-### Slice 8 — Groups (GRP-01…GRP-08) `[in progress]`
+### Slice 8 — Groups (GRP-01…GRP-08) `[done]`
 
 Four PRs: backend rules first, then the screens.
 
@@ -938,9 +938,55 @@ Browser, real API:
   - Join on Bob Flat → it appears under Settled with 2 members.
 - Opening /groups/new/members directly → redirected to /groups/new.
 
-**8d — members + settings `[todo]`.** User decisions (2026-09-29):
-hide GRP-07's default split method and notification toggles (no
-backend field).
+**8d — Members + settings (GRP-06/07) `[done]`.** Branch:
+`feature/group-members-settings-api-integration`. Frontend only, on 8a's
+rules (ADR-009).
+
+- [x] GRP-06: active members with their group balance and real roles,
+      then pending invites. Admins get: invite a friend
+      (`POST /groups/{id}/members`), Make/Remove admin
+      (`PATCH .../members/{userId}`), Remove from group and Cancel
+      invite (`DELETE .../members/{userId}`, confirmed inline).
+      apps/api's refusals (`OUTSTANDING_BALANCE`, `LAST_ADMIN`) show
+      above the list.
+- [x] GRP-07: open to every member (Leave lives here) but editable by
+      admins only. It saves name, description, type, currency and
+      simplify debts with `PATCH /groups/{id}`, and sends the currency
+      only when it changed. Currency is locked in the UI once the group
+      has an expense (apps/api: `CURRENCY_LOCKED`).
+- [x] Danger Zone: Leave (anyone) and Delete (creator only), both
+      confirmed inline and then back to /groups. Up-front hints for
+      "settle your X balance first" / "everyone must be settled"; the
+      server's message shows if it refuses.
+- [x] GRP-03's settings icon now shows for every member.
+
+Deviations (Confirmed, user decision 2026-09-29): "Default split method"
+and the notification toggles are hidden (no backend field). No
+email/phone invites.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API, as Alice.
+
+In Lalibela Trip (admin and creator; nets A −333.34, B −83.33,
+C +416.67):
+
+- Make admin on Bob → Bob shows Admin; Remove admin reverts it.
+- Remove Bob → "This member has an unsettled balance…".
+- Rename to "Lalibela 2026" → "Saved ✓" and the header updates.
+- The currency is locked with its note.
+- Leave → "Promote another member to admin…" (LAST_ADMIN is checked
+  before balances).
+- Delete → "Everyone must be settled up…".
+
+In a new "Temp" group (no expenses):
+
+- Cancel Carol's invite, then invite Bob from the panel.
+- Currency → USD saved (stored as USD).
+- Delete → /groups, Temp gone, and `GET` → 403.
+
+In "Bob Flat" (Alice is a plain member): "Only admins can change these
+settings.", the fields are disabled, there's no Save or Delete, and
+Leave → /groups with Bob Flat gone.
 
 ### Later slices `[todo]`
 

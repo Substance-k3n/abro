@@ -7,7 +7,8 @@
 // group's latest expenses (GET /expenses?groupId=).
 //
 // Deviations:
-//  - Settings icon shows for admins only (GRP-07 is admin-only); the
+//  - Settings icon shows for every member: GRP-07 is editable by
+//    admins only, but it's also where anyone leaves the group (8d). The
 //    separate "More menu" is dropped (nothing to put in it beyond what
 //    settings covers).
 //  - Quick Actions render as a row of buttons, not floating action
@@ -78,17 +79,13 @@ function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpens
         >
           {group.name}
         </h2>
-        {isAdmin ? (
-          <Link
-            href={`/groups/${group.id}/settings`}
-            aria-label="Group settings"
-            className="neo-btn flex h-9 w-9 items-center justify-center rounded-xl"
-          >
-            <Settings size={17} strokeWidth={2} />
-          </Link>
-        ) : (
-          <div className="w-9" />
-        )}
+        <Link
+          href={`/groups/${group.id}/settings`}
+          aria-label="Group settings"
+          className="neo-btn flex h-9 w-9 items-center justify-center rounded-xl"
+        >
+          <Settings size={17} strokeWidth={2} />
+        </Link>
       </div>
 
       {/* Group info card */}
