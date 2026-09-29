@@ -104,6 +104,13 @@ export function createExpense(
   return api.post('/expenses/', input, { 'Idempotency-Key': idempotencyKey });
 }
 
+/** PATCH /expenses/{id} (EXP-10). apps/api treats an edit as a full
+ * resubmit -- same shape and validation as create, every share
+ * recomputed -- and only the payer or a group admin may make it. */
+export function updateExpense(id: string, input: CreateExpenseInput): Promise<AuthExpense> {
+  return api.patch(`/expenses/${id}`, input);
+}
+
 const SPLIT_LABELS: Record<string, string> = {
   EQUAL: 'Equal split',
   EXACT: 'Exact split',
