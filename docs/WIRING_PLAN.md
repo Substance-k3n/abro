@@ -836,7 +836,7 @@ editing Hotel → "Only the payer or a group admin can edit this
 expense." inline, form kept, nothing stored; his participant list
 includes Carol (group member, not his friend).
 
-### Slice 8 — Groups (GRP-01…GRP-07) `[in progress]`
+### Slice 8 — Groups (GRP-01…GRP-08) `[in progress]`
 
 Four PRs: backend rules first, then the screens.
 
@@ -860,14 +860,6 @@ the group gone from lookups and lists with its expenses intact; an
 invite to a deleted group disappearing; a deleted group's expense
 frozen and dropped from the list; and the recurring due-list skipping
 it.
-
-**8b — Group detail + tabs (read) `[todo]`**, **8c — create group +
-invites `[todo]`**, **8d — members + settings `[todo]`.** User
-decisions (2026-09-29): hide GRP-07's default split method and
-notification toggles (no backend field); invites need an accept UI
-(there's none anywhere yet).
-
-### Slice 8 — Groups (GRP-01…GRP-08) `[in progress]`
 
 **8b — Group detail + read-only tabs (GRP-03/04/05/08) `[done]`.**
 Branch: `feature/group-detail-api-integration`. Frontend only.
@@ -913,6 +905,11 @@ Carol +416.67, Bob −83.33, Alice −333.34, which sums to 0. As Bob:
 - A random uuid and `not-a-uuid` both show "Group not found".
 - After Carol left (the pre-8a API still allowed it), she's listed
   "Carol Test (left) +416.67".
+
+**8c — create group + invites `[todo]`**, **8d — members + settings
+`[todo]`.** User decisions (2026-09-29): hide GRP-07's default split
+method and notification toggles (no backend field); invites need an
+accept UI (there's none anywhere yet).
 
 ### Later slices `[todo]`
 
