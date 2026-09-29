@@ -711,7 +711,7 @@ supported (apps/api matches email/phone only).
 Manual browser verification against a live API still pending (local
 Docker wasn't reachable from the session).
 
-### Slice 7 — Expenses (EXP-01…EXP-10) `[in progress]`
+### Slice 7 — Expenses (EXP-01…EXP-10) `[done]`
 
 Frontend only -- apps/api's `/expenses` routes already cover create,
 read, edit, delete, notes and receipts. Three PRs, one per concern:
@@ -773,8 +773,8 @@ created once. As Bob: the group payer list offers Alice and Carol
       open this page (Search also records the query, like its other
       results).
 
-Deviations (Confirmed): "Edit expense" is hidden until slice 7c wires
-EXP-10 (it still reads mock data); settlements never get Edit. apps/api
+Deviations (Confirmed): "Edit expense" was hidden until slice 7c
+wired EXP-10; settlements never get Edit. apps/api
 stores no creator/editor on an expense, so the activity log shows
 created/updated dates only. Receipt and notes-thread UI still not built.
 
@@ -788,12 +788,53 @@ no menu; a random uuid and `not-a-uuid` → "Expense not found". As Alice
 Alice↔Bob balance −15025 → 0, `GET` → 404. Rows open the detail page
 from Home, Friend Detail and Search (query saved to recent searches).
 
-**7c — Edit (EXP-10) `[todo]`:** `PATCH` resubmits the whole expense,
-but apps/api stores only final amounts, not percentages/share weights.
-Decided (user, 2026-09-29): if amount and participants are unchanged,
-resend the stored amounts as EXACT (a PERCENTAGE/SHARES expense then
-shows as "Exact split"); if either changes, recalculate as EQUAL (the
-screen's existing behavior).
+**7c — Edit (EXP-10) `[done]`.** Branch:
+`feature/expense-edit-api-integration`.
+
+- [x] `/expenses/[id]/edit` loads `GET /expenses/{id}` and saves with
+      `PATCH /expenses/{id}` (`updateExpense`), then returns to the
+      detail page. Unknown/deleted/not-visible ids show "Expense not
+      found"; a settlement shows "Settlements can't be edited".
+- [x] Editable: name, category, amount, date, note, participants.
+      Payer and group are resent unchanged. If you paid, your row is
+      locked in (as in EXP-03).
+- [x] Addable people mirror apps/api's `prepareWrite`: your friends
+      (personal) or the group's ACTIVE members (group). Current
+      participants always show so they can be removed.
+- [x] Split on save is `~/lib/expense-split.ts`'s `editedSplit`.
+      apps/api stores only final amounts, not percentages or share
+      weights. Decided (user, 2026-09-29): if amount and participants
+      are unchanged, resend the stored amounts -- an EQUAL expense
+      stays EQUAL (participants sent largest share first, since
+      apps/api gives the remainder to the first ones and returns them
+      unordered), anything else goes as EXACT (so PERCENTAGE/SHARES
+      then read "Exact split"). If either changes, recalculate as
+      EQUAL, with the spec's warning copy and a preview.
+- [x] Server refusals (`NOT_EDIT_AUTHORIZED`, `NOT_FRIENDS`, membership)
+      show above Update and the form keeps your edits.
+- [x] EXP-09's actions menu has "Edit expense" again (not for
+      settlements).
+
+Deviations (Confirmed): no per-method re-editing (exact/percentage/
+shares inputs) -- the wizard's split screens aren't reused here.
+Category is still the static `CATEGORIES` list.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+`editedSplit` checked by hand against six cases (unchanged EQUAL with
+the remainder on a non-first participant, unchanged PERCENTAGE,
+inconsistent EQUAL → EXACT, amount changed, participant removed,
+participant swapped). Browser, real API, the 7a seed (Alice friends with
+Bob and Carol; all three in "Lalibela Trip"): as Alice, personal EQUAL
+"Dinner" 1000 (Carol stored 333.34) renamed only → still Equal,
+333.33/333.34/333.33 unchanged; group PERCENTAGE "Hotel" (Carol paid,
+Alice admin) date-only edit → "Exact", 333.40/333.30/333.30, Carol
+still payer; Hotel amount → 900 shows both warnings and saves Equal
+300 × 3; Bob removed from Dinner → 500/500, Alice↔Bob balance 0,
+clicking your own payer row does nothing; settlement and random-uuid
+edit URLs show their empty states. As Bob (not admin, not payer),
+editing Hotel → "Only the payer or a group admin can edit this
+expense." inline, form kept, nothing stored; his participant list
+includes Carol (group member, not his friend).
 
 ### Later slices `[todo]`
 
