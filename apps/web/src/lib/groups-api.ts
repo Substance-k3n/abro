@@ -90,7 +90,52 @@ export function acceptGroupInvite(groupId: string): Promise<unknown> {
  * DELETE /groups/{id}/members/{you} marks your INVITED row LEFT (an
  * admin can re-invite you later). */
 export function declineGroupInvite(groupId: string, myId: string): Promise<void> {
-  return api.delete(`/groups/${groupId}/members/${myId}`);
+  return removeGroupMember(groupId, myId);
+}
+
+/** PATCH /groups/{id} (admins only). apps/api refuses a currency change
+ * once the group has expenses (CURRENCY_LOCKED, ADR-009). */
+export function updateGroup(
+  id: string,
+  patch: {
+    name?: string;
+    type?: string;
+    currency?: string;
+    description?: string;
+    simplifyDebts?: boolean;
+  },
+): Promise<AuthGroup> {
+  return api.patch(`/groups/${id}`, patch);
+}
+
+/** POST /groups/{id}/members (admins only) -- invites a friend of
+ * yours; they join by accepting. */
+export function addGroupMember(groupId: string, userId: string): Promise<unknown> {
+  return api.post(`/groups/${groupId}/members`, { userId });
+}
+
+/** PATCH /groups/{id}/members/{userId} (admins only). apps/api keeps at
+ * least one admin (LAST_ADMIN). */
+export function setGroupMemberRole(
+  groupId: string,
+  userId: string,
+  role: 'ADMIN' | 'MEMBER',
+): Promise<unknown> {
+  return api.patch(`/groups/${groupId}/members/${userId}`, { role });
+}
+
+/** DELETE /groups/{id}/members/{userId}: leave (yourself), remove
+ * someone (admins), or cancel/decline an invite. Refused while that
+ * member's group balance isn't 0 (OUTSTANDING_BALANCE, ADR-009) or for
+ * the last admin (LAST_ADMIN). */
+export function removeGroupMember(groupId: string, userId: string): Promise<void> {
+  return api.delete(`/groups/${groupId}/members/${userId}`);
+}
+
+/** DELETE /groups/{id} -- creator only, once everyone is settled
+ * (ADR-009). A soft delete: the expenses stay, the group disappears. */
+export function deleteGroup(id: string): Promise<void> {
+  return api.delete(`/groups/${id}`);
 }
 
 export type GroupType = (typeof GROUP_TYPES)[number];
