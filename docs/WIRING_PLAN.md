@@ -1061,6 +1061,28 @@ As Carol:
   Success shows 250 still owed (apps/api: 25000).
 - Settling with Bob (not a friend) → "Nothing to settle".
 
+### Slice 10 — Profile & settings (PRF-01, SET-01…SET-03) `[in progress]`
+
+**10c — Notification settings (SET-02) `[done]`.** Branch:
+`feature/notification-settings-api-integration`. Needs 10a (#43).
+
+- [x] One switch per type apps/api sends (all 8, with plain-language
+      descriptions), backed by `GET`/`PATCH /notifications/preferences`
+      (`~/lib/notifications-api.ts`). Each switch saves immediately,
+      flips back on failure, and the error shows above the list.
+- [x] Dropped (user decision): push/email channels (none exist) and
+      quiet hours. The spec's "Balance reminder" / "Payment due" are
+      also dropped, since apps/api sends no such notifications.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API (10a running from a worktree), as Alice:
+
+- All 8 types show as on. Settlements off → saved (the API reads
+  `SETTLEMENT: false`) and still off after a reload.
+- Two settlements from Carol while off → Alice's SETTLEMENT
+  notifications stay at 2.
+- Switched back on → the next settlement brings it to 3.
+
 ### Later slices `[todo]`
 
 Groups (`GRP-0x`), settlement

@@ -1,56 +1,92 @@
 'use client';
 
 // SET-02 Notification Settings -- docs/ABRO_FRONTEND_SPEC.md §7 (lines
-// 1857-1896). Reached from SET-01's "Notification types" row.
+// 1857-1896). Reached from SET-01's "Notification types" and PRF-01's
+// "Notifications". Phase 8 slice 10c: one switch per notification type
+// apps/api sends, backed by GET/PATCH /notifications/preferences (10a).
+// A type switched off is never created for you (in-app).
 //
-// Deviations (Confirmed, see ~/lib/mock-data.ts's NOTIFICATION_PREFS
-// header comment for the full reasoning): one toggle per type applying
-// to both channels (not a per-type-per-channel matrix); "Payment due"
-// dropped (the spec itself marks it "(future)"); quiet hours are local/
-// UI-only state (`useState`, not `NOTIFICATION_PREFS`) -- nothing reads
-// them, so persisting would overstate their real effect, same reasoning
-// as SET-01's date/number format fields.
+// Deviations (Confirmed, user decision 2026-09-29):
+//  - In-app only: no push/email channel toggles -- apps/api has neither
+//    channel.
+//  - Quiet hours dropped (nothing to delay without a push channel).
+//  - The spec's "Balance reminder" / "Payment due" are dropped: apps/api
+//    sends no such notifications. The list is exactly what it sends.
+//  - Each switch saves immediately (like DASH-07's mark-as-read); on
+//    failure it flips back and the error shows above the list.
 
 import { ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import { NOTIFICATION_PREFS, updateNotificationPrefs } from '~/lib/mock-data';
+import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { ApiError } from '~/lib/api-client';
+import {
+  type NotificationPreferences,
+  getNotificationPreferences,
+  updateNotificationPreferences,
+} from '~/lib/notifications-api';
 
-const TYPE_LABELS: { key: keyof typeof NOTIFICATION_PREFS.types; label: string }[] = [
-  { key: 'expenseAdded', label: "Expense added (you're involved)" },
-  { key: 'expenseUpdated', label: 'Expense updated' },
-  { key: 'settlementReceived', label: 'Settlement received' },
-  { key: 'groupInvitation', label: 'Group invitation' },
-  { key: 'memberJoined', label: 'Member joined group' },
-  { key: 'balanceReminder', label: 'Balance reminder' },
+const TYPES: { type: string; label: string; sub: string }[] = [
+  { type: 'EXPENSE_ADDED', label: 'New expenses', sub: "Someone adds an expense you're on" },
+  { type: 'EXPENSE_EDITED', label: 'Expense changes', sub: "An expense you're on is edited" },
+  { type: 'EXPENSE_DELETED', label: 'Deleted expenses', sub: "An expense you're on is deleted" },
+  { type: 'SETTLEMENT', label: 'Settlements', sub: 'Someone records a payment to you' },
+  { type: 'GROUP_INVITATION', label: 'Group invitations', sub: "You're invited to a group" },
+  {
+    type: 'GROUP_MEMBERSHIP_CHANGE',
+    label: 'Group members',
+    sub: 'People join or leave, your role changes, or the group is deleted',
+  },
+  {
+    type: 'RECURRING_EXPENSE',
+    label: 'Recurring expenses',
+    sub: 'A recurring expense is generated',
+  },
+  {
+    type: 'DEBT_SIMPLIFICATION_CHANGE',
+    label: 'Debt simplification',
+    sub: "A group's simplify setting changes",
+  },
 ];
-
-function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className={`neo-toggle ${on ? 'on' : ''}`} aria-pressed={on}>
-      <span className="neo-toggle-thumb" />
-    </button>
-  );
-}
 
 export default function NotificationSettingsPage() {
   const router = useRouter();
-  const [, forceRerender] = useState(0);
-  const [quietHoursEnabled, setQuietHoursEnabled] = useState(NOTIFICATION_PREFS.quietHoursEnabled);
-  const [quietHoursStart, setQuietHoursStart] = useState(NOTIFICATION_PREFS.quietHoursStart);
-  const [quietHoursEnd, setQuietHoursEnd] = useState(NOTIFICATION_PREFS.quietHoursEnd);
+  const [prefs, setPrefs] = useState<NotificationPreferences | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
 
-  const toggleChannel = (channel: 'pushEnabled' | 'emailEnabled') => {
-    updateNotificationPrefs({ [channel]: !NOTIFICATION_PREFS[channel] });
-    forceRerender((n) => n + 1);
+  const load = () => {
+    setLoadError(null);
+    getNotificationPreferences()
+      .then(setPrefs)
+      .catch((err) =>
+        setLoadError(err instanceof ApiError ? err.message : 'Could not load your settings.'),
+      );
   };
 
-  const toggleType = (key: keyof typeof NOTIFICATION_PREFS.types) => {
-    updateNotificationPrefs({
-      types: { ...NOTIFICATION_PREFS.types, [key]: !NOTIFICATION_PREFS.types[key] },
-    });
-    forceRerender((n) => n + 1);
+  useEffect(load, []);
+
+  if (loadError) {
+    return <ErrorState message={loadError} onRetry={load} />;
+  }
+  if (!prefs) {
+    return <LoadingState />;
+  }
+
+  const toggle = async (type: string) => {
+    const next = !(prefs[type] ?? true);
+    setSaving(type);
+    setSaveError(null);
+    setPrefs({ ...prefs, [type]: next });
+    try {
+      setPrefs(await updateNotificationPreferences({ [type]: next }));
+    } catch (err) {
+      setPrefs((p) => (p ? { ...p, [type]: !next } : p));
+      setSaveError(err instanceof ApiError ? err.message : 'Could not save. Please try again.');
+    }
+    setSaving(null);
   };
 
   return (
@@ -69,32 +105,20 @@ export default function NotificationSettingsPage() {
         <div className="w-[70px]" />
       </div>
 
-      <section className="neo-raised-sm flex flex-col gap-3.5 rounded-3xl p-4">
+      <p className="px-1 text-[0.78rem]" style={{ color: 'var(--t-muted)' }}>
+        Choose what shows up in your in-app notifications. Turning a type off stops new ones; your
+        balances and activity are unaffected.
+      </p>
+
+      {saveError && (
         <p
-          className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-          style={{ color: 'var(--t-dim)' }}
+          role="alert"
+          className="rounded-xl px-3.5 py-2.5 text-[0.8rem] font-medium"
+          style={{ background: 'var(--red-bg)', color: 'var(--c-red)' }}
         >
-          Channels
+          {saveError}
         </p>
-        <div className="flex items-center justify-between">
-          <p className="text-[0.85rem]" style={{ color: 'var(--t-secondary)' }}>
-            Push notifications
-          </p>
-          <Toggle
-            on={NOTIFICATION_PREFS.pushEnabled}
-            onClick={() => toggleChannel('pushEnabled')}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <p className="text-[0.85rem]" style={{ color: 'var(--t-secondary)' }}>
-            Email notifications
-          </p>
-          <Toggle
-            on={NOTIFICATION_PREFS.emailEnabled}
-            onClick={() => toggleChannel('emailEnabled')}
-          />
-        </div>
-      </section>
+      )}
 
       <section className="neo-raised-sm flex flex-col gap-3.5 rounded-3xl p-4">
         <p
@@ -103,58 +127,30 @@ export default function NotificationSettingsPage() {
         >
           Notify me about
         </p>
-        {TYPE_LABELS.map(({ key, label }) => (
-          <div key={key} className="flex items-center justify-between">
-            <p className="text-[0.85rem]" style={{ color: 'var(--t-secondary)' }}>
-              {label}
-            </p>
-            <Toggle on={NOTIFICATION_PREFS.types[key]} onClick={() => toggleType(key)} />
-          </div>
-        ))}
-      </section>
-
-      <section className="neo-raised-sm flex flex-col gap-3.5 rounded-3xl p-4">
-        <div className="flex items-center justify-between">
-          <p
-            className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
-            Quiet Hours
-          </p>
-          <Toggle on={quietHoursEnabled} onClick={() => setQuietHoursEnabled((v) => !v)} />
-        </div>
-        {quietHoursEnabled && (
-          <div className="flex items-center gap-3">
-            <div className="flex-1">
-              <label
-                className="mb-1.5 block pl-1 text-[0.72rem] font-semibold"
-                style={{ color: 'var(--t-muted)' }}
+        {TYPES.map(({ type, label, sub }) => {
+          const on = prefs[type] ?? true;
+          return (
+            <div key={type} className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[0.85rem]" style={{ color: 'var(--t-secondary)' }}>
+                  {label}
+                </p>
+                <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+                  {sub}
+                </p>
+              </div>
+              <button
+                onClick={() => toggle(type)}
+                disabled={saving === type}
+                className={`neo-toggle shrink-0 ${on ? 'on' : ''}`}
+                aria-pressed={on}
+                aria-label={label}
               >
-                Start
-              </label>
-              <input
-                type="time"
-                className="neo-input font-mono"
-                value={quietHoursStart}
-                onChange={(e) => setQuietHoursStart(e.target.value)}
-              />
+                <span className="neo-toggle-thumb" />
+              </button>
             </div>
-            <div className="flex-1">
-              <label
-                className="mb-1.5 block pl-1 text-[0.72rem] font-semibold"
-                style={{ color: 'var(--t-muted)' }}
-              >
-                End
-              </label>
-              <input
-                type="time"
-                className="neo-input font-mono"
-                value={quietHoursEnd}
-                onChange={(e) => setQuietHoursEnd(e.target.value)}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })}
       </section>
     </div>
   );
