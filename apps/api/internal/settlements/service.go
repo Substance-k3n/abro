@@ -28,6 +28,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/groups"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
+	"github.com/Substance-k3n/abro/apps/api/internal/money"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 )
 
@@ -65,12 +66,9 @@ func (s *Service) Create(ctx context.Context, actorID pgtype.UUID, in apitypes.C
 
 	// ABRO_PRD.md §19/§45: "settlement <= outstanding debt", validated
 	// against the live balance, never a client-supplied figure.
-	outstanding, err := s.balances.GetPairwiseBalance(ctx, actorID, toUserID, groupID)
+	outstanding, err := s.outstanding(ctx, actorID, toUserID, groupID)
 	if err != nil {
 		return expenses.Expense{}, err
-	}
-	if outstanding <= 0 {
-		return expenses.Expense{}, httpx.Conflict("NO_OUTSTANDING_DEBT", "You do not currently owe this user anything to settle.")
 	}
 	if in.ParsedAmount > outstanding {
 		return expenses.Expense{}, httpx.Conflict("EXCEEDS_OUTSTANDING_DEBT",
@@ -110,6 +108,53 @@ func (s *Service) Create(ctx context.Context, actorID pgtype.UUID, in apitypes.C
 	}
 
 	return full, nil
+}
+
+// outstanding is the most the actor may settle to toUserID.
+//
+// Personal: their pairwise balance (what the actor owes them across
+// shared personal expenses).
+//
+// In a group (ADR-010, decided with the user 2026-09-29): measured
+// against group nets, not the pair's shared expenses -- the actor must
+// owe the group (net < 0), the recipient must be owed (net > 0), and the
+// amount is capped by the smaller of the two. That's what every group
+// screen shows and what the simplified plan routes through, so each of
+// its payments is payable; after one, both nets move toward 0 and no one
+// else's changes.
+func (s *Service) outstanding(ctx context.Context, actorID, toUserID, groupID pgtype.UUID) (money.MinorUnits, error) {
+	if !groupID.Valid {
+		owed, err := s.balances.GetPairwiseBalance(ctx, actorID, toUserID, groupID)
+		if err != nil {
+			return 0, err
+		}
+		if owed <= 0 {
+			return 0, httpx.Conflict("NO_OUTSTANDING_DEBT", "You do not currently owe this user anything to settle.")
+		}
+		return owed, nil
+	}
+
+	positions, err := s.balances.GetGroupSummary(ctx, groupID)
+	if err != nil {
+		return 0, err
+	}
+	var actorNet, recipientNet money.MinorUnits
+	actorKey, recipientKey := idutil.String(actorID), idutil.String(toUserID)
+	for _, p := range positions {
+		switch p.UserID {
+		case actorKey:
+			actorNet = p.NetBalance
+		case recipientKey:
+			recipientNet = p.NetBalance
+		}
+	}
+	if actorNet >= 0 {
+		return 0, httpx.Conflict("NO_OUTSTANDING_DEBT", "You do not currently owe anything in this group.")
+	}
+	if recipientNet <= 0 {
+		return 0, httpx.Conflict("RECIPIENT_NOT_OWED", "This member isn't owed anything in this group.")
+	}
+	return min(-actorNet, recipientNet), nil
 }
 
 // resolveCurrency also enforces group-membership authorization as a side
