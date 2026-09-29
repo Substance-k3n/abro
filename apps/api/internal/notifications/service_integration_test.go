@@ -147,3 +147,74 @@ func TestService(t *testing.T) {
 		assert.Len(t, otherUnread, 1)
 	})
 }
+
+func TestPreferences(t *testing.T) {
+	t.Run("every type is on by default", func(t *testing.T) {
+		svc, makeProfile := testEnv(t)
+		user := makeProfile(t, "A")
+
+		prefs, err := svc.Preferences(context.Background(), user.ID)
+		require.NoError(t, err)
+		require.Len(t, prefs, len(notifications.AllTypes))
+		for _, typ := range notifications.AllTypes {
+			assert.True(t, prefs[typ], "%s", typ)
+		}
+	})
+
+	t.Run("an opted-out type is skipped by Notify and NotifyMany, for that user only", func(t *testing.T) {
+		svc, makeProfile := testEnv(t)
+		quiet := makeProfile(t, "Quiet")
+		loud := makeProfile(t, "Loud")
+		ctx := context.Background()
+
+		prefs, err := svc.UpdatePreferences(ctx, quiet.ID, map[string]bool{string(notifications.TypeExpenseAdded): false})
+		require.NoError(t, err)
+		assert.False(t, prefs[notifications.TypeExpenseAdded])
+		assert.True(t, prefs[notifications.TypeSettlement])
+
+		created, err := svc.Notify(ctx, quiet.ID, notifications.TypeExpenseAdded, "Skipped", "Body")
+		require.NoError(t, err)
+		assert.False(t, created.ID.Valid, "no row for an opted-out type")
+		require.NoError(t, svc.NotifyMany(ctx, []pgtype.UUID{quiet.ID, loud.ID}, notifications.TypeExpenseAdded, "Bulk", "Body"))
+		// Other types still arrive.
+		_, err = svc.Notify(ctx, quiet.ID, notifications.TypeSettlement, "Kept", "Body")
+		require.NoError(t, err)
+
+		quietRows, err := svc.List(ctx, quiet.ID, false, 50, 0)
+		require.NoError(t, err)
+		require.Len(t, quietRows, 1)
+		assert.Equal(t, "Kept", quietRows[0].Title)
+
+		loudRows, err := svc.List(ctx, loud.ID, false, 50, 0)
+		require.NoError(t, err)
+		require.Len(t, loudRows, 1)
+		assert.Equal(t, "Bulk", loudRows[0].Title)
+
+		// Turning it back on restores delivery (and is idempotent).
+		_, err = svc.UpdatePreferences(ctx, quiet.ID, map[string]bool{string(notifications.TypeExpenseAdded): true})
+		require.NoError(t, err)
+		_, err = svc.UpdatePreferences(ctx, quiet.ID, map[string]bool{string(notifications.TypeExpenseAdded): true})
+		require.NoError(t, err)
+		_, err = svc.Notify(ctx, quiet.ID, notifications.TypeExpenseAdded, "Back", "Body")
+		require.NoError(t, err)
+		quietRows, err = svc.List(ctx, quiet.ID, false, 50, 0)
+		require.NoError(t, err)
+		assert.Len(t, quietRows, 2)
+	})
+
+	t.Run("rejects an unknown type without applying the rest", func(t *testing.T) {
+		svc, makeProfile := testEnv(t)
+		user := makeProfile(t, "A")
+		ctx := context.Background()
+
+		_, err := svc.UpdatePreferences(ctx, user.ID, map[string]bool{
+			string(notifications.TypeSettlement): false,
+			"NOT_A_TYPE":                         false,
+		})
+		require.Error(t, err)
+
+		prefs, err := svc.Preferences(ctx, user.ID)
+		require.NoError(t, err)
+		assert.True(t, prefs[notifications.TypeSettlement])
+	})
+}

@@ -12,6 +12,7 @@ import (
 
 type Querier interface {
 	AcceptFriendship(ctx context.Context, id pgtype.UUID) (Friendship, error)
+	AddNotificationOptOut(ctx context.Context, arg AddNotificationOptOutParams) error
 	ConsumeOtpCode(ctx context.Context, id pgtype.UUID) error
 	CountActiveAdminsExcept(ctx context.Context, arg CountActiveAdminsExceptParams) (int64, error)
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
@@ -25,7 +26,8 @@ type Querier interface {
 	// to run the operation twice.
 	CreateIdempotencyKey(ctx context.Context, arg CreateIdempotencyKeyParams) (IdempotencyKey, error)
 	CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error)
-	// Fans the same event out to several recipients in one statement.
+	// Fans the same event out to several recipients in one statement,
+	// skipping anyone who opted out of this type (notification_opt_outs).
 	CreateNotificationsBulk(ctx context.Context, arg CreateNotificationsBulkParams) ([]Notification, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreateOtpCode(ctx context.Context, arg CreateOtpCodeParams) (OtpCode, error)
@@ -86,6 +88,7 @@ type Querier interface {
 	// (including settlements) -- it would relabel every stored amount.
 	GroupHasExpenses(ctx context.Context, groupID pgtype.UUID) (bool, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
+	IsNotificationOptedOut(ctx context.Context, arg IsNotificationOptedOutParams) (bool, error)
 	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
 	// Skips templates in a deleted group: generating one would fail with
 	// GROUP_NOT_FOUND, and GenerateDue stops at its first error.
@@ -127,6 +130,7 @@ type Querier interface {
 	// Every recurring template the user is involved in, same visibility rule
 	// as expenses.Service.List's default view.
 	ListMyRecurringExpenses(ctx context.Context, userID pgtype.UUID) ([]RecurringExpense, error)
+	ListNotificationOptOuts(ctx context.Context, userID pgtype.UUID) ([]string, error)
 	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
 	// true, and a no-op (all rows) when false, in one query.
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
@@ -138,6 +142,7 @@ type Querier interface {
 	// re-invite after leaving shows up as a fresh invite, not the stale
 	// timestamp/ordering from the original membership.
 	ReinviteGroupMember(ctx context.Context, id pgtype.UUID) (GroupMember, error)
+	RemoveNotificationOptOut(ctx context.Context, arg RemoveNotificationOptOutParams) error
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
 	// Exact match only -- never a fuzzy name search, so you can't browse the
 	// user directory.

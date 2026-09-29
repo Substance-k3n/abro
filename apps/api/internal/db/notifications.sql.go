@@ -11,6 +11,21 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addNotificationOptOut = `-- name: AddNotificationOptOut :exec
+INSERT INTO notification_opt_outs (user_id, type) VALUES ($1, $2)
+ON CONFLICT DO NOTHING
+`
+
+type AddNotificationOptOutParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Type   string      `json:"type"`
+}
+
+func (q *Queries) AddNotificationOptOut(ctx context.Context, arg AddNotificationOptOutParams) error {
+	_, err := q.db.Exec(ctx, addNotificationOptOut, arg.UserID, arg.Type)
+	return err
+}
+
 const createNotification = `-- name: CreateNotification :one
 INSERT INTO notifications (user_id, type, title, body)
 VALUES ($1, $2, $3, $4)
@@ -46,24 +61,30 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 
 const createNotificationsBulk = `-- name: CreateNotificationsBulk :many
 INSERT INTO notifications (user_id, type, title, body)
-SELECT unnest($1::uuid[]), $2, $3, $4
+SELECT r.user_id, $1, $2, $3
+FROM unnest($4::uuid[]) AS r(user_id)
+WHERE NOT EXISTS (
+    SELECT 1 FROM notification_opt_outs o
+    WHERE o.user_id = r.user_id AND o.type = $1
+)
 RETURNING id, user_id, type, title, body, read_at, created_at
 `
 
 type CreateNotificationsBulkParams struct {
-	UserIds []pgtype.UUID `json:"user_ids"`
 	Type    string        `json:"type"`
 	Title   string        `json:"title"`
 	Body    string        `json:"body"`
+	UserIds []pgtype.UUID `json:"user_ids"`
 }
 
-// Fans the same event out to several recipients in one statement.
+// Fans the same event out to several recipients in one statement,
+// skipping anyone who opted out of this type (notification_opt_outs).
 func (q *Queries) CreateNotificationsBulk(ctx context.Context, arg CreateNotificationsBulkParams) ([]Notification, error) {
 	rows, err := q.db.Query(ctx, createNotificationsBulk,
-		arg.UserIds,
 		arg.Type,
 		arg.Title,
 		arg.Body,
+		arg.UserIds,
 	)
 	if err != nil {
 		return nil, err
@@ -108,6 +129,48 @@ func (q *Queries) GetNotificationByID(ctx context.Context, id pgtype.UUID) (Noti
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const isNotificationOptedOut = `-- name: IsNotificationOptedOut :one
+SELECT EXISTS (
+    SELECT 1 FROM notification_opt_outs WHERE user_id = $1 AND type = $2
+)
+`
+
+type IsNotificationOptedOutParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Type   string      `json:"type"`
+}
+
+func (q *Queries) IsNotificationOptedOut(ctx context.Context, arg IsNotificationOptedOutParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isNotificationOptedOut, arg.UserID, arg.Type)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const listNotificationOptOuts = `-- name: ListNotificationOptOuts :many
+SELECT type FROM notification_opt_outs WHERE user_id = $1
+`
+
+func (q *Queries) ListNotificationOptOuts(ctx context.Context, userID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listNotificationOptOuts, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var type_ string
+		if err := rows.Scan(&type_); err != nil {
+			return nil, err
+		}
+		items = append(items, type_)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listNotifications = `-- name: ListNotifications :many
@@ -187,4 +250,18 @@ func (q *Queries) MarkNotificationRead(ctx context.Context, id pgtype.UUID) (Not
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const removeNotificationOptOut = `-- name: RemoveNotificationOptOut :exec
+DELETE FROM notification_opt_outs WHERE user_id = $1 AND type = $2
+`
+
+type RemoveNotificationOptOutParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Type   string      `json:"type"`
+}
+
+func (q *Queries) RemoveNotificationOptOut(ctx context.Context, arg RemoveNotificationOptOutParams) error {
+	_, err := q.db.Exec(ctx, removeNotificationOptOut, arg.UserID, arg.Type)
+	return err
 }

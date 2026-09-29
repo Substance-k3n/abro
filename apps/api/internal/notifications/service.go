@@ -30,6 +30,23 @@ const (
 	TypeDebtSimplificationChange Type = "DEBT_SIMPLIFICATION_CHANGE"
 )
 
+// AllTypes is every Type, in the order SET-02 lists them. A user can
+// opt out of any of them (Preferences/UpdatePreferences).
+var AllTypes = []Type{
+	TypeExpenseAdded, TypeExpenseEdited, TypeExpenseDeleted, TypeSettlement,
+	TypeGroupInvitation, TypeGroupMembershipChange, TypeRecurringExpense,
+	TypeDebtSimplificationChange,
+}
+
+func isKnownType(t string) bool {
+	for _, known := range AllTypes {
+		if string(known) == t {
+			return true
+		}
+	}
+	return false
+}
+
 type Service struct {
 	q db.Querier
 }
@@ -38,13 +55,23 @@ func NewService(q db.Querier) *Service {
 	return &Service{q: q}
 }
 
+// Notify creates one in-app notification, unless the user opted out of
+// this type -- then it's a no-op returning a zero Notification.
 func (s *Service) Notify(ctx context.Context, userID pgtype.UUID, t Type, title, body string) (db.Notification, error) {
+	optedOut, err := s.q.IsNotificationOptedOut(ctx, db.IsNotificationOptedOutParams{UserID: userID, Type: string(t)})
+	if err != nil {
+		return db.Notification{}, err
+	}
+	if optedOut {
+		return db.Notification{}, nil
+	}
 	return s.q.CreateNotification(ctx, db.CreateNotificationParams{
 		UserID: userID, Type: string(t), Title: title, Body: body,
 	})
 }
 
-// NotifyMany fans the same event out to several recipients; de-dupes and
+// NotifyMany fans the same event out to several recipients; de-dupes,
+// skips anyone who opted out of this type (in the insert itself), and
 // no-ops on an empty list.
 func (s *Service) NotifyMany(ctx context.Context, userIDs []pgtype.UUID, t Type, title, body string) error {
 	recipients := dedupe(userIDs)
@@ -91,4 +118,46 @@ func dedupe(ids []pgtype.UUID) []pgtype.UUID {
 		}
 	}
 	return out
+}
+
+// Preferences is every Type with whether the user gets it (true unless
+// they opted out).
+func (s *Service) Preferences(ctx context.Context, userID pgtype.UUID) (map[Type]bool, error) {
+	optOuts, err := s.q.ListNotificationOptOuts(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	prefs := make(map[Type]bool, len(AllTypes))
+	for _, t := range AllTypes {
+		prefs[t] = true
+	}
+	for _, t := range optOuts {
+		if isKnownType(t) {
+			prefs[Type(t)] = false
+		}
+	}
+	return prefs, nil
+}
+
+// UpdatePreferences turns the given types on or off; types not in
+// `changes` keep their current setting. Unknown types are rejected
+// before anything is written.
+func (s *Service) UpdatePreferences(ctx context.Context, userID pgtype.UUID, changes map[string]bool) (map[Type]bool, error) {
+	for t := range changes {
+		if !isKnownType(t) {
+			return nil, httpx.BadRequest("VALIDATION_ERROR", "unknown notification type: "+t)
+		}
+	}
+	for t, enabled := range changes {
+		var err error
+		if enabled {
+			err = s.q.RemoveNotificationOptOut(ctx, db.RemoveNotificationOptOutParams{UserID: userID, Type: t})
+		} else {
+			err = s.q.AddNotificationOptOut(ctx, db.AddNotificationOptOutParams{UserID: userID, Type: t})
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return s.Preferences(ctx, userID)
 }
