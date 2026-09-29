@@ -7,25 +7,38 @@
 // text, matching the neomorphic visual language and component reuse
 // (PersonRow, BackButton) already established for prototype-less Phase
 // 3 screens (Balances Overview, Search).
+//
+// Phase 8: "someone else" is picked from ~/lib/expense-directory.tsx's
+// `candidates` -- your friends for a personal expense, the group's
+// active members for a group one (apps/api rejects any other payer).
 
-import { BackButton, PersonRow } from '@abro/ui';
-import { Check, Search } from 'lucide-react';
+import { BackButton, EmptyState, PersonRow } from '@abro/ui';
+import { Check, Search, Users } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { LoadingState } from '~/components/LoadStates';
+import { useExpenseDirectory } from '~/lib/expense-directory';
 import { ME, useExpenseDraft } from '~/lib/expense-draft';
-import { CURRENT_USER, FRIENDS } from '~/lib/mock-data';
 
 export default function AddExpensePayerPage() {
   const router = useRouter();
   const { draft, update } = useExpenseDraft();
+  const { candidates, candidatesReady, group, resolve } = useExpenseDirectory();
   const [search, setSearch] = useState('');
 
-  const otherPayer = draft.payerId !== ME ? FRIENDS.find((f) => f.id === draft.payerId) : null;
+  const you = resolve(ME);
+  const otherPayer = draft.payerId !== ME ? resolve(draft.payerId) : null;
   const [showFriends, setShowFriends] = useState(draft.payerId !== ME);
 
   const query = search.trim().toLowerCase();
-  const filtered = query ? FRIENDS.filter((f) => f.name.toLowerCase().includes(query)) : FRIENDS;
+  const filtered = query
+    ? candidates.filter((f) => f.name.toLowerCase().includes(query))
+    : candidates;
+
+  if (!candidatesReady) {
+    return <LoadingState />;
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -51,9 +64,9 @@ export default function AddExpensePayerPage() {
       >
         <div
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl font-mono text-sm font-bold text-white"
-          style={{ background: CURRENT_USER.color }}
+          style={{ background: you.color }}
         >
-          {CURRENT_USER.initials}
+          {you.initials}
         </div>
         <div className="flex-1">
           <p className="text-[0.9rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
@@ -102,12 +115,24 @@ export default function AddExpensePayerPage() {
             />
             <input
               className="neo-input"
-              placeholder="Search friends"
+              placeholder={group ? 'Search members' : 'Search friends'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ paddingLeft: 40 }}
             />
           </div>
+          {filtered.length === 0 && (
+            <EmptyState
+              icon={<Users size={26} strokeWidth={1.5} />}
+              title={
+                candidates.length === 0
+                  ? group
+                    ? 'No other members in this group'
+                    : 'No friends yet'
+                  : 'No one matches that search'
+              }
+            />
+          )}
           <div className="flex flex-col gap-2">
             {filtered.map((f) => (
               <PersonRow

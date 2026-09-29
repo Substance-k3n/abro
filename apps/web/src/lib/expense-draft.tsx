@@ -18,16 +18,20 @@
 //
 // Known limitation, same as any client-only wizard state: a hard
 // refresh or closed tab loses the draft. No persistence (localStorage
-// or a real backend draft) is built for this phase -- out of scope for
-// a mock-data-only phase, and not called out as required by the spec.
+// or a real backend draft) is built -- not called out as required by
+// the spec. Phase 8 slice 7 wired the wizard to apps/api (people come
+// from expense-directory.tsx, Create calls POST /expenses) without
+// changing this.
 
 import { type ReactNode, createContext, useContext, useState } from 'react';
 
 export type SplitMethod = 'equal' | 'exact' | 'percentage' | 'shares';
 
-/** Sentinel participant/payer id representing the current user -- FRIENDS
- * (~/lib/mock-data) only lists other people, so "you" needs an id that
- * can't collide with a real friend id. */
+/** Sentinel participant/payer id representing the current user. Every
+ * other id in the draft is a real apps/api profile id; ME is swapped for
+ * the signed-in user's real id only when the draft is submitted
+ * (expense-split.ts's toCreateExpenseInput), so the steps never need to
+ * wait on `me()` just to mark "you" as selected. */
 export const ME = 'me';
 
 export interface ExpenseDraft {
@@ -41,9 +45,10 @@ export interface ExpenseDraft {
   /** ISO yyyy-mm-dd. */
   date: string;
   groupId: string | null;
-  /** ME or a FRIENDS id. */
+  /** ME or a real profile id (a friend, or a group member for a group
+   * expense -- see expense-directory.tsx's `candidates`). */
   payerId: string;
-  /** ME and/or FRIENDS ids. */
+  /** ME and/or real profile ids, same pool as payerId. */
   participantIds: string[];
   splitMethod: SplitMethod;
   /** Per split method, keyed by participant id. Only the relevant map is
@@ -54,6 +59,10 @@ export interface ExpenseDraft {
   percentages: Record<string, string>;
   shares: Record<string, number>;
   note: string;
+  /** Sent as POST /expenses' Idempotency-Key -- one per draft, so a
+   * double-tapped or retried Create can't record the expense twice. A
+   * fresh draft (reset) gets a fresh key. */
+  idempotencyKey: string;
 }
 
 const todayIso = (): string => new Date().toISOString().slice(0, 10);
@@ -71,6 +80,7 @@ export const emptyDraft = (): ExpenseDraft => ({
   percentages: {},
   shares: {},
   note: '',
+  idempotencyKey: crypto.randomUUID(),
 });
 
 interface ExpenseDraftContextValue {

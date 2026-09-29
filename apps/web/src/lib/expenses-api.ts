@@ -65,6 +65,45 @@ export function listExpenses(opts?: {
   return api.get(`/expenses/${qs ? `?${qs}` : ''}`);
 }
 
+/** One participant on the wire -- only the field matching the
+ * expense's splitType is read (apps/api's ExpenseParticipantRaw). */
+export interface ExpenseParticipantInput {
+  userId: string;
+  /** EXACT only: minor units as an integer string. */
+  amount?: string;
+  /** PERCENTAGE only: all participants must total exactly 100. */
+  percentage?: number;
+  /** SHARES only: positive integer weight. */
+  shares?: number;
+}
+
+/** apps/api's CreateExpenseInput. The server computes every stored
+ * share from this -- the client's own split math is preview only. */
+export interface CreateExpenseInput {
+  splitType: 'EQUAL' | 'EXACT' | 'PERCENTAGE' | 'SHARES';
+  name: string;
+  category: string;
+  /** Minor units as a positive integer string. */
+  amount: string;
+  groupId?: string;
+  paidById?: string;
+  /** yyyy-mm-dd or RFC 3339. */
+  expenseDate: string;
+  notes?: string;
+  participants: ExpenseParticipantInput[];
+}
+
+/** POST /expenses. `idempotencyKey` should be stable per draft: a
+ * retried submit after a lost response then returns the original
+ * expense instead of creating a duplicate (apps/api releases the key
+ * when the create fails, so retrying after a validation error is fine). */
+export function createExpense(
+  input: CreateExpenseInput,
+  idempotencyKey: string,
+): Promise<AuthExpense> {
+  return api.post('/expenses/', input, { 'Idempotency-Key': idempotencyKey });
+}
+
 const SPLIT_LABELS: Record<string, string> = {
   EQUAL: 'Equal split',
   EXACT: 'Exact split',

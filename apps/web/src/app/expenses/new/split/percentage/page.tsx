@@ -7,25 +7,38 @@
 // fills empty inputs (with whatever percentage is left of 100%) rather
 // than overwriting everyone -- "Reset all" is the separate, explicit
 // way to clear entered values.
+//
+// Phase 8: everything here counts in whole basis points (33.33% ->
+// 3333), because that's how apps/api checks a PERCENTAGE split -- it
+// must total exactly 10000, not "about 100". The badge and "Split
+// remaining equally" use the same unit so they can't disagree with the
+// server (0.1 and 1/3-style splits used to look balanced here and then
+// fail on submit).
 
 import { ETB, formatMoney } from '@abro/types';
 import { useRouter } from 'next/navigation';
 
+import { useExpenseDirectory } from '~/lib/expense-directory';
 import { ME, useExpenseDraft } from '~/lib/expense-draft';
-import { computeShares, isSplitValid, parseAmount } from '~/lib/expense-split';
-import { resolveParticipants } from '~/lib/mock-data';
+import {
+  computeShares,
+  isSplitValid,
+  parseAmount,
+  percentageBasisPoints,
+} from '~/lib/expense-split';
 
 export default function AddExpensePercentageSplitPage() {
   const router = useRouter();
   const { draft, update } = useExpenseDraft();
 
   const total = parseAmount(draft.amountInput);
-  const participants = resolveParticipants(draft.participantIds);
-  const percentSum = draft.participantIds.reduce(
-    (sum, id) => sum + (Number(draft.percentages[id] ?? '0') || 0),
+  const { resolve } = useExpenseDirectory();
+  const participants = draft.participantIds.map(resolve);
+  const percentSumBp = draft.participantIds.reduce(
+    (sum, id) => sum + percentageBasisPoints(draft.percentages[id]),
     0,
   );
-  const diff = 100 - percentSum;
+  const diffBp = 10000 - percentSumBp;
   const valid = isSplitValid(draft, draft.participantIds, total);
   const amounts = computeShares(draft, draft.participantIds, total);
 
@@ -37,14 +50,18 @@ export default function AddExpensePercentageSplitPage() {
     if (empty.length === 0) {
       return;
     }
-    const filledSum = draft.participantIds
+    const filledBp = draft.participantIds
       .filter((id) => draft.percentages[id])
-      .reduce((sum, id) => sum + (Number(draft.percentages[id]) || 0), 0);
-    const remaining = Math.max(0, 100 - filledSum);
-    const each = (remaining / empty.length).toFixed(1);
+      .reduce((sum, id) => sum + percentageBasisPoints(draft.percentages[id]), 0);
+    const remainingBp = Math.max(0, 10000 - filledBp);
+    // Whole basis points, with the leftover handed out one at a time
+    // from the top, so the filled-in values total exactly 100%
+    // (3 people -> 33.34 / 33.33 / 33.33, not 33.3 x 3 = 99.9).
+    const base = Math.floor(remainingBp / empty.length);
+    const extra = remainingBp % empty.length;
     const next = { ...draft.percentages };
-    empty.forEach((id) => {
-      next[id] = each;
+    empty.forEach((id, i) => {
+      next[id] = formatPercent(base + (i < extra ? 1 : 0));
     });
     update({ percentages: next });
   };
@@ -52,12 +69,16 @@ export default function AddExpensePercentageSplitPage() {
   const resetAll = () => update({ percentages: {} });
 
   const badge =
-    Math.abs(diff) < 0.01
+    diffBp === 0
       ? { text: '✓ Balanced', color: 'var(--c-green)', bg: 'var(--green-bg)' }
-      : diff > 0
-        ? { text: `${diff.toFixed(0)}% left`, color: 'var(--c-amber)', bg: 'rgba(245,158,11,0.12)' }
+      : diffBp > 0
+        ? {
+            text: `${formatPercent(diffBp)}% left`,
+            color: 'var(--c-amber)',
+            bg: 'rgba(245,158,11,0.12)',
+          }
         : {
-            text: `${Math.abs(diff).toFixed(0)}% over`,
+            text: `${formatPercent(-diffBp)}% over`,
             color: 'var(--c-red)',
             bg: 'var(--red-bg)',
           };
@@ -162,4 +183,9 @@ export default function AddExpensePercentageSplitPage() {
       </button>
     </div>
   );
+}
+
+/** 3333 -> "33.33", 5000 -> "50", 150 -> "1.5". */
+function formatPercent(basisPoints: number): string {
+  return String(basisPoints / 100);
 }

@@ -711,9 +711,53 @@ supported (apps/api matches email/phone only).
 Manual browser verification against a live API still pending (local
 Docker wasn't reachable from the session).
 
-### Slice 7b — Expense detail (EXP-09) `[done]`
+### Slice 7 — Expenses (EXP-01…EXP-10) `[in progress]`
 
-Branch: `feature/expense-detail-api-integration`. Frontend only.
+Frontend only -- apps/api's `/expenses` routes already cover create,
+read, edit, delete, notes and receipts. Three PRs, one per concern:
+
+**7a — Add-expense wizard (EXP-01…08) `[done]`.** Branch:
+`feature/expense-create-api-integration`.
+
+- [x] `~/lib/expense-directory.tsx` -- loads me/friends/groups once for
+      the wizard (layout shows the shared loading/error states), and a
+      group's ACTIVE members when the draft has a group. Mirrors
+      apps/api's `prepareWrite` rule for who can be on an expense:
+      friends for a personal expense, group members (friends or not)
+      for a group one. Picking a different group resets payer +
+      participants.
+- [x] The draft keeps the `ME` sentinel; `~/lib/expense-split.ts`'s
+      `toCreateExpenseInput` swaps in the real id at submit and sends
+      only the chosen method's inputs (apps/api recomputes every
+      share -- the wizard's math is preview only).
+- [x] Review → `POST /expenses` with a per-draft `Idempotency-Key`
+      (double-submit safe; apps/api releases the key on failure, so a
+      retry after an error works). Server errors show above the button
+      and the draft is kept.
+- [x] Percentage validation now matches apps/api exactly: whole basis
+      points totalling 10000 (it used to accept 99.99–100.01%, which
+      the server rejects). "Split remaining equally" hands out the
+      leftover basis points (33.34/33.33/33.33, not 33.3 × 3).
+
+Deviations (Confirmed): categories stay the static `CATEGORIES` list
+(apps/api takes any 1–60 char string). Success still has no toast --
+the wizard returns to `/home`, where the expense shows in Recent
+Activity.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API, three seeded users (Alice friends with Bob and
+Carol; Bob and Carol not friends; all three in "Lalibela Trip"):
+group PERCENTAGE 1000 ETB paid by Carol → stored 333.40/333.30/333.30
+(sums to 100000 minor); 99.99% shows "0.01% left" and blocks Next;
+personal EXACT 250.50 (100.25/150.25), Create clicked twice → one
+expense; group SHARES 1:3 of 333 → 83.25/249.75; removing Bob from the
+group before Create → "Not an active member of this group." shown,
+nothing stored, retry with the same key after re-adding him →
+created once. As Bob: the group payer list offers Alice and Carol
+(not his friend), the personal one only Alice.
+
+**7b — Expense detail (EXP-09) `[done]`.** Branch:
+`feature/expense-detail-api-integration`.
 
 - [x] `(dashboard)/expenses/[id]` reads `GET /expenses/{id}`
       (`getExpense`); unknown, deleted or not-visible ids (404/403,
@@ -744,9 +788,16 @@ no menu; a random uuid and `not-a-uuid` → "Expense not found". As Alice
 Alice↔Bob balance −15025 → 0, `GET` → 404. Rows open the detail page
 from Home, Friend Detail and Search (query saved to recent searches).
 
+**7c — Edit (EXP-10) `[todo]`:** `PATCH` resubmits the whole expense,
+but apps/api stores only final amounts, not percentages/share weights.
+Decided (user, 2026-09-29): if amount and participants are unchanged,
+resend the stored amounts as EXACT (a PERCENTAGE/SHARES expense then
+shows as "Exact split"); if either changes, recalculate as EQUAL (the
+screen's existing behavior).
+
 ### Later slices `[todo]`
 
-Expenses (`EXP-0x`), groups (`GRP-0x`), settlement
+Groups (`GRP-0x`), settlement
 (`STL-0x`/`BAL-0x`), profile/settings preferences beyond auth
 (`PRF-01`'s stats/currency/language, `SET-0x`) -- each replaces its own
 slice of `~/lib/mock-data.ts`, reusing the `~/lib/*-api.ts` modules
