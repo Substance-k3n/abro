@@ -24,12 +24,17 @@
 // then. Same class of temporary rough edge as Home's Recent Activity
 // rows, which have the equivalent gap against `/expenses/[id]`.
 //
+// Friend requests: incoming PENDING requests (GET /friends/requests) are
+// listed above the balance sections with Accept/Decline. Accepting
+// reloads the whole page so the new friend appears with their (zero)
+// balance from the same deriveFriendRows() path as everyone else.
+//
 // PersonRow (@abro/ui) renders as a <button>, so it navigates via its
 // own `onClick` + router.push rather than being wrapped in a Link
 // (which would nest a button inside an anchor).
 
-import { AmountBadge, EmptyState, PersonRow, SectionLabel } from '@abro/ui';
-import { ChevronDown, ChevronUp, Plus, Search, UserX } from 'lucide-react';
+import { AmountBadge, Avatar, EmptyState, PersonRow, SectionLabel } from '@abro/ui';
+import { Check, ChevronDown, ChevronUp, Plus, Search, UserX, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -37,7 +42,15 @@ import { useEffect, useState } from 'react';
 import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { deriveFriendRows, getBalancesSummary } from '~/lib/balances-api';
-import { type FriendListItem, listFriends } from '~/lib/friends-api';
+import {
+  type FriendListItem,
+  type IncomingFriendRequest,
+  acceptFriendRequest,
+  declineFriendRequest,
+  listFriends,
+  listIncomingRequests,
+} from '~/lib/friends-api';
+import { colorForId, initialsOf } from '~/lib/identity';
 
 export default function FriendsPage() {
   const router = useRouter();
@@ -45,14 +58,18 @@ export default function FriendsPage() {
   const [settledOpen, setSettledOpen] = useState(false);
   const [friends, setFriends] = useState<FriendListItem[] | null>(null);
   const [rows, setRows] = useState<ReturnType<typeof deriveFriendRows> | null>(null);
+  const [requests, setRequests] = useState<IncomingFriendRequest[]>([]);
+  const [busyRequest, setBusyRequest] = useState<string | null>(null);
+  const [requestError, setRequestError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = () => {
     setError(null);
     setFriends(null);
     setRows(null);
-    Promise.all([listFriends(), getBalancesSummary()])
-      .then(([friendList, balances]) => {
+    Promise.all([listFriends(), getBalancesSummary(), listIncomingRequests()])
+      .then(([friendList, balances, incoming]) => {
+        setRequests(incoming);
         setFriends(friendList);
         setRows(deriveFriendRows(friendList, balances));
       })
@@ -62,6 +79,26 @@ export default function FriendsPage() {
   };
 
   useEffect(load, []);
+
+  const respond = async (req: IncomingFriendRequest, accept: boolean) => {
+    setBusyRequest(req.friendshipId);
+    setRequestError(null);
+    try {
+      if (accept) {
+        await acceptFriendRequest(req.friendshipId);
+        load();
+      } else {
+        await declineFriendRequest(req.friendshipId);
+        setRequests((rs) => rs.filter((r) => r.friendshipId !== req.friendshipId));
+      }
+    } catch (err) {
+      setRequestError(
+        err instanceof ApiError ? err.message : 'Could not update the request. Please try again.',
+      );
+    } finally {
+      setBusyRequest(null);
+    }
+  };
 
   if (error) {
     return <ErrorState message={error} onRetry={load} />;
@@ -115,6 +152,61 @@ export default function FriendsPage() {
           aria-label="Search friends"
         />
       </div>
+
+      {requests.length > 0 && (
+        <div className="mb-6">
+          <SectionLabel>Friend requests ({requests.length})</SectionLabel>
+          {requestError && (
+            <p className="mb-2 text-[0.85rem]" role="alert" style={{ color: 'var(--c-red)' }}>
+              {requestError}
+            </p>
+          )}
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+            {requests.map((r) => {
+              const busy = busyRequest === r.friendshipId;
+              return (
+                <div
+                  key={r.friendshipId}
+                  className="neo-raised flex items-center gap-3 rounded-2xl px-4 py-3"
+                >
+                  <Avatar
+                    initials={initialsOf(r.from.displayName)}
+                    color={colorForId(r.from.id)}
+                    size={40}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="truncate text-[0.92rem] font-semibold"
+                      style={{ color: 'var(--t-primary)' }}
+                    >
+                      {r.from.displayName}
+                    </p>
+                    <p className="truncate text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
+                      wants to be friends
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => respond(r, false)}
+                    disabled={busy}
+                    aria-label={`Decline ${r.from.displayName}`}
+                    className="neo-btn flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-60"
+                  >
+                    <X size={16} strokeWidth={2.25} style={{ color: 'var(--c-red)' }} />
+                  </button>
+                  <button
+                    onClick={() => respond(r, true)}
+                    disabled={busy}
+                    aria-label={`Accept ${r.from.displayName}`}
+                    className="neo-btn-green flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-60"
+                  >
+                    <Check size={16} strokeWidth={2.25} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {isEmpty ? (
         <EmptyState
