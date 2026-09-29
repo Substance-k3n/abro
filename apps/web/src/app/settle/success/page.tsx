@@ -17,7 +17,7 @@
 // render or threading the settled amount/person through query params.
 // This page's own render is deliberately decoupled from the live
 // draft: `reset()` (called when leaving, so the next settle flow
-// doesn't inherit a stale amount/method/note) mutates that same draft,
+// doesn't inherit a stale amount) mutates that same draft,
 // and if this page read it live, the reset would immediately null out
 // `toUserId` while still mounted and trip the redirect-guard below --
 // confirmed by a real repro ("Back to Home" landed back on /settle
@@ -29,33 +29,46 @@
 // CSS-only fade-in (already applied at the wizard layout level) reads
 // as "success" well enough without one.
 
+//
+// Phase 8 slice 9b: the snapshot is the draft's `recorded` (set by
+// STL-03 after apps/api accepted the settlement) plus who/which group;
+// the new balance is reloaded from apps/api, not computed here.
+
 import { CheckCircle2, Home as HomeIcon, Plus, Receipt } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ETB, formatMoney } from '@abro/types';
 
-import { getOutstanding, resolveParticipants } from '~/lib/mock-data';
+import { loadSettleTarget } from '~/lib/settlements-api';
 import { useSettleDraft } from '~/lib/settle-draft';
 
 export default function SettleSuccessPage() {
   const router = useRouter();
   const { draft, reset } = useSettleDraft();
-  const [snapshot] = useState(() => ({ toUserId: draft.toUserId, groupId: draft.groupId }));
+  const [snapshot] = useState(() => ({
+    toUserId: draft.toUserId,
+    groupId: draft.groupId,
+    recorded: draft.recorded,
+  }));
+  const [remaining, setRemaining] = useState<bigint | null>(null);
 
   useEffect(() => {
-    if (!snapshot.toUserId) {
+    if (!snapshot.toUserId || !snapshot.recorded) {
       router.replace('/settle');
+      return;
     }
+    loadSettleTarget(snapshot.toUserId, snapshot.groupId)
+      .then((t) => setRemaining(t?.outstanding ?? 0n))
+      .catch(() => setRemaining(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot.toUserId]);
+  }, []);
 
-  if (!snapshot.toUserId) {
+  if (!snapshot.toUserId || !snapshot.recorded) {
     return null;
   }
 
-  const person = resolveParticipants([snapshot.toUserId])[0]!;
-  const remaining = getOutstanding(snapshot.toUserId, snapshot.groupId);
+  const { personName, amount } = snapshot.recorded;
 
   const goTo = (path: string) => {
     reset();
@@ -79,7 +92,7 @@ export default function SettleSuccessPage() {
           Settlement recorded
         </h2>
         <p className="text-[0.85rem]" style={{ color: 'var(--t-dim)' }}>
-          Your ledger with {person.name.split(' ')[0]} has been updated.
+          You paid {personName.split(' ')[0]} {formatMoney(amount, ETB)}. Balances are updated.
         </p>
       </div>
 
@@ -89,18 +102,18 @@ export default function SettleSuccessPage() {
             With
           </span>
           <span className="text-[0.88rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
-            {person.name}
+            {personName}
           </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-[0.82rem]" style={{ color: 'var(--t-dim)' }}>
-            New balance
+            Still to settle
           </span>
           <span
             className="font-mono text-[0.9rem] font-bold"
-            style={{ color: remaining === 0n ? 'var(--t-dim)' : 'var(--c-red)' }}
+            style={{ color: remaining ? 'var(--c-red)' : 'var(--t-dim)' }}
           >
-            {remaining === 0n ? 'Settled' : `-${formatMoney(remaining, ETB)}`}
+            {remaining === null ? '…' : remaining === 0n ? 'Nothing' : formatMoney(remaining, ETB)}
           </span>
         </div>
       </div>
@@ -111,7 +124,7 @@ export default function SettleSuccessPage() {
           className="neo-btn flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[0.85rem] font-medium"
           style={{ color: 'var(--t-secondary)' }}
         >
-          <Receipt size={17} strokeWidth={1.9} /> View balance history
+          <Receipt size={17} strokeWidth={1.9} /> View settlement history
         </button>
         <button
           onClick={() => goTo('/expenses/new')}

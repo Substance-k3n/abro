@@ -150,16 +150,21 @@ export function toActivityDisplay(
   const time = formatShortDate(expense.expenseDate);
 
   if (expense.splitType === 'SETTLEMENT') {
-    const other = expense.participants.find((p) => p.user.id !== expense.paidBy.id)?.user;
-    const otherName = other?.displayName.split(' ')[0] ?? 'them';
+    // A group settlement is visible to every member -- you may be
+    // neither the payer nor the recipient.
+    const recipient = expense.participants.find((p) => p.user.id !== expense.paidBy.id)?.user;
+    const recipientName = recipient?.displayName.split(' ')[0] ?? 'them';
+    const youReceived = recipient?.id === meId;
     return {
       category: 'Settlement',
       title: iPaid
-        ? `You settled with ${otherName}`
-        : `${expense.paidBy.displayName} settled with you`,
+        ? `You settled with ${recipientName}`
+        : youReceived
+          ? `${expense.paidBy.displayName} settled with you`
+          : `${expense.paidBy.displayName.split(' ')[0]} settled with ${recipientName}`,
       sub: expense.groupId ? (groupNameById.get(expense.groupId) ?? 'Group') : 'Personal',
       amount: BigInt(expense.amount),
-      dir: iPaid ? 'paid' : 'receive',
+      dir: youReceived ? 'receive' : 'paid',
       time,
     };
   }

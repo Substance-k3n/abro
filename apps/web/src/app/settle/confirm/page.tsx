@@ -1,71 +1,107 @@
 'use client';
 
 // STL-03 Settle Up - Confirm -- docs/ABRO_FRONTEND_SPEC.md §6 (lines
-// 1641-1677).
+// 1641-1677). Phase 8 slice 9b: "Confirm Settlement" calls
+// POST /settlements/ (~/lib/settlements-api.ts) with the draft's
+// idempotency key, so a retried or double-tapped confirm records the
+// payment once.
 //
 // Deviations:
-//  - Date is a read-only "Today" label, not a picker -- no date-picker
-//    component exists anywhere else in this app (every other
-//    display-ready date in mock-data.ts is a plain string), and every
-//    settlement created here genuinely does happen "now". Not worth
-//    building a picker for a field that's always going to read today's
-//    date in this mock-data phase.
-//  - The "Important Notice" copy is taken directly from the spec text
-//    (ABRO_PRD.md §19's "Important" note says the same thing) --
-//    real product copy, not paraphrased.
+//  - Payment method and note are gone: apps/api stores neither (user
+//    decision 2026-09-29).
+//  - Date is a read-only "Today" -- apps/api records a settlement at the
+//    time it's made.
+//  - The "Important Notice" copy is the spec's own (ABRO_PRD.md §19).
+//  - The balance is reloaded here (not trusted from STL-02) so "Balance
+//    after" is current; apps/api still has the final say, and its
+//    message (e.g. EXCEEDS_OUTSTANDING_DEBT if something changed
+//    meanwhile) shows above the buttons.
 
 import { ArrowLeft, Info } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
 import { ETB, formatMoney } from '@abro/types';
 
+import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { ApiError } from '~/lib/api-client';
 import { parseAmount } from '~/lib/expense-split';
-import {
-  SETTLEMENT_METHODS,
-  createSettlement,
-  getOutstanding,
-  resolveParticipants,
-} from '~/lib/mock-data';
+import { type SettleTarget, createSettlement, loadSettleTarget } from '~/lib/settlements-api';
 import { useSettleDraft } from '~/lib/settle-draft';
 
 export default function SettleConfirmPage() {
   const router = useRouter();
   const { draft, update } = useSettleDraft();
+  const [target, setTarget] = useState<SettleTarget | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const outstanding = draft.toUserId ? getOutstanding(draft.toUserId, draft.groupId) : 0n;
   const amount = parseAmount(draft.amountInput);
+  const amountHref = draft.toUserId
+    ? `/settle/amount?toUserId=${draft.toUserId}${draft.groupId ? `&groupId=${draft.groupId}` : ''}`
+    : '/settle';
 
-  useEffect(() => {
-    if (!draft.toUserId || amount <= 0n || amount > outstanding) {
+  const load = () => {
+    setLoadError(null);
+    if (!draft.toUserId || amount <= 0n) {
       router.replace('/settle');
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.toUserId, amount, outstanding]);
+    loadSettleTarget(draft.toUserId, draft.groupId)
+      .then((t) => {
+        if (!t || amount > t.outstanding) {
+          router.replace(amountHref);
+          return;
+        }
+        setTarget(t);
+      })
+      .catch((err) => {
+        setLoadError(err instanceof ApiError ? err.message : 'Could not load this balance.');
+      });
+  };
 
-  if (!draft.toUserId || amount <= 0n || amount > outstanding) {
-    return null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, []);
+
+  if (loadError) {
+    return <ErrorState message={loadError} onRetry={load} />;
+  }
+  if (!target) {
+    return <LoadingState />;
   }
 
-  const person = resolveParticipants([draft.toUserId])[0]!;
-  const remaining = outstanding - amount;
+  const remaining = target.outstanding - amount;
 
-  const confirm = () => {
-    createSettlement({
-      toUserId: draft.toUserId!,
-      groupId: draft.groupId,
-      amount,
-      method: draft.method,
-      note: draft.note,
-    });
-    router.push('/settle/success');
+  const confirm = async () => {
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      await createSettlement(
+        {
+          toUserId: target.person.id,
+          amount: amount.toString(),
+          ...(target.group ? { groupId: target.group.id } : {}),
+        },
+        draft.idempotencyKey,
+      );
+      update({ recorded: { personName: target.person.displayName, amount } });
+      router.push('/settle/success');
+    } catch (err) {
+      setSubmitError(
+        err instanceof ApiError
+          ? err.message
+          : 'Could not record the settlement. Please try again.',
+      );
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
         <button
-          onClick={() => router.push('/settle/amount')}
+          onClick={() => router.push(amountHref)}
           className="flex items-center gap-1 text-[0.85rem] font-medium"
           style={{ color: 'var(--accent)' }}
         >
@@ -77,99 +113,45 @@ export default function SettleConfirmPage() {
         <div className="w-[60px]" />
       </div>
 
-      <div className="neo-raised-sm rounded-2xl p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-[0.82rem]" style={{ color: 'var(--t-dim)' }}>
-            Settling with
-          </span>
+      <div className="neo-raised-sm flex flex-col gap-3 rounded-2xl p-4">
+        <Row label="Settling with">
           <span className="text-[0.88rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
-            {person.name}
+            {target.person.displayName}
           </span>
-        </div>
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-[0.82rem]" style={{ color: 'var(--t-dim)' }}>
-            Amount
-          </span>
+        </Row>
+        {target.group && (
+          <Row label="Group">
+            <span className="text-[0.85rem] font-medium" style={{ color: 'var(--t-secondary)' }}>
+              {target.group.name}
+            </span>
+          </Row>
+        )}
+        <Row label="Amount">
           <span
             className="font-mono text-[0.95rem] font-bold"
             style={{ color: 'var(--t-primary)' }}
           >
             {formatMoney(amount, ETB)}
           </span>
-        </div>
-        <div className="mb-3 flex items-center justify-between">
-          <span className="text-[0.82rem]" style={{ color: 'var(--t-dim)' }}>
-            Direction
-          </span>
+        </Row>
+        <Row label="Direction">
           <span className="text-[0.85rem] font-semibold" style={{ color: 'var(--c-red)' }}>
             You pay
           </span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-[0.82rem]" style={{ color: 'var(--t-dim)' }}>
-            Balance after
+        </Row>
+        <Row label="Date">
+          <span className="text-[0.85rem]" style={{ color: 'var(--t-primary)' }}>
+            Today
           </span>
+        </Row>
+        <Row label="Still to settle after">
           <span
             className="font-mono text-[0.85rem] font-bold"
             style={{ color: remaining === 0n ? 'var(--t-dim)' : 'var(--c-red)' }}
           >
-            {remaining === 0n ? 'Settled' : `-${formatMoney(remaining, ETB)}`}
+            {remaining === 0n ? 'Nothing' : formatMoney(remaining, ETB)}
           </span>
-        </div>
-      </div>
-
-      <div>
-        <label
-          className="mb-2 block pl-1 text-[0.8rem] font-semibold"
-          style={{ color: 'var(--t-muted)' }}
-        >
-          Payment method
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {SETTLEMENT_METHODS.map((m) => (
-            <button
-              key={m}
-              onClick={() => update({ method: m })}
-              className="neo-flat rounded-xl border-none px-3.5 py-2 text-[0.8rem] font-medium"
-              style={{
-                color: draft.method === m ? 'var(--accent)' : 'var(--t-muted)',
-                ...(draft.method === m ? { boxShadow: '0 0 0 2px var(--accent)' } : {}),
-              }}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <label
-          className="mb-2 block pl-1 text-[0.8rem] font-semibold"
-          style={{ color: 'var(--t-muted)' }}
-        >
-          Note (optional)
-        </label>
-        <input
-          className="neo-input"
-          placeholder="e.g. Cash at dinner"
-          value={draft.note}
-          onChange={(e) => update({ note: e.target.value })}
-        />
-      </div>
-
-      <div>
-        <label
-          className="mb-2 block pl-1 text-[0.8rem] font-semibold"
-          style={{ color: 'var(--t-muted)' }}
-        >
-          Date
-        </label>
-        <div
-          className="neo-inset-sm rounded-xl px-4 py-2.5 text-[0.85rem]"
-          style={{ color: 'var(--t-primary)' }}
-        >
-          Today
-        </div>
+        </Row>
       </div>
 
       <div className="neo-inset-sm flex gap-2.5 rounded-2xl p-4">
@@ -185,9 +167,20 @@ export default function SettleConfirmPage() {
         </p>
       </div>
 
+      {submitError && (
+        <p
+          role="alert"
+          className="rounded-xl px-3.5 py-2.5 text-[0.8rem] font-medium"
+          style={{ background: 'var(--red-bg)', color: 'var(--c-red)' }}
+        >
+          {submitError}
+        </p>
+      )}
+
       <div className="flex gap-2.5">
         <button
           onClick={() => router.push('/settle')}
+          disabled={submitting}
           className="neo-flat flex-1 rounded-2xl border-none py-3.5 text-[0.9rem] font-semibold"
           style={{ color: 'var(--t-muted)' }}
         >
@@ -195,11 +188,23 @@ export default function SettleConfirmPage() {
         </button>
         <button
           onClick={confirm}
-          className="neo-btn-green font-display flex-[2] rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold"
+          disabled={submitting}
+          className="neo-btn-green font-display flex-[2] rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:opacity-50"
         >
-          Confirm Settlement
+          {submitting ? 'Recording…' : 'Confirm Settlement'}
         </button>
       </div>
+    </div>
+  );
+}
+
+function Row({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-[0.82rem]" style={{ color: 'var(--t-dim)' }}>
+        {label}
+      </span>
+      {children}
     </div>
   );
 }

@@ -1,54 +1,48 @@
 'use client';
 
 // STL-01 Settle Up - Choose Person -- docs/ABRO_FRONTEND_SPEC.md §6
-// (lines 1557-1590).
+// (lines 1557-1590). Phase 8 slice 9b: real friends, balances and
+// groups; a group's payments come from apps/api's simplified plan.
 //
 // Deviations:
-//  - "People who owe you" is shown but not tappable into the settle flow.
-//    Per apps/api/internal/settlements/service.go (already implemented,
-//    ADR-003): a settlement can only be recorded by the debtor -- the
-//    service checks the *actor's* outstanding balance to `toUserId` and
-//    errors NO_OUTSTANDING_DEBT if the actor doesn't owe them. This app
-//    only ever acts as the current user, so there is no valid way to
-//    record "so-and-so paid me" from this session -- that has to happen
-//    from their own account. Rows here are informational (tap -> Friend
-//    Detail), not a fabricated settle path that would 400 the moment
-//    Phase 8 wires the real endpoint. Same reasoning documented in
-//    mock-data.ts' SettlementRecord header comment.
-//  - "Groups" doesn't list a flat "your balance in each group" like the
-//    spec text -- a group balance is an aggregate net position, not a
-//    pairwise debt, and settling requires knowing exactly *who* in the
-//    group you owe and how much. Selecting a group drills into that
-//    group's specific outstanding payments (computed via
-//    `getMyGroupDebts`, which calls the same tested `simplifyDebts()`
-//    GRP-05/GRP-08 already use) rather than jumping straight to an
-//    ambiguous amount screen. This keeps the route count matching the
-//    spec (still just `/settle`, no extra screen) while staying correct
-//    about which specific person is being settled with.
-//  - `?friendId=` / `?groupId=` query params (pre-wired from Home,
-//    Friends, Friend Detail, Groups, and the Balances overview screens
-//    across earlier phases) are handled here: a valid `friendId` with a
-//    real outstanding balance skips straight to /settle/amount; a valid
-//    `groupId` pre-opens that group's drill-down.
-//  - Every hand-off to /settle/amount goes through its `?toUserId=`/
-//    `?groupId=` query params, never a context update made just before
-//    navigating -- a context update from this page and /settle/amount's
-//    first render are two different components; there's no guarantee
-//    the update commits before the new route reads it (confirmed by a
-//    real repro: the query-param-driven redirect landed on
-//    /settle/amount with a still-null draft.toUserId). /settle/amount
-//    reads its own params directly instead, same pattern EXP-01 already
-//    uses for its `?groupId=` pre-selection.
+//  - "People who owe you" is shown but not tappable into the settle
+//    flow: apps/api only lets the debtor record a settlement (ADR-003),
+//    so "they paid me" has to be recorded from their account. Rows open
+//    Friend Detail instead.
+//  - "Groups" lists the groups you owe in (your net < 0). Selecting one
+//    shows your payments from that group's simplified plan
+//    (GET /balances/groups/{id}/simplified, the same plan GRP-05/08
+//    show) -- each is payable because apps/api checks group
+//    settlements against nets (ADR-010).
+//  - Deep links (?friendId=, ?groupId=, ?groupId=&toUserId=) from Home,
+//    Friends, Friend Detail, Groups and Balances: a friend or a group
+//    payee goes straight to /settle/amount (which checks there's
+//    something to settle and bounces back here if not); a bare groupId
+//    opens that group's payments.
+//  - Hand-offs to /settle/amount go through its query params, never a
+//    context update made just before navigating (the new route can
+//    render before the update commits -- a real repro in Phase 6).
 
 import { ArrowRight, ChevronLeft, Handshake, Search as SearchIcon } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, Suspense, useEffect, useState } from 'react';
 
 import { ETB, formatMoney } from '@abro/types';
 import { AmountBadge, EmptyState, GroupIcon, PersonRow } from '@abro/ui';
 
-import { FRIENDS, GROUPS, getMyGroupDebts, resolveParticipants } from '~/lib/mock-data';
-import { useSettleDraft } from '~/lib/settle-draft';
+import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { ApiError } from '~/lib/api-client';
+import { me } from '~/lib/auth-api';
+import {
+  type FriendRow,
+  type SimplifiedPayment,
+  deriveFriendRows,
+  getBalancesSummary,
+  getSimplifiedPayments,
+} from '~/lib/balances-api';
+import { listFriends } from '~/lib/friends-api';
+import { type AuthGroup, getGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
+import { colorForId, initialsOf } from '~/lib/identity';
 
 export default function SettleChoosePage() {
   return (
@@ -58,108 +52,97 @@ export default function SettleChoosePage() {
   );
 }
 
+interface OwedGroup {
+  id: string;
+  name: string;
+  type: string;
+  /** What you owe the group overall (your net, made positive). */
+  owed: bigint;
+}
+
+interface Data {
+  meId: string;
+  friends: FriendRow[];
+  groups: OwedGroup[];
+}
+
 function SettleChooseForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { draft, update } = useSettleDraft();
+  const [data, setData] = useState<Data | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [handledParams, setHandledParams] = useState(false);
+  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
 
-  const youOwe = FRIENDS.filter((f) => f.iOwe > 0n);
-  const owedToYou = FRIENDS.filter((f) => f.owes > 0n);
-  const groupsYouOweIn = useMemo(() => GROUPS.filter((g) => getMyGroupDebts(g.id).length > 0), []);
+  const friendId = searchParams.get('friendId');
+  const paramGroupId = searchParams.get('groupId');
+  const paramToUserId = searchParams.get('toUserId');
+  const redirecting = !!friendId || (!!paramGroupId && !!paramToUserId);
+
+  const load = () => {
+    setError(null);
+    setData(null);
+    Promise.all([me(), listFriends(), getBalancesSummary(), listGroups()])
+      .then(([profile, friends, summary, groups]) => {
+        const netByGroup = new Map(summary.groups.map((g) => [g.groupId, BigInt(g.netBalance)]));
+        setData({
+          meId: profile.id,
+          friends: deriveFriendRows(friends, summary),
+          groups: groups
+            .filter((g) => (netByGroup.get(g.id) ?? 0n) < 0n)
+            .map((g) => ({ id: g.id, name: g.name, type: g.type, owed: -netByGroup.get(g.id)! })),
+        });
+      })
+      .catch((err) => {
+        setError(err instanceof ApiError ? err.message : 'Could not load your balances.');
+      });
+  };
 
   useEffect(() => {
-    if (handledParams) {
+    if (friendId) {
+      router.replace(`/settle/amount?toUserId=${friendId}`);
       return;
     }
-    setHandledParams(true);
-
-    const friendId = searchParams.get('friendId');
-    if (friendId) {
-      const friend = FRIENDS.find((f) => f.id === friendId);
-      if (friend && friend.iOwe > 0n) {
-        router.replace(`/settle/amount?toUserId=${friendId}`);
-        return;
-      }
+    if (paramGroupId && paramToUserId) {
+      router.replace(`/settle/amount?toUserId=${paramToUserId}&groupId=${paramGroupId}`);
+      return;
     }
-
-    const groupId = searchParams.get('groupId');
-    if (groupId && GROUPS.some((g) => g.id === groupId)) {
-      const toUserId = searchParams.get('toUserId');
-      if (toUserId && getMyGroupDebts(groupId).some((d) => d.toUserId === toUserId)) {
-        router.replace(`/settle/amount?toUserId=${toUserId}&groupId=${groupId}`);
-        return;
-      }
-      update({ groupId, toUserId: null });
+    if (paramGroupId) {
+      setOpenGroupId(paramGroupId);
     }
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, handledParams]);
+  }, []);
 
-  const q = search.trim().toLowerCase();
-  const filteredYouOwe = q ? youOwe.filter((f) => f.name.toLowerCase().includes(q)) : youOwe;
-  const filteredOwedToYou = q
-    ? owedToYou.filter((f) => f.name.toLowerCase().includes(q))
-    : owedToYou;
-  const filteredGroups = q
-    ? groupsYouOweIn.filter((g) => g.name.toLowerCase().includes(q))
-    : groupsYouOweIn;
+  if (redirecting) {
+    return <LoadingState />;
+  }
+  if (error) {
+    return <ErrorState message={error} onRetry={load} />;
+  }
+  if (!data) {
+    return <LoadingState />;
+  }
 
-  const activeGroup = draft.groupId ? GROUPS.find((g) => g.id === draft.groupId) : undefined;
-
-  if (activeGroup) {
-    const debts = getMyGroupDebts(activeGroup.id);
+  if (openGroupId) {
     return (
-      <div className="flex flex-col gap-5">
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => update({ groupId: null })}
-            className="flex items-center gap-1 text-[0.85rem] font-medium"
-            style={{ color: 'var(--accent)' }}
-          >
-            <ChevronLeft size={16} strokeWidth={2.5} /> Groups
-          </button>
-          <h2
-            className="font-display text-[1.05rem] font-bold"
-            style={{ color: 'var(--t-primary)' }}
-          >
-            {activeGroup.name}
-          </h2>
-          <div className="w-[70px]" />
-        </div>
-
-        {debts.length === 0 ? (
-          <EmptyState
-            icon={<Handshake size={26} strokeWidth={1.5} />}
-            title="Nothing to settle"
-            description="You don't owe anyone in this group right now."
-          />
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            {debts.map((d) => {
-              const person = resolveParticipants([d.toUserId])[0]!;
-              return (
-                <PersonRow
-                  key={d.toUserId}
-                  initials={person.initials}
-                  color={person.color}
-                  name={person.name}
-                  sub="In this group"
-                  right={<AmountBadge amount={d.amount} dir="owe" />}
-                  onClick={() =>
-                    router.push(`/settle/amount?toUserId=${d.toUserId}&groupId=${activeGroup.id}`)
-                  }
-                />
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <GroupPayments
+        groupId={openGroupId}
+        meId={data.meId}
+        onBack={() => setOpenGroupId(null)}
+        onPick={(toUserId) =>
+          router.push(`/settle/amount?toUserId=${toUserId}&groupId=${openGroupId}`)
+        }
+      />
     );
   }
 
-  const isEmpty =
-    filteredYouOwe.length === 0 && filteredOwedToYou.length === 0 && filteredGroups.length === 0;
+  const q = search.trim().toLowerCase();
+  const match = (name: string) => !q || name.toLowerCase().includes(q);
+  const youOwe = data.friends.filter((f) => f.iOwe > 0n && match(f.name));
+  const owedToYou = data.friends.filter((f) => f.owes > 0n && match(f.name));
+  const groups = data.groups.filter((g) => match(g.name));
+  const isEmpty = youOwe.length === 0 && owedToYou.length === 0 && groups.length === 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -201,95 +184,176 @@ function SettleChooseForm() {
         />
       ) : (
         <>
-          {filteredYouOwe.length > 0 && (
-            <div>
-              <p
-                className="mb-2 pl-1 text-[0.8rem] font-semibold"
-                style={{ color: 'var(--t-muted)' }}
-              >
-                You owe
-              </p>
-              <div className="flex flex-col gap-2.5">
-                {filteredYouOwe.map((f) => (
-                  <PersonRow
-                    key={f.id}
-                    initials={f.initials}
-                    color={f.color}
-                    name={f.name}
-                    right={<AmountBadge amount={f.iOwe} dir="owe" />}
-                    onClick={() => router.push(`/settle/amount?toUserId=${f.id}`)}
-                  />
-                ))}
-              </div>
-            </div>
+          {youOwe.length > 0 && (
+            <Section title="You owe">
+              {youOwe.map((f) => (
+                <PersonRow
+                  key={f.id}
+                  initials={f.initials}
+                  color={f.color}
+                  name={f.name}
+                  right={<AmountBadge amount={f.iOwe} dir="owe" />}
+                  onClick={() => router.push(`/settle/amount?toUserId=${f.id}`)}
+                />
+              ))}
+            </Section>
           )}
 
-          {filteredGroups.length > 0 && (
-            <div>
-              <p
-                className="mb-2 pl-1 text-[0.8rem] font-semibold"
-                style={{ color: 'var(--t-muted)' }}
-              >
-                Groups
-              </p>
-              <div className="flex flex-col gap-2.5">
-                {filteredGroups.map((g) => {
-                  const owed = getMyGroupDebts(g.id).reduce((sum, d) => sum + d.amount, 0n);
-                  return (
-                    <button
-                      key={g.id}
-                      onClick={() => update({ groupId: g.id })}
-                      className="neo-raised-sm flex items-center gap-3 rounded-[18px] border-none px-3.5 py-[13px] text-left"
+          {groups.length > 0 && (
+            <Section title="Groups">
+              {groups.map((g) => {
+                const type = groupTypeFor(g.type);
+                return (
+                  <button
+                    key={g.id}
+                    onClick={() => setOpenGroupId(g.id)}
+                    className="neo-raised-sm flex items-center gap-3 rounded-[18px] border-none px-3.5 py-[13px] text-left"
+                  >
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]"
+                      style={{ background: type.tint, color: type.color }}
                     >
-                      <div
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]"
-                        style={{ background: `${g.color}22`, color: g.color }}
+                      <GroupIcon icon={type.icon} size={20} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className="mb-0.5 text-[0.9rem] font-semibold"
+                        style={{ color: 'var(--t-primary)' }}
                       >
-                        <GroupIcon icon={g.icon} size={20} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p
-                          className="mb-0.5 text-[0.9rem] font-semibold"
-                          style={{ color: 'var(--t-primary)' }}
-                        >
-                          {g.name}
-                        </p>
-                        <p className="text-[0.74rem]" style={{ color: 'var(--t-dim)' }}>
-                          {formatMoney(owed, ETB)} owed across this group
-                        </p>
-                      </div>
-                      <ArrowRight size={16} strokeWidth={2} style={{ color: 'var(--t-dim)' }} />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                        {g.name}
+                      </p>
+                      <p className="text-[0.74rem]" style={{ color: 'var(--t-dim)' }}>
+                        You owe {formatMoney(g.owed, ETB)} in this group
+                      </p>
+                    </div>
+                    <ArrowRight size={16} strokeWidth={2} style={{ color: 'var(--t-dim)' }} />
+                  </button>
+                );
+              })}
+            </Section>
           )}
 
-          {filteredOwedToYou.length > 0 && (
-            <div>
-              <p
-                className="mb-2 pl-1 text-[0.8rem] font-semibold"
-                style={{ color: 'var(--t-muted)' }}
-              >
-                Owed to you
-              </p>
-              <div className="flex flex-col gap-2.5">
-                {filteredOwedToYou.map((f) => (
-                  <PersonRow
-                    key={f.id}
-                    initials={f.initials}
-                    color={f.color}
-                    name={f.name}
-                    sub="They can settle from their side"
-                    right={<AmountBadge amount={f.owes} dir="receive" />}
-                    onClick={() => router.push(`/friends/${f.id}`)}
-                  />
-                ))}
-              </div>
-            </div>
+          {owedToYou.length > 0 && (
+            <Section title="Owed to you">
+              {owedToYou.map((f) => (
+                <PersonRow
+                  key={f.id}
+                  initials={f.initials}
+                  color={f.color}
+                  name={f.name}
+                  sub="They can settle from their side"
+                  right={<AmountBadge amount={f.owes} dir="receive" />}
+                  onClick={() => router.push(`/friends/${f.id}`)}
+                />
+              ))}
+            </Section>
           )}
         </>
+      )}
+    </div>
+  );
+}
+
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div>
+      <p className="mb-2 pl-1 text-[0.8rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
+        {title}
+      </p>
+      <div className="flex flex-col gap-2.5">{children}</div>
+    </div>
+  );
+}
+
+/** One group's payments you make, from apps/api's simplified plan. */
+function GroupPayments({
+  groupId,
+  meId,
+  onBack,
+  onPick,
+}: {
+  groupId: string;
+  meId: string;
+  onBack: () => void;
+  onPick: (toUserId: string) => void;
+}) {
+  const [state, setState] = useState<
+    { group: AuthGroup; payments: SimplifiedPayment[] } | 'loading' | 'notFound' | string
+  >('loading');
+
+  const load = () => {
+    setState('loading');
+    Promise.all([getGroup(groupId), getSimplifiedPayments(groupId)])
+      .then(([group, plan]) =>
+        setState({ group, payments: plan.filter((p) => p.fromUserId === meId) }),
+      )
+      .catch((err) => {
+        if (err instanceof ApiError && [400, 403, 404].includes(err.status)) {
+          setState('notFound');
+          return;
+        }
+        setState(err instanceof ApiError ? err.message : 'Could not load this group.');
+      });
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(load, [groupId]);
+
+  if (state === 'loading') {
+    return <LoadingState />;
+  }
+  if (typeof state === 'string' && state !== 'notFound') {
+    return <ErrorState message={state} onRetry={load} />;
+  }
+
+  const group = typeof state === 'object' ? state.group : null;
+  const payments = typeof state === 'object' ? state.payments : [];
+  const nameOf = (id: string) =>
+    group?.members.find((m) => m.userId === id)?.user.displayName ?? 'Former member';
+
+  return (
+    <div className="flex flex-col gap-5">
+      <div className="flex items-center justify-between">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1 text-[0.85rem] font-medium"
+          style={{ color: 'var(--accent)' }}
+        >
+          <ChevronLeft size={16} strokeWidth={2.5} /> Settle Up
+        </button>
+        <h2
+          className="font-display truncate px-2 text-[1.05rem] font-bold"
+          style={{ color: 'var(--t-primary)' }}
+        >
+          {group?.name ?? 'Group'}
+        </h2>
+        <div className="w-[70px]" />
+      </div>
+
+      {payments.length === 0 ? (
+        <EmptyState
+          icon={<Handshake size={26} strokeWidth={1.5} />}
+          title={group ? 'Nothing to settle' : 'Group not found'}
+          description={
+            group
+              ? "You don't owe anyone in this group right now."
+              : "This group doesn't exist, or you're not a member."
+          }
+        />
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {payments.map((p) => (
+            <PersonRow
+              key={p.toUserId}
+              initials={initialsOf(nameOf(p.toUserId))}
+              color={colorForId(p.toUserId)}
+              name={nameOf(p.toUserId)}
+              sub="Suggested payment in this group"
+              right={<AmountBadge amount={p.amount} dir="owe" />}
+              onClick={() => onPick(p.toUserId)}
+            />
+          ))}
+        </div>
       )}
     </div>
   );

@@ -988,7 +988,7 @@ In "Bob Flat" (Alice is a plain member): "Only admins can change these
 settings.", the fields are disabled, there's no Save or Delete, and
 Leave → /groups with Bob Flat gone.
 
-### Slice 9 — Settle up (STL-01…STL-05) `[in progress]`
+### Slice 9 — Settle up (STL-01…STL-05) `[done]`
 
 **9a — Group settlements by net (backend) `[done]`.** Branch:
 `feature/group-settlements-by-net`. See ADR-010.
@@ -1008,8 +1008,58 @@ Leave → /groups with Bob Flat gone.
 
 The test fails against the old pairwise code.
 
-**9b — Settle flow + history (frontend) `[todo]`.** User decision
-(2026-09-29): drop the payment-method picker (the API stores no method).
+**9b — Settle flow + history (frontend) `[done]`.** Branch:
+`feature/settle-api-integration`. Relies on 9a's net rule (#41) for
+group payments above the pairwise figure.
+
+- [x] `~/lib/settlements-api.ts`: `createSettlement` (`POST
+/settlements/` with a per-flow `Idempotency-Key`) and
+      `loadSettleTarget`, which gives who you're paying and the most you
+      can settle. It follows apps/api's rule (pairwise for personal,
+      nets for groups per ADR-010) for display; the server re-checks.
+- [x] STL-01 lists friends you owe, groups you owe in (open one to see
+      your payments from apps/api's simplified plan), and friends who
+      owe you (informational, since only the debtor records). Deep links
+      `?friendId=`, `?groupId=`, `?groupId=&toUserId=` work.
+- [x] STL-02 caps the amount at that figure, with the partial /
+      over-cap hints. Anyone you can't settle with gets a "Nothing to
+      settle" message.
+- [x] STL-03 reloads the balance and records the settlement; server
+      errors show inline, and a double tap records it once. STL-04
+      shows what was paid and what's still owed (reloaded).
+- [x] STL-05 history: `GET /expenses?q=Settlement` pages, keeping only
+      SETTLEMENT rows. Filters are You paid / You received plus search;
+      rows open EXP-09.
+- [x] Fixed a display bug in `toActivityDisplay` (Home/Activity/group
+      detail) and in history: a group settlement between two _other_
+      members read "X settled with you". It now reads "X settled with Y"
+      and is in neither filter.
+
+Deviations (Confirmed, user decision 2026-09-29): no payment method
+and no note (apps/api stores neither); the date is always "Today".
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API with 9a running from a worktree.
+
+As Alice:
+
+- STL-01 shows "Lalibela 2026: You owe 333.34" and "Carol owes you
+  400".
+- The group's payment is Carol 333.34, and STL-02 caps it at 333.34
+  (above the 300 pairwise figure). 400 → "Can't exceed…", with Next
+  disabled.
+- Full amount → Confirm → Success "Still to settle: Nothing". apps/api
+  nets are now Alice 0, Carol +83.33, Bob −83.33, and the plan is just
+  Bob → Carol 83.33.
+- History lists "You paid Carol", "Bob Test paid Carol Test" and
+  "Carol Test paid you", with correct filters; Activity matches.
+
+As Carol:
+
+- `/settle?friendId=Alice` → straight to the amount step (400).
+- 150 → partial hint; Confirm clicked twice → one settlement, and
+  Success shows 250 still owed (apps/api: 25000).
+- Settling with Bob (not a friend) → "Nothing to settle".
 
 ### Later slices `[todo]`
 
