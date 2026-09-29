@@ -13,6 +13,7 @@
 //  - No separate review step (the prototype has a 3rd "Review" step;
 //    spec's GRP-01/GRP-02 only describes two screens) -- same reasoning
 //    as EXP-08 not adding an extra success screen beyond the spec.
+//  - Name max 80 characters, apps/api's limit.
 
 import { useRouter } from 'next/navigation';
 
@@ -54,6 +55,7 @@ export default function CreateGroupDetailsPage() {
         <input
           className="neo-input"
           placeholder="e.g. Friday Friends"
+          maxLength={80}
           value={draft.name}
           onChange={(e) => update({ name: e.target.value })}
           style={{ color: 'var(--t-primary)' }}

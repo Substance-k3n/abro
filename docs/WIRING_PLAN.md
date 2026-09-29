@@ -795,6 +795,40 @@ resend the stored amounts as EXACT (a PERCENTAGE/SHARES expense then
 shows as "Exact split"); if either changes, recalculate as EQUAL (the
 screen's existing behavior).
 
+### Slice 8 — Groups (GRP-01…GRP-08) `[in progress]`
+
+**8c — Create group + invites (GRP-01/02, DASH-05) `[done]`.** Branch:
+`feature/group-create-invites-api-integration`. Frontend only.
+
+- [x] GRP-02 lists your real friends (with balances, via
+      `deriveFriendRows`) and "Create Group" / "Skip" call
+      `POST /groups/` (`createGroup`) with the UPPERCASE type,
+      currency and description. Picked friends are invited, not
+      added, and the screen says so. Errors show inline and the button
+      is disabled while the request runs (groups have no idempotency
+      key). Opening the step without a draft goes back to GRP-01.
+- [x] Groups (DASH-05) lists pending invites (`GET /groups/invites`)
+      above the groups, with Join (`POST /groups/{id}/invite/accept`,
+      then reload) and Decline (`DELETE /groups/{id}/members/{you}`,
+      since apps/api has no decline route; it marks the invite LEFT).
+- [x] GRP-01's name is capped at apps/api's 80 characters.
+
+Deviations (Confirmed): no email/phone invites (apps/api invites
+friends only). Until 8b (#38) merges, a new group's detail page still
+reads mock data.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API:
+
+- As Bob, GRP-01 "Bob Flat" (Household, description "Bole apartment")
+  → GRP-02 inviting Alice → Create. Stored as HOUSEHOLD/ETB with the
+  description; Bob ADMIN ACTIVE, Alice MEMBER INVITED.
+- A second invite ("Bob Gym") was added via the API. As Alice, Groups
+  showed "Group invites (2)":
+  - Decline on Bob Gym → gone, and her membership is LEFT.
+  - Join on Bob Flat → it appears under Settled with 2 members.
+- Opening /groups/new/members directly → redirected to /groups/new.
+
 ### Later slices `[todo]`
 
 Groups (`GRP-0x`), settlement
