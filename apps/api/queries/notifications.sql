@@ -4,10 +4,31 @@ VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: CreateNotificationsBulk :many
--- Fans the same event out to several recipients in one statement.
+-- Fans the same event out to several recipients in one statement,
+-- skipping anyone who opted out of this type (notification_opt_outs).
 INSERT INTO notifications (user_id, type, title, body)
-SELECT unnest(sqlc.arg(user_ids)::uuid[]), sqlc.arg(type), sqlc.arg(title), sqlc.arg(body)
+SELECT r.user_id, sqlc.arg(type), sqlc.arg(title), sqlc.arg(body)
+FROM unnest(sqlc.arg(user_ids)::uuid[]) AS r(user_id)
+WHERE NOT EXISTS (
+    SELECT 1 FROM notification_opt_outs o
+    WHERE o.user_id = r.user_id AND o.type = sqlc.arg(type)
+)
 RETURNING *;
+
+-- name: IsNotificationOptedOut :one
+SELECT EXISTS (
+    SELECT 1 FROM notification_opt_outs WHERE user_id = $1 AND type = $2
+);
+
+-- name: ListNotificationOptOuts :many
+SELECT type FROM notification_opt_outs WHERE user_id = $1;
+
+-- name: AddNotificationOptOut :exec
+INSERT INTO notification_opt_outs (user_id, type) VALUES ($1, $2)
+ON CONFLICT DO NOTHING;
+
+-- name: RemoveNotificationOptOut :exec
+DELETE FROM notification_opt_outs WHERE user_id = $1 AND type = $2;
 
 -- name: GetNotificationByID :one
 SELECT * FROM notifications WHERE id = $1;

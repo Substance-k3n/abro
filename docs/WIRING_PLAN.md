@@ -1061,7 +1061,78 @@ As Carol:
   Success shows 250 still owed (apps/api: 25000).
 - Settling with Bob (not a friend) → "Nothing to settle".
 
-### Slice 10 — Profile & settings (PRF-01, SET-01…SET-03) `[in progress]`
+### Slice 10 — Profile & settings (PRF-01, SET-01…SET-03) `[done]`
+
+User decisions (2026-09-29):
+
+- Build per-type notification opt-out (in-app only; quiet hours
+  dropped).
+- Trim SET-03 Privacy & Security to what's real: sign-in method and
+  sign out. Drop password, 2FA, sessions and the visibility selectors.
+- Defer delete account and export data. They touch other people's
+  balances and need their own ADR.
+
+**10a — Notification preferences (backend) `[done]`.** Branch:
+`feature/notification-preferences`.
+
+- [x] Migration `0012_notification_opt_outs` (`user_id`, `type`,
+      primary key on both). A row means "off"; no row means "on", so
+      existing users need no backfill. Rows cascade with the profile.
+- [x] `GET /notifications/preferences` returns `{TYPE: bool}` for all
+      8 types. `PATCH` takes a partial map, rejects an unknown type
+      before writing anything, and returns the full map.
+- [x] `Notify` is a no-op for an opted-out type, and `NotifyMany` filters
+      opted-out recipients in the insert itself. No caller changed.
+
+**Verified:** full `go test ./...` passes. New tests cover:
+
+- defaults (all on);
+- an opt-out skipped by both Notify and NotifyMany for that user only,
+  with other types still arriving;
+- re-enabling (idempotent) restoring delivery;
+- an unknown type rejected with nothing applied.
+
+The migration down and up were both run. HTTP GET/PATCH checked with
+curl, including a `VALIDATION_ERROR` for an unknown type.
+
+**10b — Profile, settings, privacy (frontend) `[done]`.** Branch:
+`feature/profile-settings-api-integration`. Frontend only.
+
+- [x] PRF-01: your real profile (`GET /auth/me`). - Name, username, default currency and language save with
+      `PATCH /users/me`, sending only the fields that changed.
+      Server errors show inline (e.g. "That username is already
+      taken."). - Statistics are real: friends, groups, and this year's shared
+      spending / what you paid (`GET /analytics/yearly`). - Avatar initials and color come from `~/lib/identity.ts`, like
+      everywhere else.
+- [x] SET-01: Account (Profile, Privacy & security), a "Currency &
+      language" row linking to PRF-01 with the current values,
+      Notification types (SET-02), Version, and a real **Sign out**
+      (`POST /auth/logout`). Nothing called `logout()` before.
+- [x] SET-03, trimmed (user decision): how you sign in (email code or
+      Google, no password), what others can see (as apps/api enforces
+      it), and Sign out of this device.
+
+Deviations (Confirmed): dropped because nothing stores or uses them:
+
+- phone, avatar color picker and photo;
+- date/number formats, push/email channel toggles, data/cache rows,
+  terms/support links;
+- password, 2FA, sessions, visibility selectors.
+
+Export and delete account are deferred (user decision). Language is
+saved, but the UI stays English.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API, as Carol:
+
+- PRF-01 stats read 1 friend, 1 group, 2,000.00 shared spending and
+  900.00 paid, matching `/analytics/yearly`.
+- Save is disabled until something changes.
+- Username `bob…` → "That username is already taken."
+- Name "Carol Tesfaye", username "Carol.T" and USD → "Saved ✓"; apps/api
+  stores `carol.t` and USD (reset to ETB afterwards).
+- SET-01 shows "USD · English".
+- SET-03 → Sign out lands on /auth/signin, and `/auth/me` → 401.
 
 **10c — Notification settings (SET-02) `[done]`.** Branch:
 `feature/notification-settings-api-integration`. Needs 10a (#43).
