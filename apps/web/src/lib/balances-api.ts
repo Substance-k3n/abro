@@ -137,3 +137,31 @@ export function balanceTotals(friendRows: FriendRow[], groupRows: GroupRow[]): B
   }
   return { owedTotal, oweTotal, net: owedTotal - oweTotal };
 }
+
+/** One member's net position in a group: positive = the group owes
+ * them (group convention -- see this module's header). */
+export interface GroupBalanceEntry {
+  userId: string;
+  netBalance: string;
+}
+
+/** GET /balances/groups/{id}. Anyone with no expenses in the group is
+ * absent, i.e. 0; someone who has since left may be present. */
+export function getGroupBalances(groupId: string): Promise<GroupBalanceEntry[]> {
+  return api.get(`/balances/groups/${groupId}`);
+}
+
+export interface SimplifiedPayment {
+  fromUserId: string;
+  toUserId: string;
+  amount: bigint;
+}
+
+/** GET /balances/groups/{id}/simplified -- apps/api's debt
+ * simplification over the same nets (ABRO_PRD.md §18). */
+export async function getSimplifiedPayments(groupId: string): Promise<SimplifiedPayment[]> {
+  const rows: { fromUserId: string; toUserId: string; amount: string }[] = await api.get(
+    `/balances/groups/${groupId}/simplified`,
+  );
+  return rows.map((r) => ({ ...r, amount: BigInt(r.amount) }));
+}

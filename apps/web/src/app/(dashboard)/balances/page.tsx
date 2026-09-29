@@ -237,7 +237,7 @@ export default function BalancesPage() {
                     >
                       <div
                         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]"
-                        style={{ background: `${g.groupType.color}22`, color: g.groupType.color }}
+                        style={{ background: g.groupType.tint, color: g.groupType.color }}
                       >
                         <GroupIcon icon={g.groupType.icon} size={19} />
                       </div>

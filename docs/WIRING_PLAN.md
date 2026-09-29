@@ -836,7 +836,7 @@ editing Hotel → "Only the payer or a group admin can edit this
 expense." inline, form kept, nothing stored; his participant list
 includes Carol (group member, not his friend).
 
-### Slice 8 — Groups (GRP-01…GRP-07) `[in progress]`
+### Slice 8 — Groups (GRP-01…GRP-08) `[in progress]`
 
 Four PRs: backend rules first, then the screens.
 
@@ -861,11 +861,55 @@ invite to a deleted group disappearing; a deleted group's expense
 frozen and dropped from the list; and the recurring due-list skipping
 it.
 
-**8b — Group detail + tabs (read) `[todo]`**, **8c — create group +
-invites `[todo]`**, **8d — members + settings `[todo]`.** User
-decisions (2026-09-29): hide GRP-07's default split method and
-notification toggles (no backend field); invites need an accept UI
-(there's none anywhere yet).
+**8b — Group detail + read-only tabs (GRP-03/04/05/08) `[done]`.**
+Branch: `feature/group-detail-api-integration`. Frontend only.
+
+- [x] `~/lib/group-view.tsx`: one loader for every `/groups/[id]`
+      screen -- you, the group with members, and each person's net from
+      `GET /balances/groups/{id}` -- plus the shared loading / "Group
+      not found" (404/403/400) / error states. `getGroupBalances` and
+      `getSimplifiedPayments` live in `~/lib/balances-api.ts`.
+- [x] GRP-03 detail: real type, member count, description, your net
+      (Settle Up only when you owe), the latest 5 expenses, balances
+      for everyone (a member who left with a balance shows "(left)"),
+      and real Admin/Member roles. The settings icon shows for admins
+      only.
+- [x] GRP-04 expenses: `GET /expenses?groupId=` with "Load more" (30
+      per page), filters over what's loaded; your position per row is
+      what others owe you (you paid) or your share. Settlements are
+      labelled.
+- [x] GRP-05/GRP-08: nets and apps/api's simplified plan
+      (`/balances/groups/{id}/simplified`) -- no client-side
+      recomputation. Shared `~/components/PaymentRow.tsx`; only your
+      own payments link to /settle (ADR-003).
+- [x] `groupTypeFor()` now returns a `tint` (color-mix), fixing the
+      invalid `${color}22` background for CSS-variable colors (Trip) on
+      Home, Groups, Balances and Search.
+
+Deviations (Confirmed): no pairwise "full network" view (apps/api
+exposes nets and the plan only); the "N instead of M payments" count
+shows N only. /settle, GRP-06 members and GRP-07 settings still read
+mock data (8d, slice 9).
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API, the slice 7 seed plus a Bob-paid Taxi 100 (A 33.34,
+B 33.33, C 33.33) and a 150 settlement Bob→Carol. Hand check:
+Carol +416.67, Bob −83.33, Alice −333.34, which sums to 0. As Bob:
+
+- Detail shows −83.33 with Settle Up, those three balances, real
+  roles, and no settings icon.
+- Expenses: Taxi +66.67, Hotel −300, the settlement labelled; the
+  "Your expenses" and category filters work.
+- Balances/Simplified: Alice→Carol 333.34 and Bob→Carol 83.33,
+  matching apps/api; only Bob's own payment links to /settle.
+- A random uuid and `not-a-uuid` both show "Group not found".
+- After Carol left (the pre-8a API still allowed it), she's listed
+  "Carol Test (left) +416.67".
+
+**8c — create group + invites `[todo]`**, **8d — members + settings
+`[todo]`.** User decisions (2026-09-29): hide GRP-07's default split
+method and notification toggles (no backend field); invites need an
+accept UI (there's none anywhere yet).
 
 ### Later slices `[todo]`
 

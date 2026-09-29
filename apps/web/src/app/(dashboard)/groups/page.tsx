@@ -79,7 +79,7 @@ function GroupCard({ group }: { group: GroupCardData }) {
       <div
         className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl"
         style={{
-          background: `${group.groupType.color}22`,
+          background: group.groupType.tint,
           color: group.groupType.color,
         }}
       >

@@ -1,82 +1,66 @@
 'use client';
 
 // GRP-03 Group Detail View -- docs/ABRO_FRONTEND_SPEC.md §5 (lines
-// 1198-1263). Ported from the prototype's GroupDetailScreen (App.tsx:
-// 2335-2468) -- info card, balance card, Expenses/Balances/Members
-// tabs. The prototype hardcodes `GROUPS[0]` and scopes both tabs to
-// ALL of FRIENDS regardless of actual membership; this port scopes
-// correctly to the real group via its own `memberIds`/`id`.
+// 1198-1263). Info card, your balance, quick actions, and Expenses /
+// Balances / Members tabs. Phase 8 slice 8b: reads the real group via
+// ~/lib/group-view.tsx (group, members, per-member nets) plus the
+// group's latest expenses (GET /expenses?groupId=).
 //
 // Deviations:
-//  - "Settings icon (if admin)" / "More menu": since there's no real
-//    membership/role system (see Members tab note below), and no
-//    settings/more-menu content exists to gate yet (GRP-07 lands in a
-//    later PR), the settings icon just always links to
-//    `/groups/[id]/settings`; the separate "More menu" is dropped
-//    (nothing to put in it beyond what settings already covers).
-//  - Quick Actions render as a row of buttons, not literal floating
-//    action buttons -- same simplification Home's Quick Actions grid
-//    already established for this app.
-//  - Expenses tab uses EXPENSES (Phase 4's full expense records,
-//    filtered by `groupId`) rather than ACTIVITIES -- more accurate,
-//    since EXPENSES carries a real `groupId` field and ACTIVITIES only
-//    has a free-text `sub` string.
-//  - Balances tab: "you" (role: creator) is always shown as Admin,
-//    everyone else as Member -- there's no real per-member role data
-//    anywhere in this app's mock model, and every existing/creatable
-//    group in this app is implicitly "yours". A real membership system
-//    is out of scope for a mock-data phase.
+//  - Settings icon shows for admins only (GRP-07 is admin-only); the
+//    separate "More menu" is dropped (nothing to put in it beyond what
+//    settings covers).
+//  - Quick Actions render as a row of buttons, not floating action
+//    buttons -- same simplification as Home's Quick Actions grid.
+//  - Expenses tab previews the latest few; "See all" opens GRP-04.
+//  - Settle Up only shows when you owe the group net: apps/api only
+//    lets the debtor record a settlement (ADR-003).
+//  - Members tab lists ACTIVE members; pending invites are on GRP-06.
 
-import { ETB, formatMoney } from '@abro/types';
-import { ActivityItem, Avatar, EmptyState, GroupIcon } from '@abro/ui';
-import {
-  ArrowLeft,
-  Handshake,
-  Plus,
-  Receipt,
-  Settings,
-  Split,
-  UserPlus,
-  Users,
-} from 'lucide-react';
+import { ETB, abs, formatMoney } from '@abro/types';
+import { ActivityItem, EmptyState, GroupIcon } from '@abro/ui';
+import { ArrowLeft, Handshake, Plus, Receipt, Settings, Split, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { ME } from '~/lib/expense-draft';
-import { EXPENSES, GROUPS, GROUP_BALANCES, resolveParticipants } from '~/lib/mock-data';
+import { type AuthExpense, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
+import { type GroupView, GroupViewLoader, PersonAvatar, nameIn } from '~/lib/group-view';
+import { groupTypeFor } from '~/lib/groups-api';
 
 type Tab = 'expenses' | 'balances' | 'members';
 
+const PREVIEW_COUNT = 5;
+
 export default function GroupDetailPage() {
   const params = useParams<{ id: string }>();
+  const [expenses, setExpenses] = useState<AuthExpense[]>([]);
+
+  return (
+    <GroupViewLoader
+      groupId={params.id}
+      extra={() => listExpenses({ groupId: params.id, limit: PREVIEW_COUNT + 1 }).then(setExpenses)}
+    >
+      {(view) => <GroupDetail view={view} expenses={expenses} />}
+    </GroupViewLoader>
+  );
+}
+
+function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpense[] }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('expenses');
+  const { group, profile, myMembership, activeMembers, nets } = view;
+  const type = groupTypeFor(group.type);
+  const myNet = nets.get(profile.id) ?? 0n;
+  const owes = myNet < 0n;
+  const isAdmin = myMembership.role === 'ADMIN';
+  const groupNames = new Map([[group.id, group.name]]);
 
-  const group = GROUPS.find((g) => g.id === params.id);
-
-  if (!group) {
-    return (
-      <div className="fade-in px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
-        <button
-          onClick={() => router.push('/groups')}
-          className="mb-4 flex items-center gap-1 text-[0.85rem] font-medium"
-          style={{ color: 'var(--accent)' }}
-        >
-          <ArrowLeft size={16} strokeWidth={2} /> Groups
-        </button>
-        <EmptyState
-          icon={<Users size={26} strokeWidth={1.5} />}
-          title="Group not found"
-          description="This group doesn't exist, or the link may be out of date."
-        />
-      </div>
-    );
-  }
-
-  const groupExpenses = EXPENSES.filter((e) => e.groupId === group.id);
-  const balances = GROUP_BALANCES[group.id] ?? {};
-  const memberRows = resolveParticipants(['me', ...group.memberIds]);
+  // Everyone with a balance, active or not, then active members at 0.
+  const balanceIds = [
+    ...activeMembers.map((m) => m.userId),
+    ...[...nets.keys()].filter((id) => !activeMembers.some((m) => m.userId === id)),
+  ];
 
   return (
     <div className="fade-in px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
@@ -94,12 +78,17 @@ export default function GroupDetailPage() {
         >
           {group.name}
         </h2>
-        <Link
-          href={`/groups/${group.id}/settings`}
-          className="neo-btn flex h-9 w-9 items-center justify-center rounded-xl"
-        >
-          <Settings size={17} strokeWidth={2} />
-        </Link>
+        {isAdmin ? (
+          <Link
+            href={`/groups/${group.id}/settings`}
+            aria-label="Group settings"
+            className="neo-btn flex h-9 w-9 items-center justify-center rounded-xl"
+          >
+            <Settings size={17} strokeWidth={2} />
+          </Link>
+        ) : (
+          <div className="w-9" />
+        )}
       </div>
 
       {/* Group info card */}
@@ -107,22 +96,32 @@ export default function GroupDetailPage() {
         <div className="mb-4 flex items-center gap-3.5">
           <div
             className="neo-raised-sm flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
-            style={{ color: group.color }}
+            style={{ color: type.color }}
           >
-            <GroupIcon icon={group.icon} size={26} />
+            <GroupIcon icon={type.icon} size={26} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex items-center gap-2">
               <span
                 className="rounded-lg px-2 py-0.5 text-[0.72rem] font-semibold"
-                style={{ background: `${group.color}22`, color: group.color }}
+                style={{ background: type.tint, color: type.color }}
               >
-                {group.type}
+                {type.label}
               </span>
             </div>
             <p className="text-[0.78rem]" style={{ color: 'var(--t-dim)' }}>
-              {group.members} members · Created {group.createdAt}
+              {activeMembers.length} member{activeMembers.length !== 1 ? 's' : ''} · Created{' '}
+              {new Date(group.createdAt).toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              })}
             </p>
+            {group.description && (
+              <p className="mt-1 text-[0.78rem]" style={{ color: 'var(--t-muted)' }}>
+                {group.description}
+              </p>
+            )}
           </div>
         </div>
 
@@ -133,16 +132,16 @@ export default function GroupDetailPage() {
             </p>
             <p
               className="font-display text-[1.3rem] font-extrabold tracking-tight"
-              style={{ color: group.balance < 0n ? 'var(--c-red)' : 'var(--c-green)' }}
+              style={{
+                color: myNet < 0n ? 'var(--c-red)' : myNet > 0n ? 'var(--c-green)' : 'var(--t-dim)',
+              }}
             >
-              {group.balance < 0n ? '-' : group.balance > 0n ? '+' : ''}
-              {formatMoney(group.balance < 0n ? -group.balance : group.balance, ETB)}
+              {myNet === 0n
+                ? 'Settled'
+                : `${myNet < 0n ? '-' : '+'}${formatMoney(abs(myNet), ETB)}`}
             </p>
           </div>
-          {/* Only shown when you owe the group net: apps/api/internal/
-              settlements/service.go only lets the debtor record a
-              settlement (ADR-003) -- see settle/page.tsx's header comment. */}
-          {group.balance < 0n && (
+          {owes && (
             <Link
               href={`/settle?groupId=${group.id}`}
               className="neo-btn-green font-display rounded-xl px-4 py-2.5 text-[0.85rem] font-semibold"
@@ -162,7 +161,7 @@ export default function GroupDetailPage() {
           <Plus size={18} strokeWidth={2} />
           <span className="text-[0.68rem] font-medium">Add Expense</span>
         </Link>
-        {group.balance < 0n ? (
+        {owes ? (
           <Link
             href={`/settle?groupId=${group.id}`}
             className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
@@ -209,7 +208,7 @@ export default function GroupDetailPage() {
       </div>
 
       {tab === 'expenses' &&
-        (groupExpenses.length === 0 ? (
+        (expenses.length === 0 ? (
           <EmptyState
             icon={<Receipt size={26} strokeWidth={1.5} />}
             title="No expenses yet"
@@ -217,36 +216,46 @@ export default function GroupDetailPage() {
           />
         ) : (
           <div className="flex flex-col gap-2.5">
-            {groupExpenses.map((e) => (
+            {expenses.slice(0, PREVIEW_COUNT).map((e) => (
               <ActivityItem
                 key={e.id}
-                category={e.category}
-                title={e.name}
-                sub={e.date}
-                amount={e.amount}
-                dir={e.payerId === ME ? 'receive' : 'owe'}
-                time={e.createdAt}
+                {...toActivityDisplay(e, profile.id, groupNames)}
                 onClick={() => router.push(`/expenses/${e.id}`)}
               />
             ))}
+            <Link
+              href={`/groups/${group.id}/expenses`}
+              className="py-1 text-center text-[0.82rem] font-semibold"
+              style={{ color: 'var(--accent)' }}
+            >
+              {expenses.length > PREVIEW_COUNT ? 'See all expenses' : 'Filter expenses'}
+            </Link>
           </div>
         ))}
 
       {tab === 'balances' && (
         <div className="flex flex-col gap-2.5">
-          {memberRows.map((p) => {
-            const bal = balances[p.id] ?? 0n;
+          {balanceIds.map((id) => {
+            const bal = nets.get(id) ?? 0n;
             return (
               <div
-                key={p.id}
+                key={id}
                 className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
               >
-                <Avatar initials={p.initials} color={p.color} size={38} />
+                <PersonAvatar view={view} userId={id} size={38} />
                 <span
                   className="flex-1 text-[0.88rem] font-semibold"
                   style={{ color: 'var(--t-primary)' }}
                 >
-                  {p.id === ME ? 'You' : p.name}
+                  {nameIn(view, id)}
+                  {!activeMembers.some((m) => m.userId === id) && (
+                    <span
+                      className="ml-1.5 text-[0.7rem] font-normal"
+                      style={{ color: 'var(--t-dim)' }}
+                    >
+                      (left)
+                    </span>
+                  )}
                 </span>
                 <span
                   className="font-mono text-[0.88rem] font-bold"
@@ -254,39 +263,44 @@ export default function GroupDetailPage() {
                     color: bal > 0n ? 'var(--c-green)' : bal < 0n ? 'var(--c-red)' : 'var(--t-dim)',
                   }}
                 >
-                  {bal === 0n
-                    ? 'Settled'
-                    : `${bal > 0n ? '+' : '-'}${formatMoney(bal < 0n ? -bal : bal, ETB)}`}
+                  {bal === 0n ? 'Settled' : `${bal > 0n ? '+' : '-'}${formatMoney(abs(bal), ETB)}`}
                 </span>
               </div>
             );
           })}
+          <Link
+            href={`/groups/${group.id}/balances`}
+            className="py-1 text-center text-[0.82rem] font-semibold"
+            style={{ color: 'var(--accent)' }}
+          >
+            Who pays whom
+          </Link>
         </div>
       )}
 
       {tab === 'members' && (
         <div className="flex flex-col gap-2.5">
-          {memberRows.map((p) => (
+          {activeMembers.map((m) => (
             <div
-              key={p.id}
+              key={m.id}
               className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
             >
-              <Avatar initials={p.initials} color={p.color} size={42} />
+              <PersonAvatar view={view} userId={m.userId} size={42} />
               <div className="min-w-0 flex-1">
                 <p
                   className="mb-0.5 text-[0.88rem] font-semibold"
                   style={{ color: 'var(--t-primary)' }}
                 >
-                  {p.id === ME ? 'You' : p.name}
+                  {nameIn(view, m.userId)}
                 </p>
                 <span
                   className="rounded-md px-1.5 py-0.5 text-[0.66rem] font-semibold"
                   style={{
-                    color: p.id === ME ? 'var(--accent)' : 'var(--t-dim)',
-                    background: p.id === ME ? 'var(--accent-light)' : 'transparent',
+                    color: m.role === 'ADMIN' ? 'var(--accent)' : 'var(--t-dim)',
+                    background: m.role === 'ADMIN' ? 'var(--accent-light)' : 'transparent',
                   }}
                 >
-                  {p.id === ME ? 'Admin' : 'Member'}
+                  {m.role === 'ADMIN' ? 'Admin' : 'Member'}
                 </span>
               </div>
             </div>
@@ -302,7 +316,7 @@ export default function GroupDetailPage() {
               <UserPlus size={19} strokeWidth={1.9} />
             </div>
             <span className="text-[0.85rem] font-semibold" style={{ color: 'var(--accent)' }}>
-              Manage Members
+              {isAdmin ? 'Manage Members' : 'All Members'}
             </span>
           </Link>
         </div>

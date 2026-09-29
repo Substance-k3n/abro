@@ -183,7 +183,7 @@ function GroupResultRow({ group, onOpen }: { group: GroupListItem; onOpen: () =>
     >
       <div
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]"
-        style={{ background: `${type.color}22`, color: type.color }}
+        style={{ background: type.tint, color: type.color }}
       >
         <GroupIcon icon={type.icon} size={19} />
       </div>
