@@ -995,7 +995,7 @@ Leave → /groups with Bob Flat gone.
 group payments above the pairwise figure.
 
 - [x] `~/lib/settlements-api.ts`: `createSettlement` (`POST
-  /settlements/` with a per-flow `Idempotency-Key`) and
+/settlements/` with a per-flow `Idempotency-Key`) and
       `loadSettleTarget`, which gives who you're paying and the most you
       can settle. It follows apps/api's rule (pairwise for personal,
       nets for groups per ADR-010) for display; the server re-checks.
