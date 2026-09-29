@@ -1061,6 +1061,47 @@ As Carol:
   Success shows 250 still owed (apps/api: 25000).
 - Settling with Bob (not a friend) → "Nothing to settle".
 
+### Slice 10 — Profile & settings (PRF-01, SET-01…SET-03) `[in progress]`
+
+**10b — Profile, settings, privacy (frontend) `[done]`.** Branch:
+`feature/profile-settings-api-integration`. Frontend only.
+
+- [x] PRF-01: your real profile (`GET /auth/me`). - Name, username, default currency and language save with
+      `PATCH /users/me`, sending only the fields that changed.
+      Server errors show inline (e.g. "That username is already
+      taken."). - Statistics are real: friends, groups, and this year's shared
+      spending / what you paid (`GET /analytics/yearly`). - Avatar initials and color come from `~/lib/identity.ts`, like
+      everywhere else.
+- [x] SET-01: Account (Profile, Privacy & security), a "Currency &
+      language" row linking to PRF-01 with the current values,
+      Notification types (SET-02), Version, and a real **Sign out**
+      (`POST /auth/logout`). Nothing called `logout()` before.
+- [x] SET-03, trimmed (user decision): how you sign in (email code or
+      Google, no password), what others can see (as apps/api enforces
+      it), and Sign out of this device.
+
+Deviations (Confirmed): dropped because nothing stores or uses them:
+
+- phone, avatar color picker and photo;
+- date/number formats, push/email channel toggles, data/cache rows,
+  terms/support links;
+- password, 2FA, sessions, visibility selectors.
+
+Export and delete account are deferred (user decision). Language is
+saved, but the UI stays English.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
+Browser, real API, as Carol:
+
+- PRF-01 stats read 1 friend, 1 group, 2,000.00 shared spending and
+  900.00 paid, matching `/analytics/yearly`.
+- Save is disabled until something changes.
+- Username `bob…` → "That username is already taken."
+- Name "Carol Tesfaye", username "Carol.T" and USD → "Saved ✓"; apps/api
+  stores `carol.t` and USD (reset to ETB afterwards).
+- SET-01 shows "USD · English".
+- SET-03 → Sign out lands on /auth/signin, and `/auth/me` → 401.
+
 ### Later slices `[todo]`
 
 Groups (`GRP-0x`), settlement
