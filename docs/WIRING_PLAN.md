@@ -906,13 +906,6 @@ Carol +416.67, Bob −83.33, Alice −333.34, which sums to 0. As Bob:
 - After Carol left (the pre-8a API still allowed it), she's listed
   "Carol Test (left) +416.67".
 
-**8c — create group + invites `[todo]`**, **8d — members + settings
-`[todo]`.** User decisions (2026-09-29): hide GRP-07's default split
-method and notification toggles (no backend field); invites need an
-accept UI (there's none anywhere yet).
-
-### Slice 8 — Groups (GRP-01…GRP-08) `[in progress]`
-
 **8c — Create group + invites (GRP-01/02, DASH-05) `[done]`.** Branch:
 `feature/group-create-invites-api-integration`. Frontend only.
 
@@ -927,11 +920,11 @@ accept UI (there's none anywhere yet).
       above the groups, with Join (`POST /groups/{id}/invite/accept`,
       then reload) and Decline (`DELETE /groups/{id}/members/{you}`,
       since apps/api has no decline route; it marks the invite LEFT).
-- [x] GRP-01's name is capped at apps/api's 80 characters.
+- [x] GRP-01's name is capped at apps/api's 80 characters, and the
+      selected type tile uses `tintOf` (8b's color-mix fix).
 
 Deviations (Confirmed): no email/phone invites (apps/api invites
-friends only). Until 8b (#38) merges, a new group's detail page still
-reads mock data.
+friends only).
 
 **Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
 Browser, real API:
@@ -944,6 +937,10 @@ Browser, real API:
   - Decline on Bob Gym → gone, and her membership is LEFT.
   - Join on Bob Flat → it appears under Settled with 2 members.
 - Opening /groups/new/members directly → redirected to /groups/new.
+
+**8d — members + settings `[todo]`.** User decisions (2026-09-29):
+hide GRP-07's default split method and notification toggles (no
+backend field).
 
 ### Later slices `[todo]`
 

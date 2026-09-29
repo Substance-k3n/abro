@@ -18,6 +18,7 @@
 import { useRouter } from 'next/navigation';
 
 import { useGroupDraft } from '~/lib/group-draft';
+import { tintOf } from '~/lib/groups-api';
 import { GROUP_TYPES } from '~/lib/mock-data';
 
 const NAME_SUGGESTIONS = ['Roommates', 'Family', 'Road Trip'];
@@ -98,7 +99,7 @@ export default function CreateGroupDetailsPage() {
             >
               <span
                 className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[1rem]"
-                style={{ background: draft.type === t.id ? `${t.color}22` : 'transparent' }}
+                style={{ background: draft.type === t.id ? tintOf(t.color) : 'transparent' }}
               >
                 {t.icon}
               </span>
