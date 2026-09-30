@@ -4,7 +4,7 @@
 // (lines 625-676). Ported from the prototype's AddExpenseScreen step 1
 // (App.tsx:2896 onward) -- name input + quick suggestions, amount input
 // with ETB prefix, category grid (.cat-pill, from CATEGORIES in
-// ~/lib/mock-data), date picker, optional group selector.
+// ~/lib/reference-data), date picker, optional group selector.
 //
 // Deviations:
 //  - "Calculator-style keypad on mobile" (spec) isn't built -- a plain
@@ -36,7 +36,7 @@ import { Suspense, useEffect } from 'react';
 import { useExpenseDirectory } from '~/lib/expense-directory';
 import { ME, useExpenseDraft } from '~/lib/expense-draft';
 import { groupTypeFor } from '~/lib/groups-api';
-import { CATEGORIES } from '~/lib/mock-data';
+import { CATEGORIES } from '~/lib/reference-data';
 
 const QUICK_NAMES = ['Lunch', 'Dinner', 'Coffee', 'Groceries'];
 

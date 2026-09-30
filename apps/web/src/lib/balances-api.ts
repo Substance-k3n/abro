@@ -10,8 +10,7 @@
 //     user here).
 //   - Group balances (GetGroupSummary -> the `groups` array below):
 //     positive = "they owe me" / "the group owes me" -- paid minus
-//     owed, matching this app's existing mock Group.balance convention
-//     exactly (see ~/lib/mock-data.ts's own comment on that field).
+//     owed (apps/api's GetGroupSummary).
 // `friendOweSplit` below is the one place the friend conversion happens
 // -- every screen showing a friend balance should call it rather than
 // re-deriving the sign logic.

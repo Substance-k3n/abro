@@ -1154,6 +1154,18 @@ Browser, real API (10a running from a worktree), as Alice:
   notifications stay at 2.
 - Switched back on → the next settlement brings it to 3.
 
+### Mock data removed `[done]`
+
+Branch: `chore/remove-mock-data`. After slices 1–10 no screen read mock
+facts. `~/lib/mock-data.ts` held only two client-side reference lists
+(`CATEGORIES`, `GROUP_TYPES`) plus dead helpers, so the lists moved to
+`~/lib/reference-data.ts` and the file was deleted. Present-tense
+comments that still described screens as "mock-only" were corrected.
+
+**Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean; no
+`mock-data` imports remain. In the browser, the EXP-01 category grid,
+the GRP-01 type grid and EXP-09's category icon all render.
+
 ### Later slices `[todo]`
 
 Groups (`GRP-0x`), settlement

@@ -3,7 +3,7 @@
 // GRP-01 Create Group - Basic Info -- docs/ABRO_FRONTEND_SPEC.md §5
 // (lines 1111-1155). Ported from the prototype's CreateGroupScreen step
 // 1 (App.tsx:5252-5338) -- name input, type grid (GROUP_TYPES, ~/lib/
-// mock-data.ts), currency segmented control, description textarea.
+// reference-data.ts), currency segmented control, description textarea.
 //
 // Deviations:
 //  - Quick-name suggestions use concrete examples ("Roommates",
@@ -19,7 +19,7 @@ import { useRouter } from 'next/navigation';
 
 import { useGroupDraft } from '~/lib/group-draft';
 import { tintOf } from '~/lib/groups-api';
-import { GROUP_TYPES } from '~/lib/mock-data';
+import { GROUP_TYPES } from '~/lib/reference-data';
 
 const NAME_SUGGESTIONS = ['Roommates', 'Family', 'Road Trip'];
 const CURRENCIES = ['ETB', 'USD', 'EUR'];

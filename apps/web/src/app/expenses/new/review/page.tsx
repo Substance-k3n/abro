@@ -42,7 +42,7 @@ import {
 } from '~/lib/expense-split';
 import { createExpense } from '~/lib/expenses-api';
 import { groupTypeFor } from '~/lib/groups-api';
-import { CATEGORIES } from '~/lib/mock-data';
+import { CATEGORIES } from '~/lib/reference-data';
 
 const METHOD_LABEL: Record<string, string> = {
   equal: 'Equal',

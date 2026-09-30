@@ -32,7 +32,7 @@ import { ApiError } from '~/lib/api-client';
 import { listExpenses } from '~/lib/expenses-api';
 import { type GroupView, GroupViewLoader } from '~/lib/group-view';
 import { deleteGroup, groupTypeFor, removeGroupMember, updateGroup } from '~/lib/groups-api';
-import { GROUP_TYPES } from '~/lib/mock-data';
+import { GROUP_TYPES } from '~/lib/reference-data';
 
 const CURRENCIES = ['ETB', 'USD', 'EUR'];
 
