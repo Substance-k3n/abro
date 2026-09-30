@@ -17,12 +17,8 @@
 // Home never needed it (it hides zero-balance friends entirely) --
 // derived as `owes === 0n && iOwe === 0n`.
 //
-// Deviation (Confirmed): a friend row still navigates to
-// `/friends/[friendId]`, which is still mock-data-only until Friend
-// Detail (DASH-04) is wired in a later slice -- clicking through with a
-// real friend id will land on that page's own "not found" state until
-// then. Same class of temporary rough edge as Home's Recent Activity
-// rows, which have the equivalent gap against `/expenses/[id]`.
+// A friend row opens Friend Detail (`/friends/[friendId]`, DASH-04,
+// real since slice 4).
 //
 // Friend requests: incoming PENDING requests (GET /friends/requests) are
 // listed above the balance sections with Accept/Decline. Accepting

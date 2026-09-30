@@ -8,7 +8,7 @@
 
 import { api } from './api-client';
 import type { AuthProfile } from './auth-api';
-import { GROUP_TYPES } from './mock-data';
+import { GROUP_TYPES } from './reference-data';
 
 /** apps/api/internal/apitypes/groups.go's GroupMember. */
 export interface GroupMember {
@@ -141,7 +141,7 @@ export function deleteGroup(id: string): Promise<void> {
 export type GroupType = (typeof GROUP_TYPES)[number];
 
 /** Icon/color/label for a real group's UPPERCASE `type` enum, via
- * ~/lib/mock-data.ts's GROUP_TYPES table (client-side reference data,
+ * ~/lib/reference-data.ts's GROUP_TYPES table (client-side reference data,
  * not mock facts), falling back to "Other" for an unknown value -- the
  * one place this match lives, shared by Home, Balances and Groups. */
 export function groupTypeFor(type: string): GroupType & { tint: string } {

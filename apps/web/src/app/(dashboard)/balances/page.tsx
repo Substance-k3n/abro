@@ -32,7 +32,7 @@
 //
 // Deviations/omissions (Confirmed -- app is single-currency today):
 //  - Currency Breakdown card: omitted, not built as a fake collapsible. The
-//    app only supports ETB right now (mock-data.ts + @abro/ui all use the
+//    app only supports ETB right now (the screens + @abro/ui all use the
 //    single `ETB` CurrencyMeta), so a "balance per currency, collapsible"
 //    section would have exactly one row -- nothing to break down or
 //    collapse. Revisit once multi-currency lands.
@@ -42,7 +42,7 @@
 //    only / Groups only), no separate sort control -- the spec doesn't
 //    define sort keys/order for this screen and the real lists are short
 //    enough not to need one.
-//  - Group icon/color still come from ~/lib/mock-data.ts's GROUP_TYPES
+//  - Group icon/color come from ~/lib/reference-data.ts's GROUP_TYPES
 //    lookup table (client-side reference data, not mock *facts*), matched
 //    case-insensitively against apps/api's UPPERCASE `type` enum -- same
 //    deviation already established on Home.
