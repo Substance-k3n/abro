@@ -7,6 +7,66 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-011: Production deployment — one VPS running Docker Compose
+
+**Status:** Accepted (user decision, 2026-09-30). Artifacts built; the
+first real deploy is still pending (it needs the server and the domain
+name).
+
+**Context:** With Phase 8 done, every screen runs on apps/api, but
+nothing could be deployed: no production images, no production config,
+no runbook. The stack is a Go API plus its migrations, a Next.js app,
+Postgres, an S3-compatible bucket (ADR-008), and Resend for OTP email
+(ADR-004). The session is an `HttpOnly` cookie set by the API with
+`SameSite=Lax`, and the web app calls the API cross-origin with
+credentials.
+
+**Decision:** Run everything on one VPS with Docker Compose
+(`infra/docker/prod/`):
+
+- **Caddy** terminates TLS (automatic Let's Encrypt) and routes
+  `APP_DOMAIN` to web and `API_DOMAIN` to the API. Web and API are
+  sibling subdomains of one domain (e.g. `app.` and `api.`), so they're
+  the same _site_: the Lax cookie is sent on the web app's fetches, and
+  CORS stays locked to `WEB_ORIGIN`.
+- **The API image** (`apps/api/Dockerfile`) contains the server, the
+  golang-migrate CLI and the migrations. A one-shot `migrate` service
+  runs `migrate up` from that same image before the API starts, so the
+  schema always matches the code.
+- **The web image** (`apps/web/Dockerfile`) is Next.js `standalone`
+  output. `NEXT_PUBLIC_API_URL` is inlined at build time, so the image
+  is built for one API origin.
+- **Postgres 17 and RustFS** stay on the private network with no
+  published ports.
+- **A backup service** writes a daily `pg_dump` to `./backups`, keeping
+  14 days. Copying those off the server is part of the runbook.
+- **Images** can be built on the server (`docker compose up --build`)
+  or pulled prebuilt (`WEB_IMAGE`/`API_IMAGE`). CI builds both images
+  on every PR, so a broken Dockerfile fails early.
+
+**Alternatives considered:** managed platforms (Fly.io/Railway/Render +
+managed Postgres + R2). Less server upkeep, but more vendors and a
+higher monthly cost, and it moves away from ADR-001's "runs anywhere
+Postgres runs". Kept as the fallback if server upkeep becomes a burden,
+since the images work there too.
+
+**Consequences:**
+
+- One server is a single point of failure, and you apply OS updates
+  yourself. Backups are the recovery path, and restoring one is
+  documented in docs/DEPLOY.md.
+- Two known gaps, now tied to this deployment:
+  - Receipt downloads use presigned URLs pointing at the internal
+    `http://s3:9000`. There's no receipt UI yet, but when there is, S3
+    needs a public hostname via Caddy.
+  - Recurring expenses still have no scheduler (ADR-005). A cron on the
+    server can call the generate endpoint once that endpoint is
+    protected.
+- `next/font/google` fetches fonts during the web build, so a build
+  needs internet access (the CI font flake can also hit it).
+
+---
+
 ## ADR-010: Group settlements are validated against group nets
 
 **Status:** Accepted (user decision, 2026-09-29)

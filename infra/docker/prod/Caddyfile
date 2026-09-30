@@ -1,0 +1,15 @@
+# docs/DEPLOY.md. Caddy gets and renews Let's Encrypt certificates for
+# both names automatically (DNS for both must point at this server).
+{
+	email {$ACME_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy api:3201
+}

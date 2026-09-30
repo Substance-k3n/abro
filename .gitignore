@@ -36,3 +36,6 @@ coverage/
 
 # misc
 *.local
+
+# Production database dumps (infra/docker/prod backup service)
+infra/docker/prod/backups/
