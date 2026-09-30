@@ -76,8 +76,7 @@
 //    you open a result or press Enter. Suggestions: not built (no data
 //    source for them yet).
 //  - Expense rows open the expense's detail page (EXP-09) and, like
-//    every other result, record the search. Group rows link to GRP-03, still mock-only until the
-//    groups slice (degrades to its own "Group not found" state).
+//    every other result, record the search. Group rows link to GRP-03 (real since slice 8b).
 //  - PersonRow/ActivityItem render as <button>s, so result rows navigate
 //    via onClick + router.push rather than being wrapped in a Link.
 //  - "All" tab caps each category to ALL_TAB_CAP results so the mixed
