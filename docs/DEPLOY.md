@@ -185,6 +185,17 @@ a Vercel redeploy.
   `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` on Render. This is the
   practical way to let other people sign in without a domain.
 
+  A new OAuth app starts in **Testing** mode, where only the Google
+  accounts listed under "Test users" can sign in. Everyone else gets
+  "Access blocked". To open it up, go to Google Auth Platform → Audience
+  and click **Publish app**. ABRO only asks for `openid email profile`,
+  which Google doesn't review, so publishing takes effect right away.
+
+  A failed attempt lands back on `/auth/signin?error=<reason>` with a
+  message (`google_cancelled`, `google_unverified`, `oauth_state`,
+  `google`). For `google`, the cause is in the Render log as
+  `ERROR GET /auth/google/callback: ...`.
+
 ## Free-tier limits
 
 - **Cold starts:** Render's free service sleeps after ~15 min idle. The

@@ -18,16 +18,26 @@
 // at all) is also gone -- collecting the email here is what makes OTP
 // verification possible, so there's no valid shortcut around this form.
 //
-// `?error=oauth_state` is apps/api's googleCallback redirecting back
-// here on a state-mismatch/expired OAuth attempt (router.go) -- shown as
-// a plain error banner, not a toast/modal (no toast system exists yet
-// anywhere in this app).
+// `?error=<reason>` is apps/api's googleCallback redirecting back here
+// after a failed Google attempt (router.go): oauth_state (state
+// mismatch/expired), google_cancelled (Cancel on Google's screen),
+// google_unverified, or google (anything else). Shown as a plain error
+// banner, not a toast/modal (no toast system exists yet anywhere in this
+// app).
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
 import { ApiError, googleSignInUrl } from '~/lib/api-client';
 import { requestOtp } from '~/lib/auth-api';
+
+const OAUTH_ERRORS: Record<string, string> = {
+  oauth_state: 'Google sign-in expired. Please try again.',
+  google_cancelled: 'Google sign-in was cancelled.',
+  google_unverified:
+    'Your Google account email is not verified. Verify it with Google, or use email sign-in.',
+  google: 'Google sign-in failed. Please try again.',
+};
 
 export default function SignInPage() {
   return (
@@ -40,7 +50,8 @@ export default function SignInPage() {
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const oauthError = searchParams.get('error') === 'oauth_state';
+  const errorParam = searchParams.get('error');
+  const oauthError = errorParam ? (OAUTH_ERRORS[errorParam] ?? OAUTH_ERRORS.google) : null;
 
   const [email, setEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -91,7 +102,7 @@ function SignInForm() {
 
           {(oauthError || error) && (
             <p className="text-center text-[0.8rem] font-medium" style={{ color: 'var(--c-red)' }}>
-              {error ?? 'Google sign-in failed. Please try again.'}
+              {error ?? oauthError}
             </p>
           )}
 
