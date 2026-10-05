@@ -21,6 +21,9 @@
 // kept as a defensive fallback rather than crashing) -- redirects back
 // to sign-in, since there's no code to verify without an address it was
 // sent to.
+//
+// The address is shown masked (maskEmail in ~/lib/format.ts) -- enough to
+// recognize which inbox to check without printing it in full on screen.
 
 import { Mail } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -28,6 +31,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 
 import { ApiError } from '~/lib/api-client';
 import { postSignInPath, requestOtp, verifyOtp } from '~/lib/auth-api';
+import { maskEmail } from '~/lib/format';
 
 const RESEND_COOLDOWN_SECONDS = 60;
 
@@ -137,7 +141,7 @@ function VerifyEmailForm() {
       >
         We sent a 6-digit code to
         <br />
-        <strong style={{ color: 'var(--t-secondary)' }}>{email}</strong>
+        <strong style={{ color: 'var(--t-secondary)' }}>{maskEmail(email)}</strong>
       </p>
 
       {error && (
