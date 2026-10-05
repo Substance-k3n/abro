@@ -7,6 +7,61 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-012: Free-tier deployment — Vercel (web) + Render (api) + Neon (Postgres)
+
+**Status:** Accepted (user decision, 2026-10-05). An alternative to
+ADR-011, not a replacement. ADR-011's VPS stack stays the target once a
+server and domain are available.
+
+**Context:** ADR-011's VPS deploy is blocked: the card payment for a VPS
+didn't go through, and there's no domain yet. The user wants ABRO
+online now at no cost. Vercel only runs the Next.js app, so the Go API
+and Postgres need other homes. The session cookie is `SameSite=Lax`
+with no `Domain`, and `*.vercel.app` / `*.onrender.com` are different
+sites (both on the Public Suffix List), so a browser on the web app
+would not send the cookie on credentialed cross-site fetches to the API.
+
+**Decision:**
+
+- **Web on Vercel** (`apps/web/vercel.json`, root dir `apps/web`,
+  built through turbo). **API on Render's free plan** from the existing
+  `apps/api/Dockerfile` (`render.yaml`). **Postgres on Neon's free plan.**
+- **Same-origin proxy:** with `API_PROXY_TARGET` set, `next.config.mjs`
+  rewrites `/api/*` to the API. `NEXT_PUBLIC_API_URL=/api`, so every
+  call, `Set-Cookie` and OAuth redirect happens on the Vercel origin. The
+  API code and cookie policy are unchanged. Google's callback URL is the
+  proxied `https://<project>.vercel.app/api/auth/google/callback`.
+- **Migrations at container start:** Render's free plan has no
+  pre-deploy step, so `apps/api/start.sh` runs the image's own
+  `migrate up` when `RUN_MIGRATIONS=true`, then execs the API. This keeps
+  ADR-011's "schema comes from the same image" rule. The compose stack
+  leaves the flag unset and keeps its `migrate` service.
+- **No S3 for now.** The API already runs without it (receipt endpoints
+  report "not configured"), and there's no receipt UI. This avoids adding
+  a storage vendor (e.g. Supabase Storage, which ADR-001 steered away
+  from) before it's needed.
+
+**Alternatives considered:**
+
+- _`SameSite=None` cookie + cross-site CORS_: works today, but third-party
+  cookies are increasingly blocked (Safari ITP, Chrome settings), and
+  it weakens the CSRF posture for every deploy, not just this one.
+- _Fly.io / Railway / Koyeb for the API_: these need a card or have
+  time-limited trials.
+- _Self-host at home behind a tunnel_: depends on a machine staying on.
+
+**Consequences:**
+
+- Three dashboards instead of one server. Every piece is replaceable,
+  since the API is still the same Docker image and the DB is plain Postgres.
+- Render free cold starts (~30-60 s after ~15 min idle), and Neon free
+  storage and compute caps. There's no automated off-site backup.
+- Each request takes an extra hop (browser → Vercel → Render).
+- OTP email to arbitrary users still needs a domain verified with Resend.
+  Until then, Google sign-in is the way for others to log in.
+
+---
+
 ## ADR-011: Production deployment — one VPS running Docker Compose
 
 **Status:** Accepted (user decision, 2026-09-30). Artifacts built; the

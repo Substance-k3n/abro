@@ -9,6 +9,9 @@
 // unreadable from JS by design, so the browser must be told to send/
 // accept it cross-origin. This only works because apps/api now has CORS
 // configured for exactly this origin (apps/api/internal/httpx/cors.go).
+// On the free-tier deploy (ADR-012) NEXT_PUBLIC_API_URL is `/api`, a
+// same-origin path next.config.mjs forwards to the API, so the same code
+// runs without any cross-origin request at all.
 //
 // Error shape mirrors apps/api/internal/httpx/errors.go's APIError JSON
 // envelope: {statusCode, code, message, path, timestamp}.

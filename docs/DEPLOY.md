@@ -100,3 +100,88 @@ docker compose run --rm migrate          # re-run migrations by hand
   S3 needs a public hostname through Caddy before a receipt UI can work.
 - **Recurring expenses:** no scheduler yet (ADR-005). Nothing generates
   them automatically.
+
+---
+
+# Free tier: Vercel + Render + Neon
+
+A no-cost, no-card alternative to the VPS (docs/DECISIONS.md ADR-012).
+It needs no domain, since every service gives you a subdomain. Good for an MVP or
+demo. Move to the VPS stack above when the limits below start to hurt.
+
+| Piece    | Where  | Notes                                                 |
+| -------- | ------ | ----------------------------------------------------- |
+| web      | Vercel | `https://<project>.vercel.app`                        |
+| api      | Render | Free web service from `render.yaml`; sleeps when idle |
+| postgres | Neon   | Free project                                          |
+
+The browser only ever talks to the Vercel URL. `apps/web/next.config.mjs`
+forwards `/api/*` to Render, so the session cookie stays first-party
+and the API's `SameSite=Lax` cookie keeps working.
+
+Sign up for each with your GitHub account. Replace `<project>` below
+with your real Vercel project name. You can't know it until step 3,
+so steps 2 and 3 loop once.
+
+## 1. Neon (database)
+
+1. Create a project (region close to your Render region, e.g. AWS
+   Frankfurt with Render Frankfurt).
+2. Copy the connection string. It looks like
+   `postgresql://user:pass@ep-xxx.eu-central-1.aws.neon.tech/neondb?sslmode=require`.
+   Use the **direct** (non-pooled) one: migrations take locks that a
+   pooler can break.
+
+## 2. Render (api)
+
+1. **New → Blueprint**, pick this repo and the branch to deploy. Render
+   reads `render.yaml`.
+2. Fill in the prompted values:
+   - `DATABASE_URL`: the Neon string from step 1
+   - `WEB_ORIGIN`: `https://<project>.vercel.app` (a placeholder is
+     fine for now. Fix it after step 3.)
+   - `GOOGLE_CALLBACK_URL`: `https://<project>.vercel.app/api/auth/google/callback`
+   - The rest can stay empty (see "Sign-in" below).
+3. Deploy. The container runs migrations first (`RUN_MIGRATIONS=true`
+   → `apps/api/start.sh`), then starts the API. Check the log for the
+   migrate output, then note the URL, e.g. `https://abro-api.onrender.com`.
+
+## 3. Vercel (web)
+
+1. **Add New → Project**, import this repo.
+2. **Root Directory:** `apps/web`. Framework preset Next.js.
+   `apps/web/vercel.json` already sets the install and build commands
+   (turbo builds `@abro/types` first).
+3. Environment variables (Production):
+   - `NEXT_PUBLIC_API_URL` = `/api`
+   - `API_PROXY_TARGET` = the Render URL from step 2 (no trailing slash)
+4. Deploy. If the project name differs from what you guessed, update
+   `WEB_ORIGIN` and `GOOGLE_CALLBACK_URL` on Render (saving redeploys it).
+
+Both env vars are read at **build** time, so changing either one needs
+a Vercel redeploy.
+
+## Sign-in on the free tier
+
+- **Email OTP:** without `RESEND_API_KEY`, codes are only printed in the
+  Render log. That's fine for testing by yourself. With a Resend key but no
+  verified domain, Resend only delivers to your own account email.
+  Emailing other people needs a domain verified in Resend.
+- **Google:** create an OAuth client (Web application) in Google Cloud
+  Console with the authorized redirect URI
+  `https://<project>.vercel.app/api/auth/google/callback`, then set
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` on Render. This is the
+  practical way to let other people sign in without a domain.
+
+## Free-tier limits
+
+- **Cold starts:** Render's free service sleeps after ~15 min idle. The
+  first request after that takes ~30-60 s.
+- **Backups:** Neon keeps a short restore window on the free plan. There's no
+  `backup` service here. Take a manual `pg_dump "$DATABASE_URL"` before
+  anything risky.
+- **Receipts:** no S3 is configured, so receipt upload returns
+  "not configured". There's no receipt UI yet. When there is, add an
+  S3-compatible bucket and set the `S3_*` vars on Render.
+- **Client IPs** in session metadata are whatever Vercel forwards in
+  `X-Forwarded-For` (chi's `RealIP`). They're informational only.

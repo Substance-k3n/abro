@@ -1,6 +1,7 @@
 # Production image for apps/api (docs/DECISIONS.md ADR-011).
 # Build context: apps/api. One image serves two roles:
-#   - default command: the API server (`/app/api`)
+#   - default command: the API server (`/app/start.sh` -> `/app/api`;
+#     with RUN_MIGRATIONS=true it migrates first, ADR-012)
 #   - `/app/migrate ...`: golang-migrate with this image's own
 #     migrations baked in, run as a one-shot before the API starts
 #     (infra/docker/prod/compose.yml's `migrate` service) -- so a server
@@ -25,7 +26,8 @@ WORKDIR /app
 COPY --from=build /out/api /app/api
 COPY --from=build /go/bin/migrate /app/migrate
 COPY migrations /app/migrations
+COPY --chmod=755 start.sh /app/start.sh
 USER abro
 ENV PORT=3201 NODE_ENV=production
 EXPOSE 3201
-CMD ["/app/api"]
+CMD ["/app/start.sh"]
