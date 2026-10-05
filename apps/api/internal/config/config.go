@@ -30,6 +30,12 @@ type Config struct {
 	ResendAPIKey    string
 	ResendFromEmail string
 
+	// ADR-013 -- Brevo, for OTP email without a verified domain. Used
+	// only when Resend isn't configured.
+	BrevoAPIKey      string
+	BrevoSenderEmail string
+	BrevoSenderName  string
+
 	S3Endpoint        string
 	S3Region          string
 	S3AccessKeyID     string
@@ -58,6 +64,10 @@ func Load() Config {
 
 		ResendAPIKey:    os.Getenv("RESEND_API_KEY"),
 		ResendFromEmail: os.Getenv("RESEND_FROM_EMAIL"),
+
+		BrevoAPIKey:      os.Getenv("BREVO_API_KEY"),
+		BrevoSenderEmail: os.Getenv("BREVO_SENDER_EMAIL"),
+		BrevoSenderName:  getEnv("BREVO_SENDER_NAME", "ABRO"),
 
 		S3Endpoint:        os.Getenv("S3_ENDPOINT"),
 		S3Region:          os.Getenv("S3_REGION"),

@@ -49,12 +49,20 @@ func main() {
 		CallbackURL:  cfg.GoogleCallbackURL,
 	}
 
+	// Resend needs a verified domain; Brevo works from a single verified
+	// sender address (ADR-013). First configured one wins.
 	var otpMailer auth.OTPMailer = auth.ConsoleOTPMailer{}
 	resendMailer := auth.NewResendOTPMailer(cfg.ResendAPIKey, cfg.ResendFromEmail)
-	if resendMailer.IsConfigured() {
+	brevoMailer := auth.NewBrevoOTPMailer(cfg.BrevoAPIKey, cfg.BrevoSenderEmail, cfg.BrevoSenderName)
+	switch {
+	case resendMailer.IsConfigured():
 		otpMailer = resendMailer
-	} else {
-		log.Println("RESEND_API_KEY/RESEND_FROM_EMAIL not set -- OTP codes will be logged to the console, not emailed")
+		log.Println("OTP email: Resend")
+	case brevoMailer.IsConfigured():
+		otpMailer = brevoMailer
+		log.Println("OTP email: Brevo")
+	default:
+		log.Println("No OTP mailer configured (RESEND_* or BREVO_*) -- OTP codes will be logged to the console, not emailed")
 	}
 
 	authSvc := auth.NewService(queries, google, otpMailer, cfg.SessionTTLDays)

@@ -163,10 +163,22 @@ a Vercel redeploy.
 
 ## Sign-in on the free tier
 
-- **Email OTP:** without `RESEND_API_KEY`, codes are only printed in the
-  Render log. That's fine for testing by yourself. With a Resend key but no
-  verified domain, Resend only delivers to your own account email.
-  Emailing other people needs a domain verified in Resend.
+- **Email OTP:** with no mailer configured, codes are only printed in the
+  Render log. Resend needs a verified domain to email other people.
+  Without a domain, use **Brevo** (ADR-013, free, 300 emails/day):
+  1. Sign up at brevo.com (no card).
+  2. **Senders, Domains & Dedicated IPs → Senders → Add a sender** with
+     your own email (e.g. your Gmail), then confirm it from your inbox.
+  3. **SMTP & API → API Keys → Generate a new API key.**
+  4. On Render set `BREVO_API_KEY` = the key and `BREVO_SENDER_EMAIL` =
+     the verified address, and leave the `RESEND_*` vars empty.
+  5. The API log should say `OTP email: Brevo` after the restart. A
+     failed send logs `ERROR POST /auth/otp/request: brevo returned ...`
+     with Brevo's reason.
+
+  Mail from a Gmail sender sent through Brevo may land in spam at first.
+  A domain of your own fixes that later.
+
 - **Google:** create an OAuth client (Web application) in Google Cloud
   Console with the authorized redirect URI
   `https://<project>.vercel.app/api/auth/google/callback`, then set

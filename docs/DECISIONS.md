@@ -7,6 +7,38 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-013: OTP email without a domain — Brevo, alongside Resend
+
+**Status:** Accepted (user decision, 2026-10-05).
+
+**Context:** On the free-tier deploy (ADR-012) OTP codes were only
+written to the API log, so nobody but the owner could sign in by email.
+Resend (ADR-004) needs a verified domain to email anyone but the account
+owner, and there's no domain yet. Sending through Gmail over SMTP isn't
+possible either: Render's free plan blocks outbound ports 25/465/587.
+
+**Decision:** Add `BrevoOTPMailer` (`apps/api/internal/auth/otp_mailer.go`),
+one JSON POST to Brevo's transactional API (HTTPS, so not blocked). Brevo
+lets a single verified sender address (e.g. a Gmail address) send to any
+recipient on its free plan (300 emails/day). Selection in
+`cmd/api/main.go`: Resend if configured, else Brevo, else the console
+mailer. The startup log names the mailer in use.
+
+**Alternatives considered:** Gmail SMTP with an app password (blocked on
+Render free); SendGrid/Mailjet (similar idea, but Brevo's free plan and
+single-sender verification were the simplest fit); buying a domain for
+Resend (the right long-term fix, blocked on payment for now).
+
+**Consequences:**
+
+- Anyone can sign in by email on the free tier.
+- Mail "from" a Gmail address sent through a third party can land in
+  spam. A verified domain (Resend or Brevo) removes that.
+- One more env-configured provider. Resend stays first, so adding a
+  domain later only needs `RESEND_*` set.
+
+---
+
 ## ADR-012: Free-tier deployment — Vercel (web) + Render (api) + Neon (Postgres)
 
 **Status:** Accepted (user decision, 2026-10-05). An alternative to
