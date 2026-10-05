@@ -10,7 +10,8 @@ export interface BalanceCardProps {
 }
 
 /** The gradient hero card showing net balance + a split progress bar +
- * owed/owe breakdown. Ported from the prototype's HomeScreen balance
+ * owed/owe breakdown. A zero net reads "settled up" rather than "owed to
+ * you", matching the app's "All settled up" empty states. Ported from the prototype's HomeScreen balance
  * summary card (docs/WIRING_PLAN.md Phase 3) — reused wherever a
  * top-level balance summary is shown (Home, Balances Overview). */
 export function BalanceCard({
@@ -37,7 +38,7 @@ export function BalanceCard({
         </span>
         <span className="text-[0.9rem] opacity-80">{currency.code}</span>
         <span className="rounded-lg bg-white/20 px-2 py-0.5 text-[0.8rem] font-medium">
-          {net >= 0n ? 'owed to you' : 'you owe'}
+          {net > 0n ? 'owed to you' : net < 0n ? 'you owe' : 'settled up'}
         </span>
       </div>
 
