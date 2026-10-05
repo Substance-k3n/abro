@@ -51,14 +51,20 @@ type resendEmailRequest struct {
 	To      []string `json:"to"`
 	Subject string   `json:"subject"`
 	Text    string   `json:"text"`
+	HTML    string   `json:"html"`
 }
 
 func (m *ResendOTPMailer) Send(email, code string) error {
+	msg, err := buildOTPEmail(email, code)
+	if err != nil {
+		return err
+	}
 	body, err := json.Marshal(resendEmailRequest{
 		From:    m.FromEmail,
 		To:      []string{email},
-		Subject: "Your ABRO verification code",
-		Text:    fmt.Sprintf("Your ABRO verification code is %s. It expires in 10 minutes.", code),
+		Subject: msg.Subject,
+		Text:    msg.Text,
+		HTML:    msg.HTML,
 	})
 	if err != nil {
 		return fmt.Errorf("marshaling resend request: %w", err)
@@ -120,14 +126,20 @@ type brevoEmailRequest struct {
 	To          []brevoAddress `json:"to"`
 	Subject     string         `json:"subject"`
 	TextContent string         `json:"textContent"`
+	HTMLContent string         `json:"htmlContent"`
 }
 
 func (m *BrevoOTPMailer) Send(email, code string) error {
+	msg, err := buildOTPEmail(email, code)
+	if err != nil {
+		return err
+	}
 	body, err := json.Marshal(brevoEmailRequest{
 		Sender:      brevoAddress{Email: m.SenderEmail, Name: m.SenderName},
 		To:          []brevoAddress{{Email: email}},
-		Subject:     "Your ABRO verification code",
-		TextContent: fmt.Sprintf("Your ABRO verification code is %s. It expires in 10 minutes.", code),
+		Subject:     msg.Subject,
+		TextContent: msg.Text,
+		HTMLContent: msg.HTML,
 	})
 	if err != nil {
 		return fmt.Errorf("marshaling brevo request: %w", err)

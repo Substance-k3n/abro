@@ -45,6 +45,8 @@ func TestResendOTPMailer_Send(t *testing.T) {
 		assert.Equal(t, "otp@abro.test", gotBody.From)
 		assert.Equal(t, []string{"user@example.com"}, gotBody.To)
 		assert.Contains(t, gotBody.Text, "123456")
+		assert.Contains(t, gotBody.HTML, "123456")
+		assert.Equal(t, "123456 is your ABRO verification code", gotBody.Subject)
 	})
 
 	t.Run("errors on a non-2xx response", func(t *testing.T) {
@@ -97,6 +99,8 @@ func TestBrevoOTPMailer_Send(t *testing.T) {
 		assert.Equal(t, brevoAddress{Email: "otp@abro.test", Name: "ABRO"}, gotBody.Sender)
 		assert.Equal(t, []brevoAddress{{Email: "user@example.com"}}, gotBody.To)
 		assert.Contains(t, gotBody.TextContent, "123456")
+		assert.Contains(t, gotBody.HTMLContent, "123456")
+		assert.Equal(t, "123456 is your ABRO verification code", gotBody.Subject)
 	})
 
 	t.Run("errors with Brevo's message on a non-2xx response", func(t *testing.T) {
