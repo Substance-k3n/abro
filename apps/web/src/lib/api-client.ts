@@ -168,6 +168,14 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
 
+/** An API-relative path (e.g. a photo's `/users/{id}/avatar/{version}`,
+ * ADR-017) as a URL the browser can load: same-origin `/api/...` on the
+ * free-tier deploy, the API's origin in dev. Absolute URLs (a Google
+ * profile picture) pass through. */
+export function apiUrl(pathOrUrl: string): string {
+  return pathOrUrl.startsWith('/') ? `${API_URL}${pathOrUrl}` : pathOrUrl;
+}
+
 /** `${API_URL}/auth/google` is a real page navigation (the OAuth
  * redirect dance), never a `fetch` -- exported so signin/setup-profile
  * link to it directly instead of hardcoding the API origin twice. */
