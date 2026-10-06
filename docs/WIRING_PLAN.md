@@ -709,6 +709,10 @@ supported (apps/api matches email/phone only). **Update 2026-10-06:**
 username search added (still exact match, leading "@" allowed); apps/api
 now lowercases the query itself, and a username or phone match returns
 the profile without its email so a handle never reveals an address.
+**Update 2026-10-06 (roadmap Phase 3):** search-as-you-type -- a username
+prefix lists up to 8 handles (exact match first, `_`/`%` escaped); email
+and phone stay exact lookups; display names are never searched. Friends
+moved into the phone bottom bar (Profile is reached from Home's avatar).
 
 **Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
 Manual browser verification against a live API still pending (local

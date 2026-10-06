@@ -3,10 +3,14 @@
 // Add Friend -- target of DASH-03's "Add friend" button
 // (docs/ABRO_FRONTEND_SPEC.md §3). The spec names the button but no screen
 // behind it; this is the smallest screen apps/api's friends module
-// supports: GET /friends/search (exact email, phone or username, never a
-// fuzzy name search -- apps/api/queries/friends.sql) then POST
-// /friends/requests. A username or phone match comes back without the
-// email, so the result shows @username instead.
+// supports: GET /friends/search then POST /friends/requests. Results come
+// as you type (roadmap Phase 3): a username prefix lists up to 8 handles
+// ("ali" -> @alice_test); an email or phone is an exact lookup. Display
+// names are never searched. Only an exact email match returns the email,
+// so most results show @username instead.
+// Searches wait SEARCH_DELAY_MS after the last keystroke, and only the
+// newest search's answer is shown. People you're already connected to show
+// "Friends" instead of an Add button.
 // The other person accepts from their own Friends list's "Friend
 // requests" section.
 //
@@ -17,14 +21,17 @@
 import { Avatar, BackButton, EmptyState } from '@abro/ui';
 import { Check, Search, UserPlus, UserX } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import { ApiError } from '~/lib/api-client';
 import type { AuthProfile } from '~/lib/auth-api';
-import { searchUsers, sendFriendRequest } from '~/lib/friends-api';
+import { listFriends, searchUsers, sendFriendRequest } from '~/lib/friends-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 
 type SendState = 'idle' | 'sending' | 'sent';
+
+const SEARCH_DELAY_MS = 300;
+const MIN_QUERY = 2;
 
 export default function AddFriendPage() {
   const router = useRouter();
@@ -34,23 +41,53 @@ export default function AddFriendPage() {
   const [error, setError] = useState<string | null>(null);
   const [sendState, setSendState] = useState<Record<string, SendState>>({});
 
-  const canSearch = query.trim().length >= 3 && !searching;
+  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
+  const latest = useRef(0);
 
-  const onSearch = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!canSearch) {
+  // Who you're already friends with, so their results say "Friends".
+  useEffect(() => {
+    listFriends()
+      .then((friends) => setFriendIds(new Set(friends.map((f) => f.friend.id))))
+      .catch(() => {
+        // Only labels are lost: Add still works, and the API rejects duplicates.
+      });
+  }, []);
+
+  const runSearch = async (text: string) => {
+    const q = text.trim();
+    const id = ++latest.current;
+    if (q.replace(/^@/, '').length < MIN_QUERY) {
+      setResults(null);
+      setSearching(false);
       return;
     }
     setSearching(true);
     setError(null);
-    setResults(null);
     try {
-      setResults(await searchUsers(query));
+      const found = await searchUsers(q);
+      if (id === latest.current) {
+        setResults(found);
+      }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Search failed. Please try again.');
+      if (id === latest.current) {
+        setError(err instanceof ApiError ? err.message : 'Search failed. Please try again.');
+      }
     } finally {
-      setSearching(false);
+      if (id === latest.current) {
+        setSearching(false);
+      }
     }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => void runSearch(query), SEARCH_DELAY_MS);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  const onSearch = (e: FormEvent) => {
+    e.preventDefault();
+    void runSearch(query);
   };
 
   const onSend = async (profile: AuthProfile) => {
@@ -79,7 +116,7 @@ export default function AddFriendPage() {
           Add Friend
         </h2>
         <p className="mb-5 text-[0.85rem]" style={{ color: 'var(--t-dim)' }}>
-          Enter your friend&apos;s exact username, email address or phone number. They&apos;ll need
+          Start typing their username, or enter their exact email or phone number. They&apos;ll need
           to accept your request before you can split expenses.
         </p>
 
@@ -95,20 +132,19 @@ export default function AddFriendPage() {
               type="text"
               autoComplete="off"
               className="neo-input pl-11"
-              placeholder="@username or friend@example.com"
+              placeholder="Search @username, email or phone"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               aria-label="Friend's username, email or phone"
             />
           </div>
-          <button
-            type="submit"
-            disabled={!canSearch}
-            className="neo-btn-accent font-display rounded-2xl px-5 text-sm font-semibold disabled:opacity-60"
-          >
-            {searching ? 'Searching…' : 'Search'}
-          </button>
         </form>
+
+        {searching && !results && (
+          <p className="mb-4 text-[0.82rem]" style={{ color: 'var(--t-dim)' }}>
+            Searching…
+          </p>
+        )}
 
         {error && (
           <p className="mb-4 text-[0.85rem]" role="alert" style={{ color: 'var(--c-red)' }}>
@@ -120,7 +156,7 @@ export default function AddFriendPage() {
           <EmptyState
             icon={<UserX size={26} strokeWidth={1.5} />}
             title="No one found"
-            description="No ABRO account uses that username, email or phone. Check it and try again."
+            description="No ABRO username starts with that, and no account uses that email or phone. Check it and try again."
           />
         )}
 
@@ -142,7 +178,15 @@ export default function AddFriendPage() {
                   </p>
                 )}
               </div>
-              {state === 'sent' ? (
+              {friendIds.has(p.id) ? (
+                <span
+                  className="flex items-center gap-1 text-[0.82rem] font-semibold"
+                  style={{ color: 'var(--t-dim)' }}
+                >
+                  <Check size={16} strokeWidth={2.25} />
+                  Friends
+                </span>
+              ) : state === 'sent' ? (
                 <span
                   className="flex items-center gap-1 text-[0.82rem] font-semibold"
                   style={{ color: 'var(--c-green)' }}

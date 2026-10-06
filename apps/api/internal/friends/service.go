@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -26,28 +27,80 @@ func NewService(q db.Querier) *Service {
 
 // Search finds a Profile by exact email or phone match only -- never a
 // fuzzy name search, so you can't browse the user directory.
-// Search finds the one profile whose email, phone or username exactly
-// matches query. A leading "@" is allowed on usernames. The email is only
-// returned when the query was that email: a username or phone match must
-// not reveal someone's email address to whoever knows their handle.
+// usernameLike matches what a username can contain (apitypes/username.go),
+// so anything else in a query can't be a username prefix.
+var usernameLike = regexp.MustCompile(`^[a-z0-9_.]+$`)
+
+// maxUsernameResults caps search-as-you-type, so a short prefix lists a
+// handful of handles rather than the user directory.
+const maxUsernameResults = 8
+
+// Search powers Add Friend. A query with an "@" inside it (not leading) or
+// one that looks like a phone number is an exact lookup of an email or
+// phone the searcher already knows, and only an exact email match returns
+// the email. Anything else is a username prefix, typed as you go ("ali"
+// finds @alice_test), with a leading "@" allowed: at most
+// maxUsernameResults profiles, emails always removed, display names never
+// searched. The searcher is never in their own results.
 func (s *Service) Search(ctx context.Context, query string, excludeUserID pgtype.UUID) ([]db.Profile, error) {
 	lowered := strings.ToLower(query)
-	profile, err := s.q.SearchFriendExact(ctx, db.SearchFriendExactParams{
-		ExcludeID: excludeUserID,
-		Email:     pgtype.Text{String: lowered, Valid: true},
-		Phone:     pgtype.Text{String: query, Valid: true},
-		Username:  pgtype.Text{String: strings.TrimPrefix(lowered, "@"), Valid: true},
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
+
+	if strings.Contains(strings.TrimPrefix(lowered, "@"), "@") || looksLikePhone(query) {
+		profile, err := s.q.SearchFriendExact(ctx, db.SearchFriendExactParams{
+			ExcludeID: excludeUserID,
+			Email:     pgtype.Text{String: lowered, Valid: true},
+			Phone:     pgtype.Text{String: query, Valid: true},
+		})
+		if errors.Is(err, pgx.ErrNoRows) {
+			return []db.Profile{}, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if profile.Email.String != lowered {
+			profile.Email = pgtype.Text{}
+		}
+		return []db.Profile{profile}, nil
+	}
+
+	prefix := strings.TrimPrefix(lowered, "@")
+	if !usernameLike.MatchString(prefix) {
 		return []db.Profile{}, nil
 	}
+	escaped := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(prefix)
+	profiles, err := s.q.SearchProfilesByUsernamePrefix(ctx, db.SearchProfilesByUsernamePrefixParams{
+		ExcludeID:     excludeUserID,
+		PrefixPattern: escaped + "%",
+		Exact:         prefix,
+		RowLimit:      maxUsernameResults,
+	})
 	if err != nil {
 		return nil, err
 	}
-	if profile.Email.String != lowered {
-		profile.Email = pgtype.Text{}
+	for i := range profiles {
+		profiles[i].Email = pgtype.Text{}
 	}
-	return []db.Profile{profile}, nil
+	if profiles == nil {
+		profiles = []db.Profile{}
+	}
+	return profiles, nil
+}
+
+// looksLikePhone: an optional "+", then only digits, spaces and dashes,
+// with at least 7 digits. Usernames can't start with "+" and rarely are
+// seven-plus digits.
+func looksLikePhone(query string) bool {
+	digits := 0
+	for i, r := range query {
+		switch {
+		case r >= '0' && r <= '9':
+			digits++
+		case r == '+' && i == 0, r == ' ', r == '-':
+		default:
+			return false
+		}
+	}
+	return digits >= 7
 }
 
 func (s *Service) List(ctx context.Context, userID pgtype.UUID) ([]db.ListFriendshipsRow, error) {

@@ -31,8 +31,10 @@ type SearchFriendInput struct {
 
 func (in *SearchFriendInput) Validate() error {
 	in.Query = strings.TrimSpace(in.Query)
-	if len(in.Query) < 3 {
-		return httpx.BadRequest("VALIDATION_ERROR", "query must be at least 3 characters")
+	// Two characters is enough for search-as-you-type on usernames
+	// ("al" -> @alice_test); results are capped server-side.
+	if len(strings.TrimPrefix(in.Query, "@")) < 2 {
+		return httpx.BadRequest("VALIDATION_ERROR", "query must be at least 2 characters")
 	}
 	return nil
 }

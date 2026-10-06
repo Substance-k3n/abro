@@ -179,20 +179,36 @@ func TestService_Search(t *testing.T) {
 	svc, pool, makeProfile := testEnv(t)
 	ctx := context.Background()
 	me := makeProfile(t, "Searcher")
-	target := makeProfile(t, "Target")
-	username := fmt.Sprintf("tgt_%d", rand.Intn(1_000_000_000))
-	// Real sign-ups store emails lowercased (apitypes.NormalizeEmail);
-	// makeProfile's label keeps its capitals, so lowercase it here.
-	target.Email.String = strings.ToLower(target.Email.String)
-	_, err := pool.Exec(ctx, `UPDATE profiles SET username = $2, email = $3 WHERE id = $1`, target.ID, username, target.Email.String)
-	require.NoError(t, err)
+	run := rand.Intn(1_000_000_000)
 
+	// setUser gives a test profile a username (and optionally a phone).
+	// Real sign-ups store emails lowercased (apitypes.NormalizeEmail);
+	// makeProfile's label keeps its capitals, so lowercase it here too.
+	setUser := func(t *testing.T, p *db.Profile, username, phone string) {
+		t.Helper()
+		p.Email.String = strings.ToLower(p.Email.String)
+		_, err := pool.Exec(ctx, `UPDATE profiles SET username = $2, email = $3, phone = NULLIF($4, '') WHERE id = $1`,
+			p.ID, username, p.Email.String, phone)
+		require.NoError(t, err)
+	}
 	search := func(t *testing.T, query string) []db.Profile {
 		t.Helper()
 		results, err := svc.Search(ctx, query, me.ID)
 		require.NoError(t, err)
 		return results
 	}
+	ids := func(profiles []db.Profile) []pgtype.UUID {
+		out := make([]pgtype.UUID, len(profiles))
+		for i, p := range profiles {
+			out[i] = p.ID
+		}
+		return out
+	}
+
+	target := makeProfile(t, "Target")
+	username := fmt.Sprintf("tgt_%d", run)
+	phone := fmt.Sprintf("+2519%08d", run%100_000_000)
+	setUser(t, &target, username, phone)
 
 	t.Run("finds by exact email, case-insensitively, and returns the email", func(t *testing.T) {
 		results := search(t, strings.ToUpper(target.Email.String))
@@ -201,18 +217,51 @@ func TestService_Search(t *testing.T) {
 		assert.Equal(t, target.Email, results[0].Email)
 	})
 
-	t.Run("finds by exact username, with or without @, and hides the email", func(t *testing.T) {
-		for _, q := range []string{username, "@" + username, strings.ToUpper(username)} {
+	t.Run("finds by exact phone and hides the email", func(t *testing.T) {
+		results := search(t, phone)
+		require.Len(t, results, 1)
+		assert.Equal(t, target.ID, results[0].ID)
+		assert.False(t, results[0].Email.Valid)
+	})
+
+	t.Run("finds by username prefix as you type, with or without @, and hides the email", func(t *testing.T) {
+		for _, q := range []string{username, "@" + username, strings.ToUpper(username), username[:len(username)-2]} {
 			results := search(t, q)
-			require.Len(t, results, 1, "query %q", q)
-			assert.Equal(t, target.ID, results[0].ID)
-			assert.False(t, results[0].Email.Valid, "a username match must not reveal the email (query %q)", q)
+			require.Contains(t, ids(results), target.ID, "query %q", q)
+			for _, r := range results {
+				assert.False(t, r.Email.Valid, "a username match must not reveal any email (query %q)", q)
+			}
 		}
 	})
 
-	t.Run("never matches a partial username or display name", func(t *testing.T) {
-		assert.Empty(t, search(t, username[:len(username)-1]))
+	t.Run("never matches a display name or the middle of a username", func(t *testing.T) {
 		assert.Empty(t, search(t, "Test Target"))
+		assert.NotContains(t, ids(search(t, fmt.Sprintf("%d", run))), target.ID)
+	})
+
+	t.Run("treats _ literally, not as a LIKE wildcard", func(t *testing.T) {
+		underscore := makeProfile(t, "Underscore")
+		lookalike := makeProfile(t, "Lookalike")
+		setUser(t, &underscore, fmt.Sprintf("w%d_b", run), "")
+		setUser(t, &lookalike, fmt.Sprintf("w%dxb", run), "")
+
+		results := ids(search(t, fmt.Sprintf("w%d_", run)))
+		assert.Contains(t, results, underscore.ID)
+		assert.NotContains(t, results, lookalike.ID)
+	})
+
+	t.Run("caps results at 8, exact match first", func(t *testing.T) {
+		prefix := fmt.Sprintf("cap%d", run)
+		exact := makeProfile(t, "CapExact")
+		setUser(t, &exact, prefix, "")
+		for i := 0; i < 10; i++ {
+			p := makeProfile(t, fmt.Sprintf("Cap%d", i))
+			setUser(t, &p, fmt.Sprintf("%s_%02d", prefix, i), "")
+		}
+
+		results := search(t, prefix)
+		require.Len(t, results, 8)
+		assert.Equal(t, exact.ID, results[0].ID)
 	})
 
 	t.Run("never returns the searcher themselves", func(t *testing.T) {

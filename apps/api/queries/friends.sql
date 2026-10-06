@@ -1,11 +1,23 @@
 -- name: SearchFriendExact :one
--- Exact match only on email, phone or username -- never a fuzzy name
--- search, so you can't browse the user directory. Emails and usernames
--- are stored lowercased, so the caller passes lowercased forms of those.
+-- Exact match on email or phone (an address or number someone already
+-- knows) -- never a fuzzy search. Emails are stored lowercased, so the
+-- caller passes a lowercased email.
 SELECT * FROM profiles
 WHERE id != sqlc.arg('exclude_id')
-  AND (email = sqlc.arg('email') OR phone = sqlc.arg('phone') OR username = sqlc.arg('username'))
+  AND (email = sqlc.arg('email') OR phone = sqlc.arg('phone'))
 LIMIT 1;
+
+-- name: SearchProfilesByUsernamePrefix :many
+-- Search-as-you-type on usernames, which are public handles (lowercase,
+-- [a-z0-9_.]). Prefix only and at most row_limit rows; display names,
+-- emails and phones are never searched this way. The caller escapes
+-- LIKE's wildcards ('_' is a legal username character). An exact match
+-- sorts first.
+SELECT * FROM profiles
+WHERE id != sqlc.arg('exclude_id')
+  AND username LIKE sqlc.arg('prefix_pattern')::text ESCAPE '\'
+ORDER BY (username = sqlc.arg('exact')::text) DESC, username
+LIMIT sqlc.arg('row_limit');
 
 -- name: ListFriendships :many
 SELECT
