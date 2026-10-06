@@ -4,10 +4,12 @@
 package expenses
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
@@ -273,7 +275,11 @@ func (s *Service) ListNotes(ctx context.Context, actorID, expenseID pgtype.UUID)
 // -- one per expense, matching the schema's singular receipt_path.
 // Uploads the new object before deleting the old one, so a failed upload
 // never destroys a working receipt.
-func (s *Service) UploadReceipt(ctx context.Context, actorID, expenseID pgtype.UUID, body io.Reader, size int64, mimeType string) (Expense, error) {
+//
+// The type comes from the file's own first bytes (http.DetectContentType),
+// not from declaredType, which the client controls: a text or HTML file
+// labelled image/png is rejected rather than stored as a ".png".
+func (s *Service) UploadReceipt(ctx context.Context, actorID, expenseID pgtype.UUID, body io.Reader, size int64, declaredType string) (Expense, error) {
 	if err := s.requireStorageConfigured(); err != nil {
 		return Expense{}, err
 	}
@@ -285,13 +291,21 @@ func (s *Service) UploadReceipt(ctx context.Context, actorID, expenseID pgtype.U
 		return Expense{}, err
 	}
 
+	if size > maxReceiptBytes {
+		return Expense{}, httpx.BadRequest("RECEIPT_TOO_LARGE", fmt.Sprintf("Receipt must be %dMB or smaller.", maxReceiptBytes/(1024*1024)))
+	}
+	head := make([]byte, 512)
+	n, err := io.ReadFull(body, head)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return Expense{}, err
+	}
+	head = head[:n]
+	mimeType := http.DetectContentType(head)
 	extension, ok := receiptExtensionByMimeType[mimeType]
 	if !ok {
 		return Expense{}, httpx.BadRequest("UNSUPPORTED_RECEIPT_TYPE", "Receipts must be JPG, PNG, or WebP.")
 	}
-	if size > maxReceiptBytes {
-		return Expense{}, httpx.BadRequest("RECEIPT_TOO_LARGE", fmt.Sprintf("Receipt must be %dMB or smaller.", maxReceiptBytes/(1024*1024)))
-	}
+	body = io.MultiReader(bytes.NewReader(head), body)
 
 	key := fmt.Sprintf("receipts/%s/%s.%s", idutil.String(expenseID), uuid.NewString(), extension)
 	if err := s.receiptStore.Upload(ctx, key, body, size, mimeType); err != nil {
