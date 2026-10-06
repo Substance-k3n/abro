@@ -7,6 +7,43 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-015: The app is an installable web app (PWA), not a store app
+
+**Status:** Accepted (user decision, 2026-10-06).
+
+**Context:** ABRO should be usable as a phone app. The web app already
+had a manifest and install icons (#52) but no service worker, so Chrome
+on Android wouldn't offer a proper install, and the installed app opened
+on the marketing splash.
+
+**Decision:** Finish it as a Progressive Web App. A hand-written
+`apps/web/public/sw.js` caches only Next's content-hashed build files and
+the icons (cache-first), sends every page navigation to the network
+first with a cached, self-contained `offline.html` as the fallback, and leaves the API
+(`/api/*`) and other origins alone, so balances are never cached. The
+manifest opens on `/home` and adds an "Add expense" shortcut. An
+"Install ABRO" button (Home banner, Settings → App) uses Chrome's install
+prompt, or shows Safari's "Add to Home Screen" steps on iPhone.
+
+**Alternatives considered:** Play Store listing via a Trusted Web
+Activity (needs a $25 Google Play account and review; can be added later
+on top of this PWA); a React Native rewrite (two codebases, App Store
+also needs $99/year and a Mac); `next-pwa`/Serwist (a build plugin and
+dependency for what is about 80 lines of worker code).
+
+**Consequences:**
+
+- Free, no store account, works on Android and iPhone, and updates ship
+  with every web deploy.
+- Not listed in app stores; people install from the site.
+- No offline use beyond the "you're offline" page: every screen needs
+  the API, by design.
+- `sw.js` is served with `Cache-Control: no-cache` (next.config.mjs) so a
+  fixed worker reaches installed apps on their next open. Bump `VERSION`
+  in it to drop old caches.
+
+---
+
 ## ADR-014: Self-hosted fonts via next/font/local
 
 **Status:** Accepted (2026-10-06).

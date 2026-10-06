@@ -27,14 +27,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
 
+import { InstallApp } from '~/components/InstallApp';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, logout, me } from '~/lib/auth-api';
+import { useInstallState } from '~/lib/pwa';
 
 const APP_VERSION = '0.1.0';
 const LANGUAGE_LABELS: Record<string, string> = { en: 'English', am: 'Amharic' };
 
 export default function SettingsPage() {
   const router = useRouter();
+  const installState = useInstallState();
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
@@ -96,6 +99,12 @@ export default function SettingsPage() {
       <Section title="Notifications">
         <NavRow label="Notification types" href="/settings/notifications" />
       </Section>
+
+      {(installState === 'prompt' || installState === 'ios') && (
+        <Section title="App">
+          <InstallApp variant="row" />
+        </Section>
+      )}
 
       <Section title="About">
         <div className="flex items-center justify-between rounded-xl px-3 py-2.5">

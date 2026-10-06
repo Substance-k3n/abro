@@ -50,6 +50,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { InstallApp } from '~/components/InstallApp';
 import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
@@ -188,6 +189,8 @@ export default function HomePage() {
           </Link>
         </div>
       </div>
+
+      <InstallApp variant="banner" />
 
       <div className="md:grid md:grid-cols-[1.4fr_1fr] md:gap-6">
         <div>

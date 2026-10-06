@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 
+import { PwaSetup } from '~/components/PwaSetup';
+
 import './globals.css';
 
 // Self-hosted (OFL, licences beside the files in ./fonts) instead of
@@ -47,7 +49,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${outfit.variable} ${dmSans.variable} ${jetBrainsMono.variable}`}>
-      <body>{children}</body>
+      <body>
+        <PwaSetup />
+        {children}
+      </body>
     </html>
   );
 }
