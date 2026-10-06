@@ -201,7 +201,13 @@ export default function HomePage() {
         <div>
           {/* Balance Summary Card */}
           <div className="mb-5">
-            <BalanceCard net={net} owedTotal={owedTotal} oweTotal={oweTotal} />
+            <BalanceCard
+              net={net}
+              owedTotal={owedTotal}
+              oweTotal={oweTotal}
+              onOwedClick={() => router.push('/balances/owed')}
+              onOweClick={() => router.push('/balances/owe')}
+            />
           </div>
 
           {/* Quick Actions */}

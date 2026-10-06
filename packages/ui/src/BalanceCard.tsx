@@ -7,6 +7,10 @@ export interface BalanceCardProps {
   oweTotal: MinorUnits;
   currency?: CurrencyMeta;
   label?: string;
+  /** Roadmap Phase 5: tapping "Owed to you" / "You owe" opens the
+   * breakdown. Without a handler the figure is plain text. */
+  onOwedClick?: () => void;
+  onOweClick?: () => void;
 }
 
 /** The gradient hero card showing net balance + a split progress bar +
@@ -20,6 +24,8 @@ export function BalanceCard({
   oweTotal,
   currency = ETB,
   label = 'Net balance',
+  onOwedClick,
+  onOweClick,
 }: BalanceCardProps) {
   const absNet = net < 0n ? -net : net;
   const total = owedTotal + oweTotal;
@@ -50,19 +56,53 @@ export function BalanceCard({
       </div>
 
       <div className="flex justify-between">
-        <div>
-          <p className="mb-0.5 text-[0.7rem] opacity-70">Owed to you</p>
-          <p className="font-display text-[1.1rem] font-bold tracking-tight">
-            {formatMoney(owedTotal, currency)}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="mb-0.5 text-[0.7rem] opacity-70">You owe</p>
-          <p className="font-display text-[1.1rem] font-bold tracking-tight">
-            {formatMoney(oweTotal, currency)}
-          </p>
-        </div>
+        <Figure
+          label="Owed to you"
+          amount={formatMoney(owedTotal, currency)}
+          onClick={onOwedClick}
+        />
+        <Figure
+          label="You owe"
+          amount={formatMoney(oweTotal, currency)}
+          onClick={onOweClick}
+          alignRight
+        />
       </div>
     </div>
+  );
+}
+
+function Figure({
+  label,
+  amount,
+  onClick,
+  alignRight = false,
+}: {
+  label: string;
+  amount: string;
+  onClick?: () => void;
+  alignRight?: boolean;
+}) {
+  const body = (
+    <>
+      <span className="mb-0.5 block text-[0.7rem] opacity-70">
+        {label}
+        {onClick && <span aria-hidden> ›</span>}
+      </span>
+      <span className="font-display block text-[1.1rem] font-bold tracking-tight">{amount}</span>
+    </>
+  );
+  if (!onClick) {
+    return <div className={alignRight ? 'text-right' : ''}>{body}</div>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label}: ${amount}. See the breakdown`}
+      className={`-m-2 rounded-xl p-2 transition-colors hover:bg-white/10 ${alignRight ? 'text-right' : 'text-left'}`}
+    >
+      {body}
+    </button>
   );
 }
