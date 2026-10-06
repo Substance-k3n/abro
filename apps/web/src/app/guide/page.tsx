@@ -92,7 +92,7 @@ const STEPS = [
   },
   {
     title: 'Add your friends',
-    body: 'Search for them by username, email or phone and send a friend request. They accept it on their side.',
+    body: 'Search for their username, or send them your invite link or QR code from Add Friend. They accept with one tap.',
   },
   {
     title: 'Add an expense',

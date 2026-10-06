@@ -23,6 +23,7 @@ import { Check, Search, UserPlus, UserX } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
+import { InviteCard } from '~/components/InviteCard';
 import { ApiError } from '~/lib/api-client';
 import type { AuthProfile } from '~/lib/auth-api';
 import { listFriends, searchUsers, sendFriendRequest } from '~/lib/friends-api';
@@ -207,6 +208,10 @@ export default function AddFriendPage() {
             </div>
           );
         })}
+
+        <div className="mt-8">
+          <InviteCard />
+        </div>
       </div>
     </div>
   );

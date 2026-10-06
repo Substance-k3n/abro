@@ -7,6 +7,7 @@
 // place this shape is defined" rationale on the Go side.
 
 import { api } from './api-client';
+import { pendingInvite } from './invite';
 
 export interface AuthProfile {
   id: string;
@@ -55,6 +56,13 @@ export function updateProfile(input: UpdateProfileInput): Promise<AuthProfile> {
 /** Where AUTH-05/06/onward should route after any successful sign-in --
  * one place this decision lives, so verify-email and the Google OAuth
  * callback page can't drift apart on it. */
+/** Where to go after signing in or finishing profile setup: setup first
+ * if there's no username yet, then a friend invite opened before signing
+ * in (lib/invite.ts), otherwise Home. */
 export function postSignInPath(profile: AuthProfile): string {
-  return profile.username === null ? '/auth/setup-profile' : '/home';
+  if (profile.username === null) {
+    return '/auth/setup-profile';
+  }
+  const invite = pendingInvite();
+  return invite ? `/add/${invite}` : '/home';
 }
