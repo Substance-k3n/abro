@@ -31,6 +31,13 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const isRead = (init?.method ?? 'GET') === 'GET';
+  if (!isRead) {
+    // Anything that changes data can change balances anywhere, so nothing
+    // read before it may be reused after it.
+    clearApiCache();
+  }
+
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: 'include',
@@ -46,6 +53,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   const body = await res.json().catch(() => null);
+
+  if (!isRead) {
+    // Again on completion: a read that started during the change could
+    // otherwise cache what the server had before it.
+    clearApiCache();
+  }
 
   if (res.status === 401 && redirectToSignIn(body?.code as string | undefined)) {
     // Never settles: the page keeps its loading state while the browser
@@ -81,8 +94,68 @@ function redirectToSignIn(code: string | undefined): boolean {
   return true;
 }
 
+// ---- Read cache (roadmap Phase 2b) ----------------------------------------
+// Every screen builds itself from the same few reads (profile, friends,
+// groups, balances, expenses, notifications), and used to refetch all of
+// them on every tap. A read made in the last CACHE_TTL_MS is now answered
+// from memory, and identical reads in flight are shared, so moving between
+// screens is instant. Correctness rules:
+//  - Any POST/PATCH/DELETE clears it (before and after), so after you add,
+//    edit, settle or delete, every screen reads fresh balances.
+//  - Coming back to the app (tab or installed app becomes visible again)
+//    clears it, so a friend's new expense shows up when you return.
+//  - `generation` stops a read that was in flight across a clear from
+//    writing its older answer back into the fresh cache.
+//  - Memory only, per tab: nothing is stored on the device, and a reload,
+//    sign-out (a POST) or the sign-in redirect starts empty.
+
+const CACHE_TTL_MS = 30_000;
+const readCache = new Map<string, { at: number; data: unknown }>();
+const inFlight = new Map<string, Promise<unknown>>();
+let generation = 0;
+
+export function clearApiCache(): void {
+  generation += 1;
+  readCache.clear();
+  inFlight.clear();
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      clearApiCache();
+    }
+  });
+}
+
+function cachedGet<T>(path: string): Promise<T> {
+  const hit = readCache.get(path);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+    return Promise.resolve(hit.data as T);
+  }
+  const pending = inFlight.get(path);
+  if (pending) {
+    return pending as Promise<T>;
+  }
+  const startedIn = generation;
+  const promise = request<T>(path)
+    .then((data) => {
+      if (startedIn === generation) {
+        readCache.set(path, { at: Date.now(), data });
+      }
+      return data;
+    })
+    .finally(() => {
+      if (inFlight.get(path) === promise) {
+        inFlight.delete(path);
+      }
+    });
+  inFlight.set(path, promise);
+  return promise;
+}
+
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string) => cachedGet<T>(path),
   post: <T>(path: string, data?: unknown, headers?: Record<string, string>) =>
     request<T>(path, {
       method: 'POST',

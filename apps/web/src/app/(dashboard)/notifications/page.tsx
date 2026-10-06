@@ -118,7 +118,7 @@ export default function NotificationsPage() {
           </button>
         </div>
       ) : !notifications ? (
-        <LoadingState />
+        <LoadingState inline />
       ) : notifications.length === 0 ? (
         <EmptyState
           icon={<Bell size={26} strokeWidth={1.5} />}
