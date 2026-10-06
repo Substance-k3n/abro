@@ -3,13 +3,13 @@
 // Desktop counterpart to BottomNav -- no prototype reference (the Figma
 // Make export only ever targeted the phone-frame mobile layout); built
 // fresh per docs/ABRO_FRONTEND_SPEC.md §11's "Desktop (> 1024px): Sidebar
-// navigation" requirement, reusing the same NAV_ITEMS and neomorphic
+// navigation" requirement, reusing the shared nav items and neomorphic
 // active-state language as BottomNav so the two feel like one system.
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import { NAV_ITEMS } from './nav-items';
+import { SIDEBAR_NAV_ITEMS } from './nav-items';
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -40,7 +40,7 @@ export function Sidebar() {
         </span>
       </div>
 
-      {NAV_ITEMS.map((item) => {
+      {SIDEBAR_NAV_ITEMS.map((item) => {
         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
         const Icon = item.icon;
 

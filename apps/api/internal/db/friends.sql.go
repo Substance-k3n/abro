@@ -234,7 +234,7 @@ func (q *Queries) ListIncomingFriendRequests(ctx context.Context, friendID pgtyp
 const searchFriendExact = `-- name: SearchFriendExact :one
 SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username FROM profiles
 WHERE id != $1
-  AND (email = $2 OR phone = $3 OR username = $4)
+  AND (email = $2 OR phone = $3)
 LIMIT 1
 `
 
@@ -242,19 +242,13 @@ type SearchFriendExactParams struct {
 	ExcludeID pgtype.UUID `json:"exclude_id"`
 	Email     pgtype.Text `json:"email"`
 	Phone     pgtype.Text `json:"phone"`
-	Username  pgtype.Text `json:"username"`
 }
 
-// Exact match only on email, phone or username -- never a fuzzy name
-// search, so you can't browse the user directory. Emails and usernames
-// are stored lowercased, so the caller passes lowercased forms of those.
+// Exact match on email or phone (an address or number someone already
+// knows) -- never a fuzzy search. Emails are stored lowercased, so the
+// caller passes a lowercased email.
 func (q *Queries) SearchFriendExact(ctx context.Context, arg SearchFriendExactParams) (Profile, error) {
-	row := q.db.QueryRow(ctx, searchFriendExact,
-		arg.ExcludeID,
-		arg.Email,
-		arg.Phone,
-		arg.Username,
-	)
+	row := q.db.QueryRow(ctx, searchFriendExact, arg.ExcludeID, arg.Email, arg.Phone)
 	var i Profile
 	err := row.Scan(
 		&i.ID,
@@ -269,4 +263,60 @@ func (q *Queries) SearchFriendExact(ctx context.Context, arg SearchFriendExactPa
 		&i.Username,
 	)
 	return i, err
+}
+
+const searchProfilesByUsernamePrefix = `-- name: SearchProfilesByUsernamePrefix :many
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username FROM profiles
+WHERE id != $1
+  AND username LIKE $2::text ESCAPE '\'
+ORDER BY (username = $3::text) DESC, username
+LIMIT $4
+`
+
+type SearchProfilesByUsernamePrefixParams struct {
+	ExcludeID     pgtype.UUID `json:"exclude_id"`
+	PrefixPattern string      `json:"prefix_pattern"`
+	Exact         string      `json:"exact"`
+	RowLimit      int32       `json:"row_limit"`
+}
+
+// Search-as-you-type on usernames, which are public handles (lowercase,
+// [a-z0-9_.]). Prefix only and at most row_limit rows; display names,
+// emails and phones are never searched this way. The caller escapes
+// LIKE's wildcards ('_' is a legal username character). An exact match
+// sorts first.
+func (q *Queries) SearchProfilesByUsernamePrefix(ctx context.Context, arg SearchProfilesByUsernamePrefixParams) ([]Profile, error) {
+	rows, err := q.db.Query(ctx, searchProfilesByUsernamePrefix,
+		arg.ExcludeID,
+		arg.PrefixPattern,
+		arg.Exact,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Profile
+	for rows.Next() {
+		var i Profile
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.AvatarUrl,
+			&i.Phone,
+			&i.Email,
+			&i.PreferredCurrency,
+			&i.Locale,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -149,11 +149,14 @@ export default function HomePage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Avatar
-            initials={initialsOf(profile.displayName)}
-            color={colorForId(profile.id)}
-            size={44}
-          />
+          {/* Profile lives here on phones (the bottom bar has Friends instead). */}
+          <Link href="/profile" aria-label="Your profile">
+            <Avatar
+              initials={initialsOf(profile.displayName)}
+              color={colorForId(profile.id)}
+              size={44}
+            />
+          </Link>
           <div>
             <p className="mb-0.5 text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
               Good morning

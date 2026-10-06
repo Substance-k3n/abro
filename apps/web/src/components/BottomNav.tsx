@@ -14,7 +14,7 @@ import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import { NAV_ITEMS } from './nav-items';
+import { BOTTOM_NAV_ITEMS } from './nav-items';
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -31,7 +31,7 @@ export function BottomNav() {
         borderRadius: '28px 28px 0 0',
       }}
     >
-      {NAV_ITEMS.map((item) => {
+      {BOTTOM_NAV_ITEMS.map((item) => {
         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
         const Icon = item.icon;
 
@@ -68,7 +68,7 @@ export function BottomNav() {
                 boxShadow: isActive
                   ? 'inset 4px 4px 9px var(--neo-dark), inset -4px -4px 9px var(--neo-light)'
                   : 'none',
-                color: isActive ? 'var(--accent)' : '#a0a8b8',
+                color: isActive ? 'var(--accent)' : 'var(--t-nav-inactive)',
               }}
             >
               <Icon size={20} strokeWidth={isActive ? 2 : 1.6} />
