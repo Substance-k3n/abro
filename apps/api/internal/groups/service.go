@@ -439,6 +439,12 @@ func (s *Service) RequireActiveMembership(ctx context.Context, groupID, userID p
 	return membership, nil
 }
 
+// RequireActiveAdmin is requireActiveAdmin for other packages (group
+// photos, internal/photos): the caller must be an active admin.
+func (s *Service) RequireActiveAdmin(ctx context.Context, groupID, userID pgtype.UUID) (db.GroupMember, error) {
+	return s.requireActiveAdmin(ctx, groupID, userID)
+}
+
 func (s *Service) requireActiveAdmin(ctx context.Context, groupID, userID pgtype.UUID) (db.GroupMember, error) {
 	membership, err := s.RequireActiveMembership(ctx, groupID, userID)
 	if err != nil {

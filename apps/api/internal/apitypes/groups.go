@@ -109,6 +109,7 @@ type AuthGroup struct {
 	Type          string        `json:"type"`
 	Currency      string        `json:"currency"`
 	Description   *string       `json:"description"`
+	PhotoURL      *string       `json:"photoUrl"`
 	SimplifyDebts bool          `json:"simplifyDebts"`
 	CreatedByID   string        `json:"createdById"`
 	CreatedAt     time.Time     `json:"createdAt"`

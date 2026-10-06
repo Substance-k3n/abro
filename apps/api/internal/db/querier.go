@@ -154,7 +154,11 @@ type Querier interface {
 	// LIKE's wildcards ('_' is a legal username character). An exact match
 	// sorts first.
 	SearchProfilesByUsernamePrefix(ctx context.Context, arg SearchProfilesByUsernamePrefixParams) ([]Profile, error)
+	SetGroupPhoto(ctx context.Context, arg SetGroupPhotoParams) (Group, error)
 	SetIdempotencyKeyResponse(ctx context.Context, arg SetIdempotencyKeyResponseParams) error
+	// avatar_url is what clients show; avatar_path is the stored object.
+	// Both NULL removes the photo.
+	SetProfileAvatar(ctx context.Context, arg SetProfileAvatarParams) (Profile, error)
 	SoftDeleteExpense(ctx context.Context, arg SoftDeleteExpenseParams) error
 	SoftDeleteGroup(ctx context.Context, arg SoftDeleteGroupParams) error
 	TouchSessionLastUsed(ctx context.Context, id pgtype.UUID) error

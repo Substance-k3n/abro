@@ -378,6 +378,7 @@ type Group struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
 	DeletedByID   pgtype.UUID        `json:"deleted_by_id"`
+	PhotoPath     pgtype.Text        `json:"photo_path"`
 }
 
 type GroupMember struct {
@@ -443,6 +444,7 @@ type Profile struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	Username          pgtype.Text        `json:"username"`
+	AvatarPath        pgtype.Text        `json:"avatar_path"`
 }
 
 type PushSubscription struct {

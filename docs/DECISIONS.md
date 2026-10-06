@@ -7,6 +7,47 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-017: Profile and group photos, served through the API at versioned URLs
+
+**Status:** Accepted (roadmap Phase 4, 2026-10-06).
+
+**Context:** People wanted a profile photo (at sign-up and in their
+profile) and group photos. Photos show next to names all over the app,
+so they must load fast and cache well, but the storage bucket is private
+(receipts, PRD §36) and the free-tier deploy has no CDN.
+
+**Decision:** Store photos in the existing private bucket under
+`avatars/<user>/` and `group-photos/<group>/`, with a random file name
+per upload, and serve them **through the API**:
+`GET /users/{id}/avatar/{version}` and `GET /groups/{id}/photo/{version}`,
+where the version is that file name. A new photo means a new URL, so
+responses carry `Cache-Control: private, max-age=31536000, immutable`.
+Any signed-in user may load a profile photo; a group photo needs active
+membership. Uploads (`POST /users/me/avatar`, `POST /groups/{id}/photo`,
+admins only) are typed by their bytes (JPG/PNG/WebP, as in #60) and
+capped at 2 MB; the app shrinks photos before uploading. The profile's
+displayed photo stays in `profiles.avatar_url` (the versioned path, or a
+Google picture URL), and the stored key goes in the new
+`profiles.avatar_path` / `groups.photo_path` (migration 0013). Code:
+`internal/photos`, added onto the `/users` and `/groups` routers.
+
+**Alternatives considered:** presigned bucket URLs in every response
+(they expire after minutes and change on every request, so browsers
+could never cache a photo); a public bucket (every photo world-readable
+by URL); a new column per response shape (`avatar_url` already flows
+through every profile embedded in friends, members and participants).
+
+**Consequences:**
+
+- Photos appear everywhere a profile is embedded with no other API
+  change, and each one downloads once per device.
+- Photo bytes pass through the API server. They're small (resized
+  client-side), but a CDN in front of the API would help at scale.
+- Replacing or removing a photo deletes the old object, and its old URL
+  stops working (404).
+
+---
+
 ## ADR-016: Light theme by default, with a Light / Dark / Match-phone switch
 
 **Status:** Accepted (user decision, 2026-10-06).
