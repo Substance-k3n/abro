@@ -282,6 +282,10 @@ func TestService_ListPaging(t *testing.T) {
 		for i := 0; i < n; i++ {
 			in := baseInput("EQUAL", fmt.Sprintf("Same day #%d", i), "100", equalParticipants(payer.ID, friend.ID))
 			in.ExpenseDate = sameDate.Format(time.RFC3339)
+			// Re-validate: Create reads ParsedExpenseDate, which baseInput
+			// already set from time.Now(). Without this, rows created on
+			// either side of a second boundary get different expense_dates.
+			require.NoError(t, in.Validate())
 			expense, err := e.svc.Create(ctx, payer.ID, in)
 			require.NoError(t, err)
 			e.trackExpense(expense.ID)
