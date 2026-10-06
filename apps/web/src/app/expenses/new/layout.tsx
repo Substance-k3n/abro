@@ -93,7 +93,7 @@ export default function AddExpenseLayout({ children }: { children: ReactNode }) 
         <StepIndicator />
         <ExpenseDirectoryProvider
           fallback={({ error, retry }) =>
-            error ? <ErrorState message={error} onRetry={retry} /> : <LoadingState />
+            error ? <ErrorState message={error} onRetry={retry} /> : <LoadingState inline />
           }
         >
           {children}
