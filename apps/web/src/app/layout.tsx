@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
 
 import { PwaSetup } from '~/components/PwaSetup';
+import { ThemeSync } from '~/components/ThemeSync';
+import { THEME_SCRIPT } from '~/lib/theme';
 
 import './globals.css';
 
@@ -55,9 +57,19 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${outfit.variable} ${dmSans.variable} ${jetBrainsMono.variable}`}>
+    // suppressHydrationWarning: THEME_SCRIPT stamps data-theme on <html>
+    // before React hydrates, so the server's markup never has it.
+    <html
+      lang="en"
+      className={`${outfit.variable} ${dmSans.variable} ${jetBrainsMono.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body>
         <PwaSetup />
+        <ThemeSync />
         {children}
       </body>
     </html>

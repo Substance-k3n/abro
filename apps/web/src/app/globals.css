@@ -21,12 +21,17 @@
  */
 
 /* ===================== LIGHT THEME (default) ===================== */
+/* Near-white with a faint lavender tint, so the brand purple (the icon's
+   #6366f1 -> #a855f7) reads as part of the page rather than painted on.
+   The neo-morphic shadows use the same hue family so the soft 3D look
+   holds. Light is the default whatever the phone's setting; people can
+   pick Dark or "Match my phone" in Settings (lib/theme.ts). */
 :root {
   /* Neo-morphic shadow system */
-  --neo-bg: #dde1e7;
-  --neo-dark: #b8bec7;
+  --neo-bg: #f0eff9;
+  --neo-dark: #d3d0ea;
   --neo-light: #ffffff;
-  --neo-bg2: #e8ecf0;
+  --neo-bg2: #f7f6fd;
 
   /* Status colors */
   --green-soft: #22c55e;
@@ -35,14 +40,15 @@
   --red-bg: #fee2e2;
   --amber-soft: #f59e0b;
   --accent: #6366f1;
-  --accent-light: #eef2ff;
+  --accent-light: #e9e8fd;
 
-  /* Text hierarchy */
-  --t-primary: #1e2330;
-  --t-secondary: #3d4452;
-  --t-muted: #6b7280;
-  --t-dim: #9aa0ae;
-  --t-nav-inactive: #8a90a0;
+  /* Text hierarchy -- an ink with a hint of purple. --t-dim keeps about
+     3.5:1 on --neo-bg (secondary info only); everything else 4.5:1+. */
+  --t-primary: #1c1a33;
+  --t-secondary: #3d3a58;
+  --t-muted: #625f80;
+  --t-dim: #85829f;
+  --t-nav-inactive: #8a87a5;
 
   /* Semantic colors */
   --c-green: #16a34a;
@@ -52,75 +58,43 @@
   --c-amber: #d97706;
 
   /* Borders / surfaces */
-  --border-sub: rgba(0, 0, 0, 0.06);
-  --border-med: rgba(0, 0, 0, 0.1);
-  --overlay: rgba(0, 0, 0, 0.5);
+  --border-sub: rgba(60, 50, 130, 0.07);
+  --border-med: rgba(60, 50, 130, 0.12);
+  --overlay: rgba(28, 26, 51, 0.5);
   --overlay-light: rgba(255, 255, 255, 0.85);
 
   /* Page backdrop */
-  --page-bg: linear-gradient(135deg, #d8dce4 0%, #e4e8ef 50%, #dce0e8 100%);
-  --nav-shadow: 0 -4px 24px rgba(184, 190, 199, 0.55), 0 -1px 0 rgba(255, 255, 255, 0.9);
+  --page-bg: linear-gradient(135deg, #eceaf8 0%, #f4f3fc 50%, #efedf9 100%);
+  --nav-shadow: 0 -4px 24px rgba(180, 175, 220, 0.45), 0 -1px 0 rgba(255, 255, 255, 0.9);
+
+  color-scheme: light;
 }
 
 /* ===================== DARK THEME ===================== */
-/* Matches the app's [data-theme] toggle convention: unstamped root follows
-   the OS, an explicit stamp wins either way. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --neo-bg: #1e2130;
-    --neo-dark: #13151f;
-    --neo-light: #282c3f;
-    --neo-bg2: #22253a;
-
-    --green-soft: #4ade80;
-    --green-bg: rgba(74, 222, 128, 0.12);
-    --red-soft: #f87171;
-    --red-bg: rgba(248, 113, 113, 0.12);
-    --amber-soft: #fbbf24;
-    --accent: #818cf8;
-    --accent-light: rgba(129, 140, 248, 0.12);
-
-    --t-primary: #e8ecf5;
-    --t-secondary: #bcc4d8;
-    --t-muted: #8892a8;
-    --t-dim: #5a6478;
-    --t-nav-inactive: #6a728a;
-
-    --c-green: #4ade80;
-    --c-green-text: #86efac;
-    --c-red: #f87171;
-    --c-red-text: #fca5a5;
-    --c-amber: #fbbf24;
-
-    --border-sub: rgba(255, 255, 255, 0.07);
-    --border-med: rgba(255, 255, 255, 0.12);
-    --overlay: rgba(0, 0, 0, 0.75);
-    --overlay-light: rgba(30, 33, 48, 0.9);
-
-    --page-bg: linear-gradient(135deg, #0d0f18 0%, #161924 50%, #111420 100%);
-    --nav-shadow: 0 -4px 24px rgba(10, 12, 24, 0.7), 0 -1px 0 rgba(40, 44, 63, 0.9);
-  }
-}
-
+/* Stamped on <html> by the theme script in app/layout.tsx (Dark, or
+   "Match my phone" on a dark phone). Text tokens are brighter than the
+   original port's: --t-dim was about 2.6:1 on --neo-bg and hard to read;
+   it's now about 4.6:1, and the highlight shadow is stronger so cards
+   stand out from the page. */
 :root[data-theme='dark'] {
-  --neo-bg: #1e2130;
-  --neo-dark: #13151f;
-  --neo-light: #282c3f;
-  --neo-bg2: #22253a;
+  --neo-bg: #1f2134;
+  --neo-dark: #11121d;
+  --neo-light: #2d3049;
+  --neo-bg2: #24273c;
 
   --green-soft: #4ade80;
-  --green-bg: rgba(74, 222, 128, 0.12);
+  --green-bg: rgba(74, 222, 128, 0.14);
   --red-soft: #f87171;
-  --red-bg: rgba(248, 113, 113, 0.12);
+  --red-bg: rgba(248, 113, 113, 0.14);
   --amber-soft: #fbbf24;
-  --accent: #818cf8;
-  --accent-light: rgba(129, 140, 248, 0.12);
+  --accent: #8b93fa;
+  --accent-light: rgba(139, 147, 250, 0.16);
 
-  --t-primary: #e8ecf5;
-  --t-secondary: #bcc4d8;
-  --t-muted: #8892a8;
-  --t-dim: #5a6478;
-  --t-nav-inactive: #6a728a;
+  --t-primary: #f1f3fa;
+  --t-secondary: #d0d5e6;
+  --t-muted: #a9b0c7;
+  --t-dim: #8a92ab;
+  --t-nav-inactive: #8f97b0;
 
   --c-green: #4ade80;
   --c-green-text: #86efac;
@@ -128,13 +102,15 @@
   --c-red-text: #fca5a5;
   --c-amber: #fbbf24;
 
-  --border-sub: rgba(255, 255, 255, 0.07);
-  --border-med: rgba(255, 255, 255, 0.12);
+  --border-sub: rgba(255, 255, 255, 0.08);
+  --border-med: rgba(255, 255, 255, 0.14);
   --overlay: rgba(0, 0, 0, 0.75);
-  --overlay-light: rgba(30, 33, 48, 0.9);
+  --overlay-light: rgba(31, 33, 52, 0.9);
 
-  --page-bg: linear-gradient(135deg, #0d0f18 0%, #161924 50%, #111420 100%);
-  --nav-shadow: 0 -4px 24px rgba(10, 12, 24, 0.7), 0 -1px 0 rgba(40, 44, 63, 0.9);
+  --page-bg: linear-gradient(135deg, #10111c 0%, #181a29 50%, #131422 100%);
+  --nav-shadow: 0 -4px 24px rgba(8, 9, 18, 0.7), 0 -1px 0 rgba(45, 48, 73, 0.9);
+
+  color-scheme: dark;
 }
 
 * {
