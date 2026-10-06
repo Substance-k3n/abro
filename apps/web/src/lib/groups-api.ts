@@ -26,6 +26,9 @@ export interface AuthGroup {
   type: string;
   currency: string;
   description: string | null;
+  /** Versioned API path of the group photo (ADR-017), or null. Pass
+   * through ~/lib/photos.ts's photoSrc(). */
+  photoUrl: string | null;
   simplifyDebts: boolean;
   createdById: string;
   createdAt: string;

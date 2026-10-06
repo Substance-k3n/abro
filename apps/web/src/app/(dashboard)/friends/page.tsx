@@ -47,6 +47,7 @@ import {
   listIncomingRequests,
 } from '~/lib/friends-api';
 import { colorForId, initialsOf } from '~/lib/identity';
+import { photoSrc } from '~/lib/photos';
 
 export default function FriendsPage() {
   const router = useRouter();
@@ -169,6 +170,7 @@ export default function FriendsPage() {
                     initials={initialsOf(r.from.displayName)}
                     color={colorForId(r.from.id)}
                     size={40}
+                    src={photoSrc(r.from.avatarUrl)}
                   />
                   <div className="min-w-0 flex-1">
                     <p
@@ -222,6 +224,7 @@ export default function FriendsPage() {
                   <PersonRow
                     key={f.id}
                     initials={f.initials}
+                    photo={f.photo}
                     color={f.color}
                     name={f.name}
                     right={<AmountBadge amount={f.owes} dir="receive" />}
@@ -240,6 +243,7 @@ export default function FriendsPage() {
                   <PersonRow
                     key={f.id}
                     initials={f.initials}
+                    photo={f.photo}
                     color={f.color}
                     name={f.name}
                     right={<AmountBadge amount={f.iOwe} dir="owe" />}
@@ -274,6 +278,7 @@ export default function FriendsPage() {
                     <PersonRow
                       key={f.id}
                       initials={f.initials}
+                      photo={f.photo}
                       color={f.color}
                       name={f.name}
                       right={

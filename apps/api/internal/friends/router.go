@@ -75,6 +75,9 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 			if row.FriendEmail.Valid {
 				friend.Email = &row.FriendEmail.String
 			}
+			if row.FriendUsername.Valid {
+				friend.Username = &row.FriendUsername.String
+			}
 		} else {
 			friend = apitypes.AuthProfile{
 				ID:                idutil.String(row.UserID),
@@ -87,6 +90,9 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) error {
 			}
 			if row.UserEmail.Valid {
 				friend.Email = &row.UserEmail.String
+			}
+			if row.UserUsername.Valid {
+				friend.Username = &row.UserUsername.String
 			}
 		}
 
@@ -120,6 +126,9 @@ func (h *Handler) incomingRequests(w http.ResponseWriter, r *http.Request) error
 		}
 		if row.FromEmail.Valid {
 			from.Email = &row.FromEmail.String
+		}
+		if row.FromUsername.Valid {
+			from.Username = &row.FromUsername.String
 		}
 		out[i] = apitypes.IncomingFriendRequestItem{
 			FriendshipID: idutil.String(row.FriendshipID),

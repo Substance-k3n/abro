@@ -268,3 +268,46 @@ func TestService_Search(t *testing.T) {
 		assert.Empty(t, search(t, me.Email.String))
 	})
 }
+
+func TestService_ListIncludesUsernames(t *testing.T) {
+	svc, pool, makeProfile := testEnv(t)
+	ctx := context.Background()
+	a := makeProfile(t, "ListA")
+	b := makeProfile(t, "ListB")
+	run := rand.Intn(1_000_000_000)
+	_, err := pool.Exec(ctx, `UPDATE profiles SET username = $2 WHERE id = $1`, a.ID, fmt.Sprintf("la_%d", run))
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, `UPDATE profiles SET username = $2 WHERE id = $1`, b.ID, fmt.Sprintf("lb_%d", run))
+	require.NoError(t, err)
+
+	request, err := svc.SendRequest(ctx, a.ID, idutil.String(b.ID))
+	require.NoError(t, err)
+
+	// The incoming request names its sender's username...
+	incoming, err := svc.ListIncomingRequests(ctx, b.ID)
+	require.NoError(t, err)
+	found := false
+	for _, r := range incoming {
+		if r.FriendshipID == request.ID {
+			found = true
+			assert.Equal(t, fmt.Sprintf("la_%d", run), r.FromUsername.String)
+		}
+	}
+	require.True(t, found)
+
+	// ...and once accepted, both sides of the friendship carry usernames
+	// (the friends list used to return username: null for everyone).
+	_, err = svc.AcceptRequest(ctx, b.ID, idutil.String(request.ID))
+	require.NoError(t, err)
+	rows, err := svc.List(ctx, a.ID)
+	require.NoError(t, err)
+	found = false
+	for _, row := range rows {
+		if row.FriendshipID == request.ID {
+			found = true
+			assert.Equal(t, fmt.Sprintf("la_%d", run), row.UserUsername.String)
+			assert.Equal(t, fmt.Sprintf("lb_%d", run), row.FriendUsername.String)
+		}
+	}
+	require.True(t, found)
+}

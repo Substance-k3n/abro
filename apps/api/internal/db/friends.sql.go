@@ -108,11 +108,13 @@ SELECT
     f.friend_id,
     u.display_name AS user_display_name,
     u.avatar_url AS user_avatar_url,
+    u.username AS user_username,
     u.email AS user_email,
     u.preferred_currency AS user_preferred_currency,
     u.locale AS user_locale,
     fr.display_name AS friend_display_name,
     fr.avatar_url AS friend_avatar_url,
+    fr.username AS friend_username,
     fr.email AS friend_email,
     fr.preferred_currency AS friend_preferred_currency,
     fr.locale AS friend_locale
@@ -130,11 +132,13 @@ type ListFriendshipsRow struct {
 	FriendID                pgtype.UUID        `json:"friend_id"`
 	UserDisplayName         string             `json:"user_display_name"`
 	UserAvatarUrl           pgtype.Text        `json:"user_avatar_url"`
+	UserUsername            pgtype.Text        `json:"user_username"`
 	UserEmail               pgtype.Text        `json:"user_email"`
 	UserPreferredCurrency   string             `json:"user_preferred_currency"`
 	UserLocale              string             `json:"user_locale"`
 	FriendDisplayName       string             `json:"friend_display_name"`
 	FriendAvatarUrl         pgtype.Text        `json:"friend_avatar_url"`
+	FriendUsername          pgtype.Text        `json:"friend_username"`
 	FriendEmail             pgtype.Text        `json:"friend_email"`
 	FriendPreferredCurrency string             `json:"friend_preferred_currency"`
 	FriendLocale            string             `json:"friend_locale"`
@@ -156,11 +160,13 @@ func (q *Queries) ListFriendships(ctx context.Context, userID pgtype.UUID) ([]Li
 			&i.FriendID,
 			&i.UserDisplayName,
 			&i.UserAvatarUrl,
+			&i.UserUsername,
 			&i.UserEmail,
 			&i.UserPreferredCurrency,
 			&i.UserLocale,
 			&i.FriendDisplayName,
 			&i.FriendAvatarUrl,
+			&i.FriendUsername,
 			&i.FriendEmail,
 			&i.FriendPreferredCurrency,
 			&i.FriendLocale,
@@ -182,6 +188,7 @@ SELECT
     u.id AS from_id,
     u.display_name AS from_display_name,
     u.avatar_url AS from_avatar_url,
+    u.username AS from_username,
     u.email AS from_email,
     u.preferred_currency AS from_preferred_currency,
     u.locale AS from_locale
@@ -197,6 +204,7 @@ type ListIncomingFriendRequestsRow struct {
 	FromID                pgtype.UUID        `json:"from_id"`
 	FromDisplayName       string             `json:"from_display_name"`
 	FromAvatarUrl         pgtype.Text        `json:"from_avatar_url"`
+	FromUsername          pgtype.Text        `json:"from_username"`
 	FromEmail             pgtype.Text        `json:"from_email"`
 	FromPreferredCurrency string             `json:"from_preferred_currency"`
 	FromLocale            string             `json:"from_locale"`
@@ -217,6 +225,7 @@ func (q *Queries) ListIncomingFriendRequests(ctx context.Context, friendID pgtyp
 			&i.FromID,
 			&i.FromDisplayName,
 			&i.FromAvatarUrl,
+			&i.FromUsername,
 			&i.FromEmail,
 			&i.FromPreferredCurrency,
 			&i.FromLocale,

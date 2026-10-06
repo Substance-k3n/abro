@@ -52,6 +52,7 @@ import {
   listGroupInvites,
   listGroups,
 } from '~/lib/groups-api';
+import { GroupPicture } from '~/components/GroupPicture';
 
 interface GroupCardData {
   id: string;
@@ -62,6 +63,7 @@ interface GroupCardData {
   memberCount: number;
   lastActivityAt: string;
   groupType: ReturnType<typeof groupTypeFor>;
+  photo: string | null;
 }
 
 function toCards(groups: GroupListItem[], balances: BalancesSummary): GroupCardData[] {
@@ -75,6 +77,7 @@ function toCards(groups: GroupListItem[], balances: BalancesSummary): GroupCardD
       memberCount: g.memberCount,
       lastActivityAt: g.lastActivityAt,
       groupType: groupTypeFor(row.type),
+      photo: row.photo,
     };
   });
 }
@@ -88,13 +91,13 @@ function GroupCard({ group }: { group: GroupCardData }) {
       className="neo-raised flex items-start gap-3.5 rounded-[20px] p-4"
     >
       <div
-        className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-2xl"
+        className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-2xl"
         style={{
           background: group.groupType.tint,
           color: group.groupType.color,
         }}
       >
-        <GroupIcon icon={group.groupType.icon} size={24} />
+        <GroupPicture photo={group.photo} icon={group.groupType.icon} size={24} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-2">

@@ -54,7 +54,7 @@ WHERE gm.group_id = $1 AND gm.user_id = $2 AND g.deleted_at IS NULL;
 
 -- name: ListGroupMembersWithProfiles :many
 SELECT gm.id, gm.group_id, gm.user_id, gm.role, gm.status, gm.joined_at,
-       p.display_name, p.avatar_url, p.email, p.preferred_currency, p.locale
+       p.display_name, p.avatar_url, p.email, p.username, p.preferred_currency, p.locale
 FROM group_members gm
 JOIN profiles p ON p.id = gm.user_id
 WHERE gm.group_id = $1

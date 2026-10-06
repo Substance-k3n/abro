@@ -35,6 +35,7 @@ import {
   setGroupMemberRole,
 } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
+import { photoSrc } from '~/lib/photos';
 
 export default function GroupMembersPage() {
   const params = useParams<{ id: string }>();
@@ -146,6 +147,7 @@ function GroupMembers({
                   key={f.id}
                   initials={initialsOf(f.displayName)}
                   color={colorForId(f.id)}
+                  photo={photoSrc(f.avatarUrl)}
                   name={f.displayName}
                   right={
                     <span

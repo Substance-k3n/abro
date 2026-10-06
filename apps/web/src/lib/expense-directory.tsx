@@ -29,12 +29,15 @@ import { ME, useExpenseDraft } from './expense-draft';
 import { listFriends } from './friends-api';
 import { type GroupListItem, getGroup, listGroups } from './groups-api';
 import { colorForId, initialsOf } from './identity';
+import { photoSrc } from './photos';
 
 export interface Person {
   id: string;
   name: string;
   initials: string;
   color: string;
+  /** Profile photo as an <img src>, or null (ADR-017). */
+  photo: string | null;
 }
 
 function toPerson(profile: AuthProfile): Person {
@@ -43,6 +46,7 @@ function toPerson(profile: AuthProfile): Person {
     name: profile.displayName,
     initials: initialsOf(profile.displayName),
     color: colorForId(profile.id),
+    photo: photoSrc(profile.avatarUrl),
   };
 }
 
@@ -164,6 +168,7 @@ export function ExpenseDirectoryProvider({
         name: 'Unknown',
         initials: '?',
         color: '#94a3b8',
+        photo: null,
       }
     );
   };

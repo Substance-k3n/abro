@@ -32,7 +32,7 @@ SELECT * FROM expense_participants WHERE expense_id = $1 AND user_id = $2;
 
 -- name: ListExpenseParticipantsForExpenseIDs :many
 SELECT ep.expense_id, ep.id, ep.user_id, ep.amount,
-       p.display_name, p.avatar_url, p.email, p.preferred_currency, p.locale
+       p.display_name, p.avatar_url, p.email, p.username, p.preferred_currency, p.locale
 FROM expense_participants ep
 JOIN profiles p ON p.id = ep.user_id
 WHERE ep.expense_id = ANY(sqlc.arg('expense_ids')::uuid[]);
@@ -89,7 +89,7 @@ RETURNING *;
 
 -- name: ListExpenseNotesWithAuthor :many
 SELECT n.id, n.expense_id, n.content, n.created_at,
-       p.id AS author_id, p.display_name AS author_display_name, p.avatar_url AS author_avatar_url,
+       p.id AS author_id, p.display_name AS author_display_name, p.avatar_url AS author_avatar_url, p.username AS author_username,
        p.email AS author_email, p.preferred_currency AS author_preferred_currency, p.locale AS author_locale
 FROM expense_notes n
 JOIN profiles p ON p.id = n.author_id

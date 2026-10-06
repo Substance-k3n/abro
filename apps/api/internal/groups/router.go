@@ -290,6 +290,9 @@ func toAuthGroup(g Group) apitypes.AuthGroup {
 		if m.Email.Valid {
 			user.Email = &m.Email.String
 		}
+		if m.Username.Valid {
+			user.Username = &m.Username.String
+		}
 		out.Members[i] = apitypes.GroupMember{
 			ID: idutil.String(m.ID), UserID: idutil.String(m.UserID), Role: string(m.Role),
 			Status: string(m.Status), JoinedAt: m.JoinedAt.Time, User: user,

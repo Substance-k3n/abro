@@ -200,7 +200,7 @@ func (q *Queries) ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveM
 
 const listGroupMembersWithProfiles = `-- name: ListGroupMembersWithProfiles :many
 SELECT gm.id, gm.group_id, gm.user_id, gm.role, gm.status, gm.joined_at,
-       p.display_name, p.avatar_url, p.email, p.preferred_currency, p.locale
+       p.display_name, p.avatar_url, p.email, p.username, p.preferred_currency, p.locale
 FROM group_members gm
 JOIN profiles p ON p.id = gm.user_id
 WHERE gm.group_id = $1
@@ -217,6 +217,7 @@ type ListGroupMembersWithProfilesRow struct {
 	DisplayName       string             `json:"display_name"`
 	AvatarUrl         pgtype.Text        `json:"avatar_url"`
 	Email             pgtype.Text        `json:"email"`
+	Username          pgtype.Text        `json:"username"`
 	PreferredCurrency string             `json:"preferred_currency"`
 	Locale            string             `json:"locale"`
 }
@@ -240,6 +241,7 @@ func (q *Queries) ListGroupMembersWithProfiles(ctx context.Context, groupID pgty
 			&i.DisplayName,
 			&i.AvatarUrl,
 			&i.Email,
+			&i.Username,
 			&i.PreferredCurrency,
 			&i.Locale,
 		); err != nil {
