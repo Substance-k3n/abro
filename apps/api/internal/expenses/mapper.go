@@ -40,6 +40,9 @@ func ToAuthExpense(e Expense) apitypes.AuthExpense {
 		if p.Email.Valid {
 			user.Email = &p.Email.String
 		}
+		if p.Username.Valid {
+			user.Username = &p.Username.String
+		}
 		out.Participants[i] = apitypes.ExpenseParticipantOut{
 			ID: idutil.String(p.ID), Amount: strconv.FormatInt(p.Amount, 10), User: user,
 		}
@@ -58,6 +61,9 @@ func toAuthExpenseNote(n db.ListExpenseNotesWithAuthorRow) apitypes.AuthExpenseN
 	if n.AuthorEmail.Valid {
 		author.Email = &n.AuthorEmail.String
 	}
+	if n.AuthorUsername.Valid {
+		author.Username = &n.AuthorUsername.String
+	}
 	return apitypes.AuthExpenseNote{
 		ID: idutil.String(n.ID), ExpenseID: idutil.String(n.ExpenseID), Content: n.Content,
 		CreatedAt: n.CreatedAt.Time, Author: author,
@@ -74,6 +80,9 @@ func profileFromExpenseFields(p db.Profile) apitypes.AuthProfile {
 	}
 	if p.Email.Valid {
 		out.Email = &p.Email.String
+	}
+	if p.Username.Valid {
+		out.Username = &p.Username.String
 	}
 	return out
 }

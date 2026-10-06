@@ -176,7 +176,7 @@ func (q *Queries) GetExpenseParticipant(ctx context.Context, arg GetExpenseParti
 
 const listExpenseNotesWithAuthor = `-- name: ListExpenseNotesWithAuthor :many
 SELECT n.id, n.expense_id, n.content, n.created_at,
-       p.id AS author_id, p.display_name AS author_display_name, p.avatar_url AS author_avatar_url,
+       p.id AS author_id, p.display_name AS author_display_name, p.avatar_url AS author_avatar_url, p.username AS author_username,
        p.email AS author_email, p.preferred_currency AS author_preferred_currency, p.locale AS author_locale
 FROM expense_notes n
 JOIN profiles p ON p.id = n.author_id
@@ -192,6 +192,7 @@ type ListExpenseNotesWithAuthorRow struct {
 	AuthorID                pgtype.UUID        `json:"author_id"`
 	AuthorDisplayName       string             `json:"author_display_name"`
 	AuthorAvatarUrl         pgtype.Text        `json:"author_avatar_url"`
+	AuthorUsername          pgtype.Text        `json:"author_username"`
 	AuthorEmail             pgtype.Text        `json:"author_email"`
 	AuthorPreferredCurrency string             `json:"author_preferred_currency"`
 	AuthorLocale            string             `json:"author_locale"`
@@ -214,6 +215,7 @@ func (q *Queries) ListExpenseNotesWithAuthor(ctx context.Context, expenseID pgty
 			&i.AuthorID,
 			&i.AuthorDisplayName,
 			&i.AuthorAvatarUrl,
+			&i.AuthorUsername,
 			&i.AuthorEmail,
 			&i.AuthorPreferredCurrency,
 			&i.AuthorLocale,
@@ -230,7 +232,7 @@ func (q *Queries) ListExpenseNotesWithAuthor(ctx context.Context, expenseID pgty
 
 const listExpenseParticipantsForExpenseIDs = `-- name: ListExpenseParticipantsForExpenseIDs :many
 SELECT ep.expense_id, ep.id, ep.user_id, ep.amount,
-       p.display_name, p.avatar_url, p.email, p.preferred_currency, p.locale
+       p.display_name, p.avatar_url, p.email, p.username, p.preferred_currency, p.locale
 FROM expense_participants ep
 JOIN profiles p ON p.id = ep.user_id
 WHERE ep.expense_id = ANY($1::uuid[])
@@ -244,6 +246,7 @@ type ListExpenseParticipantsForExpenseIDsRow struct {
 	DisplayName       string      `json:"display_name"`
 	AvatarUrl         pgtype.Text `json:"avatar_url"`
 	Email             pgtype.Text `json:"email"`
+	Username          pgtype.Text `json:"username"`
 	PreferredCurrency string      `json:"preferred_currency"`
 	Locale            string      `json:"locale"`
 }
@@ -265,6 +268,7 @@ func (q *Queries) ListExpenseParticipantsForExpenseIDs(ctx context.Context, expe
 			&i.DisplayName,
 			&i.AvatarUrl,
 			&i.Email,
+			&i.Username,
 			&i.PreferredCurrency,
 			&i.Locale,
 		); err != nil {

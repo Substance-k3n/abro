@@ -46,6 +46,7 @@ import { listFriends } from '~/lib/friends-api';
 import { type GroupListItem, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { CATEGORIES } from '~/lib/reference-data';
+import { photoSrc } from '~/lib/photos';
 
 const METHOD_LABEL: Record<string, string> = {
   EQUAL: 'Equal',
@@ -388,12 +389,24 @@ export default function ExpenseDetailPage() {
 }
 
 function Avatar({ user, size }: { user: AuthProfile; size: string }) {
+  const src = photoSrc(user.avatarUrl);
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-full font-bold text-white ${size}`}
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold text-white ${size}`}
       style={{ background: colorForId(user.id) }}
     >
       {initialsOf(user.displayName)}
+      {src && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={src}
+          src={src}
+          alt=""
+          loading="lazy"
+          onError={(e) => e.currentTarget.remove()}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
     </div>
   );
 }

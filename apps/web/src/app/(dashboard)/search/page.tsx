@@ -342,6 +342,7 @@ export default function SearchPage() {
     <PersonRow
       key={f.id}
       initials={f.initials}
+      photo={f.photo}
       color={f.color}
       name={f.name}
       right={<FriendBalance friend={f} />}

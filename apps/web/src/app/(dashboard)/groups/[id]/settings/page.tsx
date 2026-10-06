@@ -22,16 +22,22 @@
 //    settled. It's a soft delete -- expenses stay, the group is gone.
 //  - Both ask for confirmation inline (no modal library), then go to
 //    /groups.
+//  - Group photo (roadmap Phase 4c, ADR-017): admins add, change or
+//    remove it at the top; it saves straight away, separately from the
+//    form's Save. Everyone sees it on the group's pages.
 
 import { ETB, abs, formatMoney } from '@abro/types';
 import { ArrowLeft, LogOut, Trash2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
 
+import { PhotoPicker } from '~/components/PhotoPicker';
 import { ApiError } from '~/lib/api-client';
 import { listExpenses } from '~/lib/expenses-api';
 import { type GroupView, GroupViewLoader } from '~/lib/group-view';
 import { deleteGroup, groupTypeFor, removeGroupMember, updateGroup } from '~/lib/groups-api';
+import { initialsOf } from '~/lib/identity';
+import { photoSrc, removeGroupPhoto, uploadGroupPhoto } from '~/lib/photos';
 import { GROUP_TYPES } from '~/lib/reference-data';
 
 const CURRENCIES = ['ETB', 'USD', 'EUR'];
@@ -151,6 +157,28 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
         >
           Only admins can change these settings.
         </p>
+      )}
+
+      {isAdmin && (
+        <section className="neo-raised-sm flex flex-col items-center gap-2 rounded-3xl px-4 py-5">
+          <PhotoPicker
+            src={photoSrc(group.photoUrl)}
+            initials={initialsOf(group.name)}
+            color={groupTypeFor(group.type).color}
+            size={80}
+            label="group photo"
+            onUpload={async (image) => {
+              const updated = (await uploadGroupPhoto(group.id, image)) as {
+                photoUrl: string | null;
+              };
+              setGroup((g) => ({ ...g, photoUrl: updated.photoUrl }));
+            }}
+            onRemove={async () => {
+              await removeGroupPhoto(group.id);
+              setGroup((g) => ({ ...g, photoUrl: null }));
+            }}
+          />
+        </section>
       )}
 
       <fieldset disabled={!isAdmin || saving} className="flex flex-col gap-5">

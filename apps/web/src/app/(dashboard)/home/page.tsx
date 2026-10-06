@@ -39,7 +39,6 @@ import {
   Avatar,
   BalanceCard,
   EmptyState,
-  GroupIcon,
   MoneyDisplay,
   PersonRow,
   SectionLabel,
@@ -71,6 +70,8 @@ import { type FriendListItem, listFriends } from '~/lib/friends-api';
 import { type AuthGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { listNotifications } from '~/lib/notifications-api';
+import { photoSrc } from '~/lib/photos';
+import { GroupPicture } from '~/components/GroupPicture';
 
 const QUICK_ACTIONS = [
   { label: 'Add Expense', href: '/expenses/new', icon: Plus, accent: true },
@@ -155,6 +156,7 @@ export default function HomePage() {
               initials={initialsOf(profile.displayName)}
               color={colorForId(profile.id)}
               size={44}
+              src={photoSrc(profile.avatarUrl)}
             />
           </Link>
           <div>
@@ -262,6 +264,7 @@ export default function HomePage() {
                         <PersonRow
                           key={f.id}
                           initials={f.initials}
+                          photo={f.photo}
                           color={f.color}
                           name={f.name}
                           right={
@@ -284,6 +287,7 @@ export default function HomePage() {
                         <PersonRow
                           key={f.id}
                           initials={f.initials}
+                          photo={f.photo}
                           color={f.color}
                           name={f.name}
                           right={
@@ -328,10 +332,10 @@ export default function HomePage() {
                     className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
                   >
                     <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]"
+                      className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[13px]"
                       style={{ background: g.groupType.tint, color: g.groupType.color }}
                     >
-                      <GroupIcon icon={g.groupType.icon} size={19} />
+                      <GroupPicture photo={g.photo} icon={g.groupType.icon} size={19} />
                     </div>
                     <span
                       className="flex-1 text-[0.88rem] font-semibold"

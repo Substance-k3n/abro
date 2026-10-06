@@ -197,6 +197,7 @@ export default function CreateGroupMembersPage() {
               <PersonRow
                 key={f.id}
                 initials={f.initials}
+                photo={f.photo}
                 color={f.color}
                 name={f.name}
                 sub={balanceLabel}

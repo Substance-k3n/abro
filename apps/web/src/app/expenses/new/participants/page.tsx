@@ -224,6 +224,7 @@ export default function AddExpenseParticipantsPage() {
               <div key={f.id}>
                 <PersonRow
                   initials={f.initials}
+                  photo={f.photo}
                   color={f.color}
                   name={f.name}
                   sub={group ? 'Group member' : undefined}

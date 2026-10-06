@@ -28,6 +28,7 @@ import { ApiError } from '~/lib/api-client';
 import type { AuthProfile } from '~/lib/auth-api';
 import { listFriends, searchUsers, sendFriendRequest } from '~/lib/friends-api';
 import { colorForId, initialsOf } from '~/lib/identity';
+import { photoSrc } from '~/lib/photos';
 
 type SendState = 'idle' | 'sending' | 'sent';
 
@@ -165,7 +166,12 @@ export default function AddFriendPage() {
           const state = sendState[p.id] ?? 'idle';
           return (
             <div key={p.id} className="neo-raised flex items-center gap-3 rounded-2xl p-4">
-              <Avatar initials={initialsOf(p.displayName)} color={colorForId(p.id)} size={44} />
+              <Avatar
+                initials={initialsOf(p.displayName)}
+                color={colorForId(p.id)}
+                size={44}
+                src={photoSrc(p.avatarUrl)}
+              />
               <div className="min-w-0 flex-1">
                 <p
                   className="truncate text-[0.95rem] font-semibold"

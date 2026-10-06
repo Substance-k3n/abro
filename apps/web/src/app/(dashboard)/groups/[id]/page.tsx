@@ -19,7 +19,7 @@
 //  - Members tab lists ACTIVE members; pending invites are on GRP-06.
 
 import { ETB, abs, formatMoney } from '@abro/types';
-import { ActivityItem, EmptyState, GroupIcon } from '@abro/ui';
+import { ActivityItem, EmptyState } from '@abro/ui';
 import { ArrowLeft, Handshake, Plus, Receipt, Settings, Split, UserPlus } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -28,6 +28,8 @@ import { useState } from 'react';
 import { type AuthExpense, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
 import { type GroupView, GroupViewLoader, PersonAvatar, nameIn } from '~/lib/group-view';
 import { groupTypeFor } from '~/lib/groups-api';
+import { GroupPicture } from '~/components/GroupPicture';
+import { photoSrc } from '~/lib/photos';
 
 type Tab = 'expenses' | 'balances' | 'members';
 
@@ -92,10 +94,10 @@ function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpens
       <div className="neo-raised-lg mb-4 rounded-3xl p-5">
         <div className="mb-4 flex items-center gap-3.5">
           <div
-            className="neo-raised-sm flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+            className="neo-raised-sm relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl"
             style={{ color: type.color }}
           >
-            <GroupIcon icon={type.icon} size={26} />
+            <GroupPicture photo={photoSrc(group.photoUrl)} icon={type.icon} size={26} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="mb-1 flex items-center gap-2">

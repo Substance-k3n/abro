@@ -23,6 +23,7 @@ import { type AuthProfile, me } from '~/lib/auth-api';
 import { listFriends, searchUsers, sendFriendRequest } from '~/lib/friends-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { forgetInvite, isUsername, rememberInvite } from '~/lib/invite';
+import { photoSrc } from '~/lib/photos';
 
 type View =
   | { kind: 'loading' }
@@ -105,6 +106,7 @@ export default function AddFromInvitePage() {
             <Avatar
               initials={initialsOf(view.person.displayName)}
               color={colorForId(view.person.id)}
+              src={photoSrc(view.person.avatarUrl)}
               size={76}
             />
             <div className="flex flex-col gap-1">

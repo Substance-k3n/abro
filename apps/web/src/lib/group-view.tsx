@@ -28,6 +28,7 @@ import { type AuthProfile, me } from './auth-api';
 import { getGroupBalances } from './balances-api';
 import { type AuthGroup, type GroupMember, getGroup } from './groups-api';
 import { colorForId, initialsOf } from './identity';
+import { photoSrc } from '~/lib/photos';
 
 export interface GroupView {
   profile: AuthProfile;
@@ -146,6 +147,13 @@ export function PersonAvatar({
   userId: string;
   size: number;
 }) {
-  const name = view.people.get(userId)?.displayName ?? '?';
-  return <Avatar initials={initialsOf(name)} color={colorForId(userId)} size={size} />;
+  const person = view.people.get(userId);
+  return (
+    <Avatar
+      initials={initialsOf(person?.displayName ?? '?')}
+      color={colorForId(userId)}
+      size={size}
+      src={photoSrc(person?.avatarUrl)}
+    />
+  );
 }

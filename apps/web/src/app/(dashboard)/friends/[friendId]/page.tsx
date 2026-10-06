@@ -141,6 +141,7 @@ export default function FriendDetailPage() {
           <Avatar
             initials={friend.initials}
             color={friend.color}
+            src={friend.photo}
             size={60}
             className="mx-auto mb-3"
           />
