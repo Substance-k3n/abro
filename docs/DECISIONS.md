@@ -99,7 +99,8 @@ would not send the cookie on credentialed cross-site fetches to the API.
   ADR-011's "schema comes from the same image" rule. The compose stack
   leaves the flag unset and keeps its `migrate` service.
 - **No S3 for now.** The API already runs without it (receipt endpoints
-  report "not configured"), and there's no receipt UI. This avoids adding
+  report "not configured"), and there's no receipt UI (shipped later, on
+  2026-10-06; it shows a "not available" note until S3 is set). This avoids adding
   a storage vendor (e.g. Supabase Storage, which ADR-001 steered away
   from) before it's needed.
 
@@ -174,7 +175,7 @@ since the images work there too.
   documented in docs/DEPLOY.md.
 - Two known gaps, now tied to this deployment:
   - Receipt downloads use presigned URLs pointing at the internal
-    `http://s3:9000`. There's no receipt UI yet, but when there is, S3
+    `http://s3:9000`. There's no receipt UI yet (added 2026-10-06), but when there is, S3
     needs a public hostname via Caddy.
   - Recurring expenses still have no scheduler (ADR-005). A cron on the
     server can call the generate endpoint once that endpoint is

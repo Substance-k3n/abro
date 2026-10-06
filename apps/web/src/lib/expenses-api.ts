@@ -204,3 +204,31 @@ export function getExpense(id: string): Promise<AuthExpense> {
 export function deleteExpense(id: string): Promise<void> {
   return api.delete(`/expenses/${id}`);
 }
+
+/** apps/api's receipt rules (internal/expenses/service.go): JPG, PNG or
+ * WebP, 10MB at most. Checked here only to fail fast; the API is the
+ * real check. */
+export const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+export const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
+
+/** POST /expenses/{id}/receipt (multipart, field `file`) -- attaches or
+ * replaces the receipt; same edit authority as editing the expense.
+ * Returns the updated expense. A server with no object storage answers
+ * 501 RECEIPT_STORAGE_NOT_CONFIGURED. */
+export function uploadReceipt(id: string, file: File): Promise<AuthExpense> {
+  const form = new FormData();
+  form.append('file', file);
+  return api.postForm(`/expenses/${id}/receipt`, form);
+}
+
+/** GET /expenses/{id}/receipt -- a presigned URL that expires after five
+ * minutes (storage stays private, PRD §36), so fetch it when showing the
+ * receipt rather than caching it. */
+export function getReceiptUrl(id: string): Promise<{ url: string }> {
+  return api.get(`/expenses/${id}/receipt`);
+}
+
+/** DELETE /expenses/{id}/receipt -- same edit authority as uploading. */
+export function deleteReceipt(id: string): Promise<void> {
+  return api.delete(`/expenses/${id}/receipt`);
+}

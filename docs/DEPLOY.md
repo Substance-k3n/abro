@@ -83,8 +83,8 @@ docker compose exec -T postgres pg_restore -U abro -d abro \
 docker compose start api web
 ```
 
-Receipts live in the `s3-data` volume. Back that up too once the
-receipt UI ships.
+Receipts live in the `s3-data` volume. Back that up too: the expense
+detail screen can attach receipts now.
 
 ## 5. Useful commands
 
@@ -97,7 +97,8 @@ docker compose run --rm migrate          # re-run migrations by hand
 ## Known gaps (ADR-011)
 
 - **Receipts:** presigned download URLs point at the internal S3 host.
-  S3 needs a public hostname through Caddy before a receipt UI can work.
+  S3 needs a public hostname through Caddy before the receipt section on
+  the expense detail screen can show images.
 - **Recurring expenses:** no scheduler yet (ADR-005). Nothing generates
   them automatically.
 
@@ -203,8 +204,22 @@ a Vercel redeploy.
 - **Backups:** Neon keeps a short restore window on the free plan. There's no
   `backup` service here. Take a manual `pg_dump "$DATABASE_URL"` before
   anything risky.
-- **Receipts:** no S3 is configured, so receipt upload returns
-  "not configured". There's no receipt UI yet. When there is, add an
-  S3-compatible bucket and set the `S3_*` vars on Render.
+- **Receipts:** no S3 is configured, so the expense detail screen's
+  receipt section says "Receipts aren't available on this server yet"
+  (the API answers 501). To turn receipts on, create a **private**
+  S3-compatible bucket (e.g. Backblaze B2, or Cloudflare R2) and an
+  application key limited to that bucket, then set on Render:
+  - `S3_ENDPOINT` -- the provider's S3 endpoint, with `https://`
+    (B2: `https://s3.<region>.backblazeb2.com`)
+  - `S3_REGION` -- the bucket's region (B2: e.g. `eu-central-003`;
+    R2: `auto`)
+  - `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` -- the key's ID and secret
+  - `RECEIPTS_BUCKET` -- the bucket name
+
+  Images load in the browser through 5-minute presigned URLs, so the
+  bucket stays private and needs no CORS rule. Not yet verified: whether
+  Vercel's `/api` proxy accepts uploads near the 10 MB receipt limit;
+  check with a large photo after the first deploy.
+
 - **Client IPs** in session metadata are whatever Vercel forwards in
   `X-Forwarded-For` (chi's `RealIP`). They're informational only.

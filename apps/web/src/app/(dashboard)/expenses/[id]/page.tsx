@@ -5,12 +5,14 @@
 // GET /expenses/{id} (~/lib/expenses-api.ts) instead of mock EXPENSES.
 //
 // Deviations:
-//  - Receipt section: skipped -- no receipt-upload UI exists anywhere
-//    in this app yet (EXP-01/EXP-08 both deferred it), so there's
-//    nothing to show a thumbnail for. apps/api's receipt routes exist.
-//  - Actions menu: "Download receipt"/"Share expense" dropped for the
-//    same reason. "Edit expense" opens EXP-10; settlements never get
-//    it -- apps/api's update path can't produce a SETTLEMENT (ADR-003).
+//  - Receipt section: ~/components/ReceiptSection -- thumbnail, full
+//    view, and attach/replace/remove here on the detail page (the
+//    add-expense wizard doesn't take a receipt: the expense must exist
+//    first). "Download receipt" is the full view's "Open original"
+//    rather than an actions-menu item.
+//  - Actions menu: "Share expense" dropped (no sharing feature).
+//    "Edit expense" opens EXP-10; settlements never get it -- apps/api's
+//    update path can't produce a SETTLEMENT (ADR-003).
 //  - The menu shows only when you *might* be allowed to edit or
 //    delete: you paid, or it's a group expense (a group admin may too).
 //    apps/api's requireEditAuthority is the real check -- a group
@@ -36,6 +38,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { ReceiptSection } from '~/components/ReceiptSection';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
 import { type AuthExpense, deleteExpense, getExpense } from '~/lib/expenses-api';
@@ -345,6 +348,14 @@ export default function ExpenseDetailPage() {
           })}
         </div>
       </div>
+
+      <ReceiptSection
+        expense={expense}
+        canManage={mightManage}
+        onChange={(updated) =>
+          setState({ status: 'ready', data: { ...state.data, expense: updated } })
+        }
+      />
 
       {/* Notes */}
       {expense.notes && (
