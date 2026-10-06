@@ -8,11 +8,16 @@ import type { MetadataRoute } from 'next';
 // are the same mark, picked up by Next as the favicon and iOS icon.
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: '/',
     name: 'ABRO',
     short_name: 'ABRO',
     description: 'Remember every expense. Forget the confusion.',
-    start_url: '/',
+    // The installed app opens on Home, not the marketing splash at "/":
+    // signed-out users are sent on to /auth/signin by the API client.
+    start_url: '/home',
+    scope: '/',
     display: 'standalone',
+    orientation: 'portrait',
     background_color: '#1e2130',
     theme_color: '#6366f1',
     icons: [
@@ -23,6 +28,15 @@ export default function manifest(): MetadataRoute.Manifest {
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',
+      },
+    ],
+    // Long-press the app icon (Android) for a direct "Add expense".
+    shortcuts: [
+      {
+        name: 'Add expense',
+        short_name: 'Add',
+        url: '/expenses/new',
+        icons: [{ src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' }],
       },
     ],
   };
