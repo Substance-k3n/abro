@@ -2,6 +2,8 @@ package groups
 
 import (
 	"net/http"
+	"path"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -242,6 +244,10 @@ func toMembershipResult(m db.GroupMember) apitypes.GroupMembershipResult {
 	}
 }
 
+// ToAuthGroupRow is toAuthGroupRow for other packages (internal/photos
+// answers photo uploads with the updated group).
+func ToAuthGroupRow(g db.Group) apitypes.AuthGroup { return toAuthGroupRow(g) }
+
 func toAuthGroupRow(g db.Group) apitypes.AuthGroup {
 	out := apitypes.AuthGroup{
 		ID: idutil.String(g.ID), Name: g.Name, Type: string(g.Type), Currency: g.Currency,
@@ -251,7 +257,23 @@ func toAuthGroupRow(g db.Group) apitypes.AuthGroup {
 	if g.Description.Valid {
 		out.Description = &g.Description.String
 	}
+	if url, ok := PhotoURL(g.ID, g.PhotoPath); ok {
+		out.PhotoURL = &url
+	}
 	return out
+}
+
+// PhotoURL is the versioned API path a group photo is served at
+// (internal/photos, ADR-017): /groups/{id}/photo/{version}, where the
+// version is the stored object's file name without its extension, so a
+// new photo gets a new URL and clients can cache each one forever.
+func PhotoURL(groupID pgtype.UUID, photoPath pgtype.Text) (string, bool) {
+	if !photoPath.Valid {
+		return "", false
+	}
+	version := path.Base(photoPath.String)
+	version = strings.TrimSuffix(version, path.Ext(version))
+	return "/groups/" + idutil.String(groupID) + "/photo/" + version, true
 }
 
 func toAuthGroup(g Group) apitypes.AuthGroup {
