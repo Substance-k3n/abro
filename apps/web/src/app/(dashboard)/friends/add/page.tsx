@@ -3,8 +3,10 @@
 // Add Friend -- target of DASH-03's "Add friend" button
 // (docs/ABRO_FRONTEND_SPEC.md §3). The spec names the button but no screen
 // behind it; this is the smallest screen apps/api's friends module
-// supports: GET /friends/search (exact email or phone, never a fuzzy name
-// search -- apps/api/queries/friends.sql) then POST /friends/requests.
+// supports: GET /friends/search (exact email, phone or username, never a
+// fuzzy name search -- apps/api/queries/friends.sql) then POST
+// /friends/requests. A username or phone match comes back without the
+// email, so the result shows @username instead.
 // The other person accepts from their own Friends list's "Friend
 // requests" section.
 //
@@ -77,8 +79,8 @@ export default function AddFriendPage() {
           Add Friend
         </h2>
         <p className="mb-5 text-[0.85rem]" style={{ color: 'var(--t-dim)' }}>
-          Enter your friend&apos;s exact email address or phone number. They&apos;ll need to accept
-          your request before you can split expenses.
+          Enter your friend&apos;s exact username, email address or phone number. They&apos;ll need
+          to accept your request before you can split expenses.
         </p>
 
         <form onSubmit={onSearch} className="mb-6 flex gap-2">
@@ -91,13 +93,12 @@ export default function AddFriendPage() {
             />
             <input
               type="text"
-              inputMode="email"
               autoComplete="off"
               className="neo-input pl-11"
-              placeholder="friend@example.com"
+              placeholder="@username or friend@example.com"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              aria-label="Friend's email or phone"
+              aria-label="Friend's username, email or phone"
             />
           </div>
           <button
@@ -119,7 +120,7 @@ export default function AddFriendPage() {
           <EmptyState
             icon={<UserX size={26} strokeWidth={1.5} />}
             title="No one found"
-            description="No ABRO account uses that email or phone. Check it and try again."
+            description="No ABRO account uses that username, email or phone. Check it and try again."
           />
         )}
 
@@ -135,9 +136,9 @@ export default function AddFriendPage() {
                 >
                   {p.displayName}
                 </p>
-                {p.email && (
+                {(p.email ?? p.username) && (
                   <p className="truncate text-[0.78rem]" style={{ color: 'var(--t-dim)' }}>
-                    {p.email}
+                    {p.email ?? `@${p.username}`}
                   </p>
                 )}
               </div>

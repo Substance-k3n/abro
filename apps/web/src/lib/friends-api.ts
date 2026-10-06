@@ -25,14 +25,13 @@ export function listFriends(): Promise<FriendListItem[]> {
   return api.get('/friends/');
 }
 
-/** Exact email/phone match only (apps/api never fuzzy-searches the user
- * directory), so this returns at most one profile. Emails are stored
- * lowercased (apitypes.NormalizeEmail) but the search query isn't, so
- * lowercase it here or a capitalised address never matches. */
+/** Exact email, phone or username match only (apps/api never
+ * fuzzy-searches the user directory), so this returns at most one
+ * profile. apps/api lowercases the query for the email and username
+ * checks and accepts a leading "@" on usernames. The result's email is
+ * null unless the query was that email. */
 export function searchUsers(query: string): Promise<AuthProfile[]> {
-  const q = query.trim();
-  const normalized = q.includes('@') ? q.toLowerCase() : q;
-  return api.get(`/friends/search?query=${encodeURIComponent(normalized)}`);
+  return api.get(`/friends/search?query=${encodeURIComponent(query.trim())}`);
 }
 
 export function listIncomingRequests(): Promise<IncomingFriendRequest[]> {

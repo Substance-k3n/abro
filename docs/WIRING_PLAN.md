@@ -705,7 +705,10 @@ only.
 
 Deviations (Confirmed): no outgoing/sent-requests list (no apps/api
 endpoint for it); no unfriend UI yet; searching by username isn't
-supported (apps/api matches email/phone only).
+supported (apps/api matches email/phone only). **Update 2026-10-06:**
+username search added (still exact match, leading "@" allowed); apps/api
+now lowercases the query itself, and a username or phone match returns
+the profile without its email so a handle never reveals an address.
 
 **Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
 Manual browser verification against a live API still pending (local

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -25,16 +26,26 @@ func NewService(q db.Querier) *Service {
 
 // Search finds a Profile by exact email or phone match only -- never a
 // fuzzy name search, so you can't browse the user directory.
+// Search finds the one profile whose email, phone or username exactly
+// matches query. A leading "@" is allowed on usernames. The email is only
+// returned when the query was that email: a username or phone match must
+// not reveal someone's email address to whoever knows their handle.
 func (s *Service) Search(ctx context.Context, query string, excludeUserID pgtype.UUID) ([]db.Profile, error) {
-	profile, err := s.q.SearchFriendByEmailOrPhone(ctx, db.SearchFriendByEmailOrPhoneParams{
-		ID:    excludeUserID,
-		Email: pgtype.Text{String: query, Valid: true},
+	lowered := strings.ToLower(query)
+	profile, err := s.q.SearchFriendExact(ctx, db.SearchFriendExactParams{
+		ExcludeID: excludeUserID,
+		Email:     pgtype.Text{String: lowered, Valid: true},
+		Phone:     pgtype.Text{String: query, Valid: true},
+		Username:  pgtype.Text{String: strings.TrimPrefix(lowered, "@"), Valid: true},
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return []db.Profile{}, nil
 	}
 	if err != nil {
 		return nil, err
+	}
+	if profile.Email.String != lowered {
+		profile.Email = pgtype.Text{}
 	}
 	return []db.Profile{profile}, nil
 }
