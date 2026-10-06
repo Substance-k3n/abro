@@ -46,13 +46,20 @@ export const metadata: Metadata = {
   title: 'ABRO',
   description: 'Remember every expense. Forget the confusion.',
   // Home-screen name on iOS; the icon itself comes from app/apple-icon.png.
-  appleWebApp: { title: 'ABRO' },
+  // statusBarStyle 'default': the iPhone status bar takes the page colour
+  // (theme-color, kept in step with Light/Dark by lib/theme.ts).
+  appleWebApp: { title: 'ABRO', statusBarStyle: 'default' },
 };
 
 // Tints the mobile browser bar in the accent color, matching the
 // manifest's theme_color (app/manifest.ts).
+// No `themeColor` here on purpose: Next emits that tag more than once and
+// React re-adds its own copy when it hydrates <head>, so a dark theme
+// couldn't reliably recolour it. THEME_SCRIPT creates the one tag itself,
+// outside React, and lib/theme.ts keeps it in step.
 export const viewport: Viewport = {
-  themeColor: '#6366f1',
+  // Edge to edge on notched phones; globals.css adds the safe-area insets.
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

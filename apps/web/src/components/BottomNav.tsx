@@ -21,8 +21,11 @@ export function BottomNav() {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-20 flex shrink-0 items-center justify-around px-1.5 pb-[22px] pt-2.5 md:hidden"
+      className="fixed inset-x-0 bottom-0 z-20 flex shrink-0 items-center justify-around px-1.5 pt-2.5 md:hidden"
       style={{
+        // Clears the iPhone home indicator (safe-area inset) and never
+        // drops below the original 22px on phones without one.
+        paddingBottom: 'max(22px, calc(8px + env(safe-area-inset-bottom)))',
         background: 'var(--neo-bg)',
         boxShadow: 'var(--nav-shadow)',
         borderRadius: '28px 28px 0 0',
