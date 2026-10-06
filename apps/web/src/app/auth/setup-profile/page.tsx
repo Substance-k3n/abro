@@ -24,7 +24,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
 import { ApiError } from '~/lib/api-client';
-import { checkUsernameAvailable, updateProfile } from '~/lib/auth-api';
+import { checkUsernameAvailable, postSignInPath, updateProfile } from '~/lib/auth-api';
 
 const AVATAR_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#14b8a6', '#8b5cf6', '#f43f5e'];
 const USERNAME_DEBOUNCE_MS = 400;
@@ -107,8 +107,9 @@ export default function SetupProfilePage() {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await updateProfile({ username, displayName: fullName.trim() });
-      router.push('/home');
+      const profile = await updateProfile({ username, displayName: fullName.trim() });
+      // Home, or back to a friend invite opened before signing up.
+      router.push(postSignInPath(profile));
     } catch (err) {
       if (err instanceof ApiError && err.code === 'USERNAME_TAKEN') {
         setAvailable(false);
