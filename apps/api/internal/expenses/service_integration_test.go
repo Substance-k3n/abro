@@ -573,20 +573,32 @@ func urlStillFetchable(t *testing.T, store *storage.ReceiptStorage, key string) 
 	return resp.StatusCode < 300
 }
 
+// Minimal file signatures http.DetectContentType recognises -- receipt
+// uploads are typed by their bytes, not by the declared MIME type.
+var (
+	jpegBytes = []byte("\xFF\xD8\xFF\xE0 receipt")
+	pngBytes  = []byte("\x89PNG\r\n\x1a\n receipt")
+	webpBytes = []byte("RIFF\x00\x00\x00\x00WEBPVP8 receipt")
+)
+
+func upload(t *testing.T, e env, actorID, expenseID pgtype.UUID, content []byte, declaredType string) (expenses.Expense, error) {
+	t.Helper()
+	return e.svc.UploadReceipt(context.Background(), actorID, expenseID, bytes.NewReader(content), int64(len(content)), declaredType)
+}
+
 func TestService_Receipts(t *testing.T) {
 	t.Run("uploads a receipt, and a second upload replaces it", func(t *testing.T) {
 		e := setup(t)
 		payer := e.makeProfile(t, "ReceiptPayer")
 		expense := makeExpense(t, e, payer.ID)
-		ctx := context.Background()
 
-		first, err := e.svc.UploadReceipt(ctx, payer.ID, expense.ID, bytes.NewReader([]byte("first-image")), 11, "image/jpeg")
+		first, err := upload(t, e, payer.ID, expense.ID, jpegBytes, "image/jpeg")
 		require.NoError(t, err)
 		require.True(t, first.ReceiptPath.Valid)
 		firstKey := first.ReceiptPath.String
 		assert.Regexp(t, fmt.Sprintf(`^receipts/%s/.+\.jpg$`, expense.ID), firstKey)
 
-		second, err := e.svc.UploadReceipt(ctx, payer.ID, expense.ID, bytes.NewReader([]byte("second-image")), 12, "image/png")
+		second, err := upload(t, e, payer.ID, expense.ID, pngBytes, "image/png")
 		require.NoError(t, err)
 		require.True(t, second.ReceiptPath.Valid)
 		assert.NotEqual(t, firstKey, second.ReceiptPath.String)
@@ -601,11 +613,29 @@ func TestService_Receipts(t *testing.T) {
 		expense := makeExpense(t, e, payer.ID)
 		ctx := context.Background()
 
-		_, err := e.svc.UploadReceipt(ctx, payer.ID, expense.ID, bytes.NewReader([]byte("pdf")), 3, "application/pdf")
+		_, err := upload(t, e, payer.ID, expense.ID, []byte("%PDF-1.7"), "application/pdf")
 		assert.Error(t, err)
 
 		_, err = e.svc.UploadReceipt(ctx, payer.ID, expense.ID, bytes.NewReader(make([]byte, 11*1024*1024)), 11*1024*1024, "image/jpeg")
 		assert.Error(t, err)
+	})
+
+	t.Run("types a receipt by its bytes, not the declared MIME type", func(t *testing.T) {
+		e := setup(t)
+		payer := e.makeProfile(t, "ReceiptPayer")
+		expense := makeExpense(t, e, payer.ID)
+
+		for _, content := range [][]byte{[]byte("just some text"), []byte("<html><script>alert(1)</script></html>")} {
+			_, err := upload(t, e, payer.ID, expense.ID, content, "image/png")
+			var apiErr *httpx.APIError
+			require.ErrorAs(t, err, &apiErr, "content %q", content)
+			assert.Equal(t, "UNSUPPORTED_RECEIPT_TYPE", apiErr.Code)
+		}
+
+		// A real JPEG declared as PNG is stored as what it is.
+		uploaded, err := upload(t, e, payer.ID, expense.ID, jpegBytes, "image/png")
+		require.NoError(t, err)
+		assert.Regexp(t, `\.jpg$`, uploaded.ReceiptPath.String)
 	})
 
 	t.Run("lets a visible participant read the receipt URL, but only the payer/admin upload or delete it", func(t *testing.T) {
@@ -617,7 +647,7 @@ func TestService_Receipts(t *testing.T) {
 		expense := makeExpense(t, e, payer.ID, friend.ID)
 		ctx := context.Background()
 
-		uploaded, err := e.svc.UploadReceipt(ctx, payer.ID, expense.ID, bytes.NewReader([]byte("img")), 3, "image/webp")
+		uploaded, err := upload(t, e, payer.ID, expense.ID, webpBytes, "image/webp")
 		require.NoError(t, err)
 
 		url, err := e.svc.GetReceiptURL(ctx, friend.ID, expense.ID)
@@ -626,7 +656,7 @@ func TestService_Receipts(t *testing.T) {
 
 		_, err = e.svc.GetReceiptURL(ctx, stranger.ID, expense.ID)
 		assert.Error(t, err)
-		_, err = e.svc.UploadReceipt(ctx, friend.ID, expense.ID, bytes.NewReader([]byte("img")), 3, "image/webp")
+		_, err = upload(t, e, friend.ID, expense.ID, webpBytes, "image/webp")
 		assert.Error(t, err)
 		assert.Error(t, e.svc.DeleteReceipt(ctx, friend.ID, expense.ID))
 	})
@@ -637,7 +667,7 @@ func TestService_Receipts(t *testing.T) {
 		expense := makeExpense(t, e, payer.ID)
 		ctx := context.Background()
 
-		uploaded, err := e.svc.UploadReceipt(ctx, payer.ID, expense.ID, bytes.NewReader([]byte("img")), 3, "image/png")
+		uploaded, err := upload(t, e, payer.ID, expense.ID, pngBytes, "image/png")
 		require.NoError(t, err)
 		key := uploaded.ReceiptPath.String
 
