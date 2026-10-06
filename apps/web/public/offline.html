@@ -12,24 +12,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#6366f1" />
     <title>ABRO · Offline</title>
+    <!-- Same theme choice as the app (src/lib/theme.ts THEME_SCRIPT). -->
+    <script>
+      (function () {
+        try {
+          var c = localStorage.getItem('abro.theme');
+          var d =
+            c === 'dark' || (c === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = d ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
     <style>
       :root {
-        --bg: linear-gradient(135deg, #d8dce4 0%, #e4e8ef 50%, #dce0e8 100%);
-        --card: #dde1e7;
-        --shadow-dark: #b8bec7;
+        --bg: linear-gradient(135deg, #eceaf8 0%, #f4f3fc 50%, #efedf9 100%);
+        --card: #f0eff9;
+        --shadow-dark: #d3d0ea;
         --shadow-light: #ffffff;
-        --text: #1e2330;
-        --dim: #6b7280;
+        --text: #1c1a33;
+        --dim: #625f80;
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: linear-gradient(135deg, #0d0f18 0%, #161924 50%, #111420 100%);
-          --card: #1e2130;
-          --shadow-dark: #13151f;
-          --shadow-light: #282c3f;
-          --text: #e8ecf5;
-          --dim: #8b93a7;
-        }
+      :root[data-theme='dark'] {
+        --bg: linear-gradient(135deg, #10111c 0%, #181a29 50%, #131422 100%);
+        --card: #1f2134;
+        --shadow-dark: #11121d;
+        --shadow-light: #2d3049;
+        --text: #f1f3fa;
+        --dim: #a9b0c7;
       }
       * {
         box-sizing: border-box;

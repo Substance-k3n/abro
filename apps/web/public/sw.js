@@ -18,7 +18,7 @@
 //
 // Bump VERSION to drop every cache this worker created.
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const STATIC_CACHE = `abro-static-${VERSION}`;
 const OFFLINE_CACHE = `abro-offline-${VERSION}`;
 const OFFLINE_URL = '/offline.html';

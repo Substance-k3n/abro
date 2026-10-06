@@ -7,6 +7,39 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-016: Light theme by default, with a Light / Dark / Match-phone switch
+
+**Status:** Accepted (user decision, 2026-10-06).
+
+**Context:** The app followed the phone's theme, so on a dark phone people
+saw dark mode first, and its secondary text (`--t-dim`, about 2.6:1) was
+hard to read. Several component overrides only matched an explicit
+`data-theme="dark"` stamp that nothing ever set, so on a dark phone some
+buttons and badges kept their light styling. The user likes the soft 3D
+(neo-morphic) look and asked to keep it; the complaint was the dark
+default and the contrast.
+
+**Decision:** Keep the neo-morphic style. Light is the default whatever
+the phone's setting: a near-white background with a faint lavender tint,
+so the brand purple belongs to the page. Dark mode keeps its look with
+brighter text tokens (`--t-dim` about 4.6:1) and a stronger card
+highlight. People choose Light, Dark or Match phone in Settings ->
+Appearance (a per-device choice in localStorage). An inline script in the
+root layout's `<head>` (`THEME_SCRIPT`, `lib/theme.ts`) always stamps
+`data-theme` before the first paint, so there's no flash and the dark
+component overrides now always apply.
+
+**Alternatives considered:** a flat "bank app" redesign (rejected by the
+user); keeping "follow the phone" as the default (the original problem).
+
+**Consequences:**
+
+- Everyone sees the same light look first; dark is one tap away.
+- The choice is per device, not per account (no API change needed).
+- The offline page (`public/offline.html`) reads the same choice.
+
+---
+
 ## ADR-015: The app is an installable web app (PWA), not a store app
 
 **Status:** Accepted (user decision, 2026-10-06).

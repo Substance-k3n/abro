@@ -31,6 +31,7 @@ import { InstallApp } from '~/components/InstallApp';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, logout, me } from '~/lib/auth-api';
 import { useInstallState } from '~/lib/pwa';
+import { type ThemeChoice, useThemeChoice } from '~/lib/theme';
 
 const APP_VERSION = '0.1.0';
 const LANGUAGE_LABELS: Record<string, string> = { en: 'English', am: 'Amharic' };
@@ -38,6 +39,7 @@ const LANGUAGE_LABELS: Record<string, string> = { en: 'English', am: 'Amharic' }
 export default function SettingsPage() {
   const router = useRouter();
   const installState = useInstallState();
+  const [theme, setTheme] = useThemeChoice();
   const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
@@ -96,6 +98,25 @@ export default function SettingsPage() {
         />
       </Section>
 
+      <Section title="Appearance">
+        <div className="flex gap-2 px-1 pb-1" role="radiogroup" aria-label="Theme">
+          {THEME_OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={theme === option.value}
+              onClick={() => setTheme(option.value)}
+              className={`neo-tab flex-1 rounded-xl px-3 py-2.5 text-[0.82rem] font-semibold ${
+                theme === option.value ? 'active' : ''
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </Section>
+
       <Section title="Notifications">
         <NavRow label="Notification types" href="/settings/notifications" />
       </Section>
@@ -138,6 +159,12 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+const THEME_OPTIONS: { value: ThemeChoice; label: string }[] = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'Match phone' },
+];
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
