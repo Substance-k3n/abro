@@ -34,7 +34,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    // FormData sets its own multipart Content-Type (with the boundary).
+    headers:
+      init?.body instanceof FormData
+        ? init.headers
+        : { 'Content-Type': 'application/json', ...init?.headers },
   });
 
   if (res.status === 204) {
@@ -85,6 +89,7 @@ export const api = {
       body: data === undefined ? undefined : JSON.stringify(data),
       headers,
     }),
+  postForm: <T>(path: string, form: FormData) => request<T>(path, { method: 'POST', body: form }),
   patch: <T>(path: string, data?: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),

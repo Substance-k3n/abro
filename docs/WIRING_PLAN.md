@@ -780,6 +780,9 @@ Deviations (Confirmed): "Edit expense" was hidden until slice 7c
 wired EXP-10; settlements never get Edit. apps/api
 stores no creator/editor on an expense, so the activity log shows
 created/updated dates only. Receipt and notes-thread UI still not built.
+**Update 2026-10-06:** receipt UI added (`~/components/ReceiptSection`:
+thumbnail, full view with "Open original", attach/replace/remove for
+whoever may edit). The notes thread is still not built.
 
 **Verified:** `pnpm typecheck`/`lint`/`format:check`/`build` clean.
 Browser, real API (slice 7a's seeded users): as Bob, "Hotel" (group,
