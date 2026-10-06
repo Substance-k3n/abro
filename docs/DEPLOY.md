@@ -204,11 +204,15 @@ a Vercel redeploy.
 - **Backups:** Neon keeps a short restore window on the free plan. There's no
   `backup` service here. Take a manual `pg_dump "$DATABASE_URL"` before
   anything risky.
-- **Receipts:** no S3 is configured, so the expense detail screen's
-  receipt section says "Receipts aren't available on this server yet"
-  (the API answers 501). To turn receipts on, create a **private**
-  S3-compatible bucket (e.g. Backblaze B2, or Cloudflare R2) and an
-  application key limited to that bucket, then set on Render:
+- **Receipts:** stored in a private Backblaze B2 bucket (set up
+  2026-10-06; upload, view and remove verified on the live site). With
+  the `S3_*` vars unset, the expense detail screen's receipt section says
+  "Receipts aren't available on this server yet" (the API answers 501).
+  To set up a bucket, create a **private** S3-compatible bucket (e.g.
+  Backblaze B2, or Cloudflare R2) with lifecycle "keep only the last
+  version" (so a removed receipt is really deleted) and an application
+  key limited to that bucket, then set on Render (declared `sync: false`
+  in `render.yaml`):
   - `S3_ENDPOINT` -- the provider's S3 endpoint, with `https://`
     (B2: `https://s3.<region>.backblazeb2.com`)
   - `S3_REGION` -- the bucket's region (B2: e.g. `eu-central-003`;
