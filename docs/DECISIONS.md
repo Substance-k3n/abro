@@ -7,6 +7,36 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-014: Self-hosted fonts via next/font/local
+
+**Status:** Accepted (2026-10-06).
+
+**Context:** `next/font/google` downloads Outfit, DM Sans and JetBrains
+Mono from Google during every web build (CI, the Docker image build and
+Vercel). Google sometimes returns a response the loader can't parse
+(`TypeError: Cannot read properties of null (reading '1')`), which
+failed the `images` CI job until it was rerun.
+
+**Decision:** Commit each font's variable-weight latin woff2 to
+`apps/web/src/app/fonts/` (with its OFL licence) and load it with
+`next/font/local` in `layout.tsx`. The CSS variables (`--font-display`,
+`--font-body`, `--font-mono`) and weight ranges are unchanged.
+
+**Alternatives considered:** Retrying the build in CI (hides the flake
+but keeps the network dependency, and Vercel builds can still fail);
+`@fontsource` packages imported as CSS (no build fetch, but loses
+next/font's preload and fallback-metric adjustment).
+
+**Consequences:**
+
+- Builds no longer need to reach Google, so the font flake is gone.
+- About 100 KB of font files are committed. Upgrading a font means
+  replacing its file by hand.
+- Only the latin subset is shipped, the same as before
+  (`subsets: ['latin']`).
+
+---
+
 ## ADR-013: OTP email without a domain — Brevo, alongside Resend
 
 **Status:** Accepted (user decision, 2026-10-05).
@@ -150,7 +180,8 @@ since the images work there too.
     server can call the generate endpoint once that endpoint is
     protected.
 - `next/font/google` fetches fonts during the web build, so a build
-  needs internet access (the CI font flake can also hit it).
+  needs internet access (the CI font flake can also hit it). Resolved
+  by ADR-014: fonts are now self-hosted.
 
 ---
 

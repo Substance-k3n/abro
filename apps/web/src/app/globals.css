@@ -4,7 +4,7 @@
  * Design tokens, ported from the Figma Make prototype
  * (~/Downloads/Design Ultra Modern UI (1)/src/index.css) per
  * docs/WIRING_PLAN.md Phase 1. Fonts are wired separately via
- * next/font/google in layout.tsx, which feeds the same
+ * next/font/local in layout.tsx, which feeds the same
  * --font-display/--font-body/--font-mono variables used below.
  *
  * Ported so far: .neo-raised(-lg/-sm), .neo-flat, .neo-btn(-accent/-green),
@@ -398,7 +398,7 @@ body {
     0 0 0 2px rgba(99, 102, 241, 0.4);
 }
 
-/* Fonts, fed by next/font/google in layout.tsx */
+/* Fonts, fed by next/font/local in layout.tsx */
 .font-display {
   font-family: var(--font-display);
 }

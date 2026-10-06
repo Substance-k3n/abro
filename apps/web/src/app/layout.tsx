@@ -1,27 +1,34 @@
 import type { Metadata, Viewport } from 'next';
-import { DM_Sans, JetBrains_Mono, Outfit } from 'next/font/google';
+import localFont from 'next/font/local';
 
 import './globals.css';
 
-const outfit = Outfit({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600', '700', '800'],
+// Self-hosted (OFL, licences beside the files in ./fonts) instead of
+// next/font/google: the Google loader fetched these at build time, and a
+// bad response from Google failed CI, image and Vercel builds. Each file
+// is the variable-weight latin subset, so one file covers every weight.
+const outfit = localFont({
+  src: './fonts/outfit-latin-variable.woff2',
+  weight: '300 800',
   variable: '--font-display',
   display: 'swap',
 });
 
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['300', '400', '500', '600'],
+const dmSans = localFont({
+  src: './fonts/dm-sans-latin-variable.woff2',
+  weight: '300 600',
   variable: '--font-body',
   display: 'swap',
 });
 
-const jetBrainsMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+const jetBrainsMono = localFont({
+  src: './fonts/jetbrains-mono-latin-variable.woff2',
+  weight: '400 600',
   variable: '--font-mono',
   display: 'swap',
+  // Arial-based fallback metrics would be wrong for a monospace face.
+  adjustFontFallback: false,
+  fallback: ['ui-monospace', 'monospace'],
 });
 
 export const metadata: Metadata = {
