@@ -23,7 +23,7 @@
 // friendOweSplit() for the friend/group balance sign-convention split.
 //
 // Deviations from the mock version (Confirmed):
-//  - Group icon/color still come from ~/lib/mock-data.ts's GROUP_TYPES
+//  - Group icon/color come from ~/lib/reference-data.ts's GROUP_TYPES
 //    lookup table (client-side reference data, not mock *facts* -- see
 //    that file's own header note) -- matched case-insensitively against
 //    apps/api's UPPERCASE `type` enum values.

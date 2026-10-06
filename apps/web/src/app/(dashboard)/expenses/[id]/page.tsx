@@ -42,7 +42,7 @@ import { type AuthExpense, deleteExpense, getExpense } from '~/lib/expenses-api'
 import { listFriends } from '~/lib/friends-api';
 import { type GroupListItem, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
-import { CATEGORIES } from '~/lib/mock-data';
+import { CATEGORIES } from '~/lib/reference-data';
 
 const METHOD_LABEL: Record<string, string> = {
   EQUAL: 'Equal',

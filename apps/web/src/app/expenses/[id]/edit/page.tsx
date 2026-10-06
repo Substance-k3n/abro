@@ -42,7 +42,7 @@ import { type AuthExpense, getExpense, updateExpense } from '~/lib/expenses-api'
 import { listFriends } from '~/lib/friends-api';
 import { getGroup } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
-import { CATEGORIES } from '~/lib/mock-data';
+import { CATEGORIES } from '~/lib/reference-data';
 
 interface EditData {
   profile: AuthProfile;

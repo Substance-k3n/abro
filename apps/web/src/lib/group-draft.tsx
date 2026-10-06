@@ -12,7 +12,7 @@ import { type ReactNode, createContext, useContext, useState } from 'react';
 
 export interface GroupDraft {
   name: string;
-  /** A GROUP_TYPES (~/lib/mock-data.ts) id. */
+  /** A GROUP_TYPES (~/lib/reference-data.ts) id. */
   type: string;
   /** ETB/USD/EUR, per spec's GRP-01 currency selector -- stored as
    * chosen, but only ETB is functionally supported anywhere else in
