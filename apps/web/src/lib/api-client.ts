@@ -43,6 +43,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   const body = await res.json().catch(() => null);
 
+  if (res.status === 401 && redirectToSignIn(body?.code as string | undefined)) {
+    // Never settles: the page keeps its loading state while the browser
+    // leaves, instead of flashing its error card first.
+    return new Promise<T>(() => {});
+  }
+
   if (!res.ok) {
     throw new ApiError(
       res.status,
@@ -52,6 +58,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return body as T;
+}
+
+/** A signed-out or expired session (apps/api/internal/auth/middleware.go's
+ * NO_SESSION / INVALID_SESSION) sends the browser to sign-in from any
+ * protected screen, so no page has to handle it itself. The /auth/*
+ * pages are left alone: they expect "not signed in" and handle it.
+ * Returns whether it redirected. */
+function redirectToSignIn(code: string | undefined): boolean {
+  if (
+    typeof window === 'undefined' ||
+    (code !== 'NO_SESSION' && code !== 'INVALID_SESSION') ||
+    window.location.pathname.startsWith('/auth/')
+  ) {
+    return false;
+  }
+  window.location.replace('/auth/signin');
+  return true;
 }
 
 export const api = {
