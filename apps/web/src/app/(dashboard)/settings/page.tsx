@@ -107,6 +107,7 @@ export default function SettingsPage() {
       )}
 
       <Section title="About">
+        <NavRow label="Guide & how to install" href="/guide" />
         <div className="flex items-center justify-between rounded-xl px-3 py-2.5">
           <span className="text-[0.85rem] font-medium" style={{ color: 'var(--t-secondary)' }}>
             Version

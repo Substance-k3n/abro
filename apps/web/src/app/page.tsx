@@ -67,6 +67,13 @@ export default function SplashPage() {
         >
           Sign In
         </Link>
+        <Link
+          href="/guide"
+          className="pt-1 text-center text-[0.82rem] font-medium"
+          style={dimTextStyle}
+        >
+          What is ABRO? Read the guide
+        </Link>
       </div>
     </main>
   );

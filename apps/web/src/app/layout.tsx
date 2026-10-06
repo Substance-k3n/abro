@@ -34,6 +34,13 @@ const jetBrainsMono = localFont({
 });
 
 export const metadata: Metadata = {
+  // Absolute base for link-preview images (e.g. /guide shared in
+  // Telegram). Vercel sets VERCEL_PROJECT_PRODUCTION_URL at build time.
+  metadataBase: new URL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : 'http://localhost:3200',
+  ),
   title: 'ABRO',
   description: 'Remember every expense. Forget the confusion.',
   // Home-screen name on iOS; the icon itself comes from app/apple-icon.png.
