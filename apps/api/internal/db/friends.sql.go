@@ -231,21 +231,30 @@ func (q *Queries) ListIncomingFriendRequests(ctx context.Context, friendID pgtyp
 	return items, nil
 }
 
-const searchFriendByEmailOrPhone = `-- name: SearchFriendByEmailOrPhone :one
+const searchFriendExact = `-- name: SearchFriendExact :one
 SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username FROM profiles
-WHERE id != $1 AND (email = $2 OR phone = $2)
+WHERE id != $1
+  AND (email = $2 OR phone = $3 OR username = $4)
 LIMIT 1
 `
 
-type SearchFriendByEmailOrPhoneParams struct {
-	ID    pgtype.UUID `json:"id"`
-	Email pgtype.Text `json:"email"`
+type SearchFriendExactParams struct {
+	ExcludeID pgtype.UUID `json:"exclude_id"`
+	Email     pgtype.Text `json:"email"`
+	Phone     pgtype.Text `json:"phone"`
+	Username  pgtype.Text `json:"username"`
 }
 
-// Exact match only -- never a fuzzy name search, so you can't browse the
-// user directory.
-func (q *Queries) SearchFriendByEmailOrPhone(ctx context.Context, arg SearchFriendByEmailOrPhoneParams) (Profile, error) {
-	row := q.db.QueryRow(ctx, searchFriendByEmailOrPhone, arg.ID, arg.Email)
+// Exact match only on email, phone or username -- never a fuzzy name
+// search, so you can't browse the user directory. Emails and usernames
+// are stored lowercased, so the caller passes lowercased forms of those.
+func (q *Queries) SearchFriendExact(ctx context.Context, arg SearchFriendExactParams) (Profile, error) {
+	row := q.db.QueryRow(ctx, searchFriendExact,
+		arg.ExcludeID,
+		arg.Email,
+		arg.Phone,
+		arg.Username,
+	)
 	var i Profile
 	err := row.Scan(
 		&i.ID,

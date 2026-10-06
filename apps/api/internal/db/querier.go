@@ -144,9 +144,10 @@ type Querier interface {
 	ReinviteGroupMember(ctx context.Context, id pgtype.UUID) (GroupMember, error)
 	RemoveNotificationOptOut(ctx context.Context, arg RemoveNotificationOptOutParams) error
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
-	// Exact match only -- never a fuzzy name search, so you can't browse the
-	// user directory.
-	SearchFriendByEmailOrPhone(ctx context.Context, arg SearchFriendByEmailOrPhoneParams) (Profile, error)
+	// Exact match only on email, phone or username -- never a fuzzy name
+	// search, so you can't browse the user directory. Emails and usernames
+	// are stored lowercased, so the caller passes lowercased forms of those.
+	SearchFriendExact(ctx context.Context, arg SearchFriendExactParams) (Profile, error)
 	SetIdempotencyKeyResponse(ctx context.Context, arg SetIdempotencyKeyResponseParams) error
 	SoftDeleteExpense(ctx context.Context, arg SoftDeleteExpenseParams) error
 	SoftDeleteGroup(ctx context.Context, arg SoftDeleteGroupParams) error

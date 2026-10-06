@@ -1,8 +1,10 @@
--- name: SearchFriendByEmailOrPhone :one
--- Exact match only -- never a fuzzy name search, so you can't browse the
--- user directory.
+-- name: SearchFriendExact :one
+-- Exact match only on email, phone or username -- never a fuzzy name
+-- search, so you can't browse the user directory. Emails and usernames
+-- are stored lowercased, so the caller passes lowercased forms of those.
 SELECT * FROM profiles
-WHERE id != $1 AND (email = $2 OR phone = $2)
+WHERE id != sqlc.arg('exclude_id')
+  AND (email = sqlc.arg('email') OR phone = sqlc.arg('phone') OR username = sqlc.arg('username'))
 LIMIT 1;
 
 -- name: ListFriendships :many

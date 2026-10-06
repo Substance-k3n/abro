@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -171,5 +172,50 @@ func TestService_FullLifecycle(t *testing.T) {
 		nobody := pgtype.UUID{Bytes: [16]byte{1}, Valid: true}
 		_, err := svc.AcceptRequest(context.Background(), nobody, "does-not-exist")
 		assert.Error(t, err)
+	})
+}
+
+func TestService_Search(t *testing.T) {
+	svc, pool, makeProfile := testEnv(t)
+	ctx := context.Background()
+	me := makeProfile(t, "Searcher")
+	target := makeProfile(t, "Target")
+	username := fmt.Sprintf("tgt_%d", rand.Intn(1_000_000_000))
+	// Real sign-ups store emails lowercased (apitypes.NormalizeEmail);
+	// makeProfile's label keeps its capitals, so lowercase it here.
+	target.Email.String = strings.ToLower(target.Email.String)
+	_, err := pool.Exec(ctx, `UPDATE profiles SET username = $2, email = $3 WHERE id = $1`, target.ID, username, target.Email.String)
+	require.NoError(t, err)
+
+	search := func(t *testing.T, query string) []db.Profile {
+		t.Helper()
+		results, err := svc.Search(ctx, query, me.ID)
+		require.NoError(t, err)
+		return results
+	}
+
+	t.Run("finds by exact email, case-insensitively, and returns the email", func(t *testing.T) {
+		results := search(t, strings.ToUpper(target.Email.String))
+		require.Len(t, results, 1)
+		assert.Equal(t, target.ID, results[0].ID)
+		assert.Equal(t, target.Email, results[0].Email)
+	})
+
+	t.Run("finds by exact username, with or without @, and hides the email", func(t *testing.T) {
+		for _, q := range []string{username, "@" + username, strings.ToUpper(username)} {
+			results := search(t, q)
+			require.Len(t, results, 1, "query %q", q)
+			assert.Equal(t, target.ID, results[0].ID)
+			assert.False(t, results[0].Email.Valid, "a username match must not reveal the email (query %q)", q)
+		}
+	})
+
+	t.Run("never matches a partial username or display name", func(t *testing.T) {
+		assert.Empty(t, search(t, username[:len(username)-1]))
+		assert.Empty(t, search(t, "Test Target"))
+	})
+
+	t.Run("never returns the searcher themselves", func(t *testing.T) {
+		assert.Empty(t, search(t, me.Email.String))
 	})
 }
