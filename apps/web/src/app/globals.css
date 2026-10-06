@@ -124,6 +124,41 @@ body {
   background: var(--page-bg);
   font-family: var(--font-body);
   color: var(--t-secondary);
+  /* No rubber-band bounce pulling the whole app past its edges (iOS). */
+  overscroll-behavior: none;
+  /* Stop iOS enlarging text on rotation. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* ===================== PHONE / INSTALLED-APP POLISH ===================== */
+/* viewport-fit=cover (app/layout.tsx) lets ABRO draw edge to edge on
+   phones with a notch; these insets keep content out from under it and
+   the home indicator. Zero on screens without them, so harmless there. */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* iPhone Safari zooms into any text field under 16px when it's tapped,
+   and leaves the page zoomed. Fields keep their design size on desktop. */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* Installed app only: no "preview / copy link" sheet when a button or tab
+   is held down, as in a native app. The website keeps normal behaviour. */
+@media (display-mode: standalone) {
+  a,
+  button,
+  img {
+    -webkit-touch-callout: none;
+  }
 }
 
 /* ===================== NEOMORPHIC PRIMITIVES ===================== */

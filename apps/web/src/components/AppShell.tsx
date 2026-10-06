@@ -10,7 +10,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen md:flex-row">
       <Sidebar />
-      <main className="hide-scroll min-h-screen flex-1 overflow-y-auto pb-28 md:pb-0">
+      <main className="hide-scroll min-h-screen flex-1 overflow-y-auto overscroll-none pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-0">
         {children}
       </main>
       <BottomNav />
