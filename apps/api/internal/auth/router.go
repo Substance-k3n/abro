@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"errors"
+	"log"
 	"net/http"
 	"time"
 
@@ -90,6 +92,11 @@ func (h *Handler) googleStart(w http.ResponseWriter, r *http.Request) {
 		Secure:   h.isProd,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   5 * 60,
+		// Explicit, so the callback's delete (also Path=/) matches it.
+		// Unset, the browser scopes it to the request's directory
+		// (/auth, or /api/auth behind the Vercel proxy) and the delete
+		// never clears it.
+		Path: "/",
 	})
 	http.Redirect(w, r, h.google.BuildAuthURL(state), http.StatusFound)
 }
@@ -101,14 +108,30 @@ func (h *Handler) googleCallback(w http.ResponseWriter, r *http.Request) {
 
 	http.SetCookie(w, &http.Cookie{Name: oauthStateCookie, Value: "", MaxAge: -1, Path: "/"})
 
-	if code == "" || state == "" || expectedCookie == nil || state != expectedCookie.Value {
-		http.Redirect(w, r, h.webOrig+"/auth/signin?error=oauth_state", http.StatusFound)
+	// The user pressed Cancel on Google's consent screen: Google sends
+	// ?error=access_denied and no code.
+	if r.URL.Query().Get("error") == "access_denied" {
+		h.redirectSignInError(w, r, "google_cancelled")
 		return
 	}
 
+	if code == "" || state == "" || expectedCookie == nil || state != expectedCookie.Value {
+		h.redirectSignInError(w, r, "oauth_state")
+		return
+	}
+
+	// This is a browser navigation, not a fetch: a failure goes back to
+	// the sign-in screen with a reason instead of rendering JSON on the
+	// API's URL. The cause is still logged for whoever reads the API log.
 	result, err := h.svc.SignInWithGoogle(r.Context(), code, sessionMetaFromRequest(r))
 	if err != nil {
-		httpx.WriteError(w, r, err)
+		log.Printf("ERROR %s %s: %v", r.Method, r.URL.Path, err)
+		reason := "google"
+		var apiErr *httpx.APIError
+		if errors.As(err, &apiErr) && apiErr.Code == "GOOGLE_EMAIL_UNVERIFIED" {
+			reason = "google_unverified"
+		}
+		h.redirectSignInError(w, r, reason)
 		return
 	}
 	setSessionCookie(w, result.Token, result.ExpiresAt, h.isProd)
@@ -119,6 +142,13 @@ func (h *Handler) googleCallback(w http.ResponseWriter, r *http.Request) {
 	// postSignInPath(), re-applied here since a server redirect can't call
 	// into that TS function directly.
 	http.Redirect(w, r, h.webOrig+"/auth/callback", http.StatusFound)
+}
+
+// redirectSignInError sends a failed Google sign-in back to the web app's
+// sign-in screen, which maps the reason to a message
+// (apps/web/src/app/auth/signin/page.tsx).
+func (h *Handler) redirectSignInError(w http.ResponseWriter, r *http.Request, reason string) {
+	http.Redirect(w, r, h.webOrig+"/auth/signin?error="+reason, http.StatusFound)
 }
 
 func (h *Handler) logout(w http.ResponseWriter, r *http.Request) error {
