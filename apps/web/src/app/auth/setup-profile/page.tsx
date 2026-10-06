@@ -13,20 +13,29 @@
 // TAKEN_USERNAMES list + fake 600ms timeout. Continue calls the real
 // PATCH /users/me with {username, displayName}, then routes to /home.
 //
-// Avatar editing stays a client-only color swatch picker, same
-// deviation already established on PRF-01 (`~/app/(dashboard)/profile`)
-// -- apps/api's `avatarUrl` expects a real image URL, and no image
-// upload/storage exists for profile photos in this phase, so the chosen
-// color is cosmetic only and never sent to the API.
+// Roadmap Phase 4b: an optional profile photo (ADR-017) replaces the old
+// color swatch picker, which was cosmetic only and never saved. The photo
+// uploads as soon as it's chosen (the profile already exists, only the
+// username is missing); a Google sign-in's picture shows here already.
+// Without a photo, the avatar is initials on the color derived from your
+// id, the same as everywhere else in the app.
 
-import { CheckCircle2, Hash, PenLine, XCircle } from 'lucide-react';
+import { CheckCircle2, Hash, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
+import { PhotoPicker } from '~/components/PhotoPicker';
 import { ApiError } from '~/lib/api-client';
-import { checkUsernameAvailable, postSignInPath, updateProfile } from '~/lib/auth-api';
+import {
+  type AuthProfile,
+  checkUsernameAvailable,
+  me,
+  postSignInPath,
+  updateProfile,
+} from '~/lib/auth-api';
+import { colorForId } from '~/lib/identity';
+import { photoSrc, removeAvatar, uploadAvatar } from '~/lib/photos';
 
-const AVATAR_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#14b8a6', '#8b5cf6', '#f43f5e'];
 const USERNAME_DEBOUNCE_MS = 400;
 
 const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9_.]/g, '');
@@ -49,7 +58,7 @@ export default function SetupProfilePage() {
   const [username, setUsername] = useState('');
   const [checking, setChecking] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
-  const [avatarIndex, setAvatarIndex] = useState(0);
+  const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -58,7 +67,6 @@ export default function SetupProfilePage() {
   const isValidFormat = username.length >= 3;
   const canContinue =
     isValidFormat && fullName.trim().length >= 2 && available === true && !submitting;
-  const avatarColor = AVATAR_COLORS[avatarIndex]!;
 
   const checkUsername = (value: string) => {
     const slug = slugify(value);
@@ -91,6 +99,19 @@ export default function SetupProfilePage() {
         });
     }, USERNAME_DEBOUNCE_MS);
   };
+
+  // Who's signing up (for the photo and avatar color). A Google sign-in
+  // also brings its name, which pre-fills the field.
+  useEffect(() => {
+    me()
+      .then((p) => {
+        setProfile(p);
+        setFullName((current) => current || (p.displayName.includes('@') ? '' : p.displayName));
+      })
+      .catch(() => {
+        // The photo picker just doesn't show; the rest of setup works.
+      });
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -138,51 +159,20 @@ export default function SetupProfilePage() {
           </p>
         </div>
 
-        <div className="mb-8 flex items-center gap-5">
-          <div className="relative shrink-0">
-            <div
-              className="neo-raised flex h-[72px] w-[72px] items-center justify-center rounded-[24px]"
-              style={{
-                background: avatarColor,
-                boxShadow: `6px 6px 16px rgba(0,0,0,0.12), -6px -6px 16px rgba(255,255,255,0.8), 0 0 0 3px var(--neo-bg), 0 0 0 5px ${avatarColor}55`,
-              }}
-            >
-              <span className="font-display text-2xl font-extrabold tracking-tight text-white">
-                {initialsOf(fullName)}
-              </span>
-            </div>
-            <div className="neo-flat absolute -bottom-1.5 -right-1.5 flex h-[26px] w-[26px] items-center justify-center rounded-[9px]">
-              <PenLine size={12} strokeWidth={2} color="var(--t-muted)" />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <p
-              className="mb-0.5 text-[0.72rem] font-semibold uppercase tracking-wide"
-              style={{ color: 'var(--t-dim)' }}
-            >
-              Avatar color
-            </p>
-            <div className="flex gap-2">
-              {AVATAR_COLORS.map((color, index) => (
-                <button
-                  key={color}
-                  type="button"
-                  aria-label={`Avatar color ${index + 1}`}
-                  onClick={() => setAvatarIndex(index)}
-                  className="h-[26px] w-[26px] rounded-[9px] transition-transform duration-200"
-                  style={{
-                    background: color,
-                    boxShadow:
-                      avatarIndex === index
-                        ? `0 0 0 2px var(--neo-bg), 0 0 0 4px ${color}, 3px 3px 8px rgba(0,0,0,0.15)`
-                        : '2px 2px 6px rgba(0,0,0,0.12), -1px -1px 4px rgba(255,255,255,0.6)',
-                    transform: avatarIndex === index ? 'scale(1.15)' : 'scale(1)',
-                  }}
-                />
-              ))}
-            </div>
-          </div>
+        <div className="mb-8 flex flex-col items-center gap-1">
+          {profile && (
+            <PhotoPicker
+              src={photoSrc(profile.avatarUrl)}
+              initials={initialsOf(fullName)}
+              color={colorForId(profile.id)}
+              size={84}
+              onUpload={async (image) => setProfile(await uploadAvatar(image))}
+              onRemove={async () => setProfile(await removeAvatar())}
+            />
+          )}
+          <p className="text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
+            Optional. Helps friends recognise you.
+          </p>
         </div>
 
         <div className="flex flex-1 flex-col gap-5">
