@@ -1,0 +1,271 @@
+'use client';
+
+// DASH-06 Balances Overview — docs/ABRO_FRONTEND_SPEC.md §3 (lines 476-528):
+//   "Purpose: Complete balance summary. Route: /balances. Header: Title
+//   'Balances', Filter/Sort button. Summary Cards: 1. Total Balance Card
+//   (total owed to you [green], total you owe [red], net balance [large]).
+//   2. Currency Breakdown (if multi-currency) — balance per currency,
+//   collapsible. Balance List grouped by: People who owe you / People you
+//   owe / Groups (separate section). Each item: avatar, name, amount, quick
+//   settle button. Filters: all balances / only friends / only groups /
+//   specific currency. Components: summary cards, balance list item, filter
+//   sheet, empty state. Interactions: tap balance -> friend/group detail,
+//   quick settle, apply filters. State: all balances, active filters,
+//   loading state."
+//
+// No prototype reference exists for this screen (the Figma Make prototype's
+// App.tsx has no Balances Overview screen) -- designed fresh from the spec
+// text above, reusing Home's (DASH-01) exact balance patterns: same bigint
+// owed/owe/net reduce over friends/groups, same BalanceCard/PersonRow/
+// MoneyDisplay/AmountBadge/GroupIcon/SectionLabel components, same
+// neo-card/neo-raised-sm styling conventions. Filter tabs (.neo-tab/.active)
+// follow Activity's (DASH-02) established inline-pill pattern rather than a
+// full filter sheet/modal, consistent with the spec-vs-prototype deviations
+// already made on those screens.
+//
+// Phase 8 (docs/WIRING_PLAN.md) rewiring: real GET /friends/, GET /groups/,
+// and GET /balances/summary, combined via ~/lib/balances-api.ts's
+// deriveFriendRows()/deriveGroupRows() -- the same helpers Home (DASH-01)
+// and Friends (DASH-03) use, so all three screens agree on every balance.
+// "Loading state" (spec's own State list) is real now, not the
+// not-applicable-yet note the mock version carried.
+//
+// Deviations/omissions (Confirmed -- app is single-currency today):
+//  - Currency Breakdown card: omitted, not built as a fake collapsible. The
+//    app only supports ETB right now (the screens + @abro/ui all use the
+//    single `ETB` CurrencyMeta), so a "balance per currency, collapsible"
+//    section would have exactly one row -- nothing to break down or
+//    collapse. Revisit once multi-currency lands.
+//  - "Specific currency" filter: omitted for the same reason (single
+//    currency = a no-op filter).
+//  - Header's "Filter/Sort button" -> inline filter tabs (All / Friends
+//    only / Groups only), no separate sort control -- the spec doesn't
+//    define sort keys/order for this screen and the real lists are short
+//    enough not to need one.
+//  - Group icon/color come from ~/lib/reference-data.ts's GROUP_TYPES
+//    lookup table (client-side reference data, not mock *facts*), matched
+//    case-insensitively against apps/api's UPPERCASE `type` enum -- same
+//    deviation already established on Home.
+
+import {
+  AmountBadge,
+  BalanceCard,
+  EmptyState,
+  GroupIcon,
+  MoneyDisplay,
+  PersonRow,
+  SectionLabel,
+} from '@abro/ui';
+import { Handshake } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { ApiError } from '~/lib/api-client';
+import {
+  type BalancesSummary,
+  balanceTotals,
+  deriveFriendRows,
+  deriveGroupRows,
+  getBalancesSummary,
+} from '~/lib/balances-api';
+import { type FriendListItem, listFriends } from '~/lib/friends-api';
+import { type AuthGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
+
+type FilterKey = 'all' | 'friends' | 'groups';
+
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'friends', label: 'Friends only' },
+  { key: 'groups', label: 'Groups only' },
+];
+
+interface BalancesData {
+  friends: FriendListItem[];
+  groups: AuthGroup[];
+  balances: BalancesSummary;
+}
+
+export default function BalancesPage() {
+  const router = useRouter();
+  const [filter, setFilter] = useState<FilterKey>('all');
+  const [data, setData] = useState<BalancesData | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = () => {
+    setError(null);
+    setData(null);
+    Promise.all([listFriends(), listGroups(), getBalancesSummary()])
+      .then(([friends, groups, balances]) => setData({ friends, groups, balances }))
+      .catch((err) => {
+        setError(err instanceof ApiError ? err.message : 'Could not load your balances.');
+      });
+  };
+
+  useEffect(load, []);
+
+  if (error) {
+    return <ErrorState message={error} onRetry={load} />;
+  }
+  if (!data) {
+    return <LoadingState />;
+  }
+
+  const friendRows = deriveFriendRows(data.friends, data.balances);
+  const groupRows = deriveGroupRows(data.groups, data.balances).map((g) => ({
+    ...g,
+    groupType: groupTypeFor(g.type),
+  }));
+
+  // Total Balance Card: friends + groups combined (same helper as Home).
+  const { owedTotal, oweTotal, net } = balanceTotals(friendRows, groupRows);
+
+  const owedToYou = friendRows.filter((f) => f.owes > 0n);
+  const youOwe = friendRows.filter((f) => f.iOwe > 0n);
+  const groupsWithBalance = groupRows.filter((g) => g.balance !== 0n);
+
+  const showFriends = filter !== 'groups';
+  const showGroups = filter !== 'friends';
+
+  const visibleFriendCount = showFriends ? owedToYou.length + youOwe.length : 0;
+  const visibleGroupCount = showGroups ? groupsWithBalance.length : 0;
+  const isEmpty = visibleFriendCount + visibleGroupCount === 0;
+
+  return (
+    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
+      {/* Header */}
+      <h2
+        className="font-display mb-5 text-[1.5rem] font-extrabold tracking-tighter"
+        style={{ color: 'var(--t-primary)' }}
+      >
+        Balances
+      </h2>
+
+      {/* Filter tabs -- stands in for the spec's "Filter/Sort button" +
+          filter sheet; see header comment. */}
+      <div className="neo-inset-sm hide-scroll mb-5 flex gap-1 overflow-x-auto rounded-[14px] p-1">
+        {FILTERS.map((f) => (
+          <button
+            key={f.key}
+            onClick={() => setFilter(f.key)}
+            className={`neo-tab whitespace-nowrap border-none ${filter === f.key ? 'active' : ''}`}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Total Balance Card */}
+      <div className="mb-6">
+        <BalanceCard net={net} owedTotal={owedTotal} oweTotal={oweTotal} />
+      </div>
+
+      {/* Currency Breakdown: not applicable -- see header comment (ETB-only
+          app, nothing to break down or collapse). */}
+
+      {isEmpty ? (
+        <EmptyState
+          icon={<Handshake size={26} strokeWidth={1.5} />}
+          title="All settled up"
+          description="No outstanding balances to show for this filter."
+        />
+      ) : (
+        <div className="flex flex-col gap-6">
+          {showFriends && (owedToYou.length > 0 || youOwe.length > 0) && (
+            <div className="flex flex-col gap-4">
+              {owedToYou.length > 0 && (
+                <div>
+                  <SectionLabel>People who owe you</SectionLabel>
+                  {/* No "Settle" button here: apps/api/internal/settlements/
+                      service.go only lets the debtor record a settlement
+                      (ADR-003) -- there's no valid settle action from this
+                      session for a debt owed *to* you. See settle/page.tsx's
+                      header comment. */}
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    {owedToYou.map((f) => (
+                      <PersonRow
+                        key={f.id}
+                        initials={f.initials}
+                        color={f.color}
+                        name={f.name}
+                        right={<AmountBadge amount={f.owes} dir="receive" />}
+                        onClick={() => router.push(`/friends/${f.id}`)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {youOwe.length > 0 && (
+                <div>
+                  <SectionLabel>People you owe</SectionLabel>
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                    {youOwe.map((f) => (
+                      <div key={f.id} className="flex items-center gap-2">
+                        <div className="flex-1">
+                          <PersonRow
+                            initials={f.initials}
+                            color={f.color}
+                            name={f.name}
+                            right={<AmountBadge amount={f.iOwe} dir="owe" />}
+                            onClick={() => router.push(`/friends/${f.id}`)}
+                          />
+                        </div>
+                        <Link
+                          href={`/settle?friendId=${f.id}`}
+                          className="neo-btn shrink-0 rounded-xl px-3 py-2 text-[0.72rem] font-semibold"
+                        >
+                          Settle
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {showGroups && groupsWithBalance.length > 0 && (
+            <div>
+              <SectionLabel>Groups</SectionLabel>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {groupsWithBalance.map((g) => (
+                  <div key={g.id} className="flex items-center gap-2">
+                    <Link
+                      href={`/groups/${g.id}`}
+                      className="neo-raised-sm flex flex-1 items-center gap-3 rounded-2xl px-3.5 py-3"
+                    >
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]"
+                        style={{ background: g.groupType.tint, color: g.groupType.color }}
+                      >
+                        <GroupIcon icon={g.groupType.icon} size={19} />
+                      </div>
+                      <span
+                        className="flex-1 text-[0.88rem] font-semibold"
+                        style={{ color: 'var(--t-primary)' }}
+                      >
+                        {g.name}
+                      </span>
+                      <MoneyDisplay
+                        amount={g.balance < 0n ? -g.balance : g.balance}
+                        className="font-mono text-sm font-semibold"
+                        style={{ color: g.balance > 0n ? 'var(--c-green)' : 'var(--c-red)' }}
+                      />
+                    </Link>
+                    <Link
+                      href={`/settle?groupId=${g.id}`}
+                      className="neo-btn shrink-0 rounded-xl px-3 py-2 text-[0.72rem] font-semibold"
+                    >
+                      Settle
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

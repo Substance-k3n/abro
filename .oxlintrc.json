@@ -35,6 +35,8 @@
     "no-named-export": "off",
     "id-length": "off",
     "react_perf/jsx-no-jsx-as-prop": "off",
+    "react_perf/jsx-no-new-function-as-prop": "off",
+    "react_perf/jsx-no-new-object-as-prop": "off",
     "no-nested-ternary": "off",
     "typescript/no-confusing-void-expression": "off",
     "typescript/no-misused-spread": "warn",
@@ -52,14 +54,7 @@
         "react-in-jsx-scope": "off",
         "no-console": ["warn", { "allow": ["info", "warn", "error", "debug", "trace"] }]
       }
-    },
-    {
-      "files": ["apps/api/**/*.ts"],
-      "rules": {
-        "typescript/no-extraneous-class": "off",
-        "no-console": ["warn", { "allow": ["info", "warn", "error", "debug", "trace"] }]
-      }
     }
   ],
-  "ignorePatterns": ["**/dist/**", "**/.next/**", "**/prisma/migrations/**", "packages/ui/src/**"]
+  "ignorePatterns": ["**/dist/**", "**/.next/**", "packages/ui/src/**"]
 }

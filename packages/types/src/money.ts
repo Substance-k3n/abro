@@ -49,6 +49,36 @@ export const splitEqually = (total: MinorUnits, parts: number): MinorUnits[] => 
   return Array.from({ length: parts }, (_, index) => (index < remainder ? base + 1n : base));
 };
 
+/**
+ * Split `total` proportionally by `weights` (shares, or basis points for a
+ * percentage split), distributing any leftover minor units deterministically
+ * (one extra unit each, starting from the first participant) so
+ * `sum(result) === total` always holds exactly — same guarantee as
+ * splitEqually, generalized to non-equal ratios. ABRO_PRD.md §14 (Shares,
+ * Percentage).
+ */
+export const splitByWeights = (total: MinorUnits, weights: readonly bigint[]): MinorUnits[] => {
+  if (weights.length === 0) {
+    throw new Error('splitByWeights requires at least one participant');
+  }
+
+  const totalWeight = weights.reduce((a, b) => a + b, 0n);
+  if (totalWeight <= 0n) {
+    throw new Error('splitByWeights requires a positive total weight');
+  }
+
+  const bases = weights.map((w) => (total * w) / totalWeight);
+  let remainder = total - sum(bases);
+
+  return bases.map((base) => {
+    if (remainder > 0n) {
+      remainder -= 1n;
+      return base + 1n;
+    }
+    return base;
+  });
+};
+
 /** Convert a decimal amount (e.g. from a form input) to minor units. */
 export const fromDecimal = (amount: number, decimalDigits: number): MinorUnits => {
   const factor = 10 ** decimalDigits;

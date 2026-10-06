@@ -1,16 +1,22 @@
-// Reserved for the ABRO design system.
-//
-// Source: the Figma Make prototype at
-// `~/Downloads/Design Ultra Modern UI (1)/src/App.tsx` — a single 6,500-line
-// file that implements most of the 42 screens in `docs/ABRO_FRONTEND_SPEC.md`
-// as one component with client-side screen switching.
-//
-// That file is a reference for visual/interaction design, not something to
-// import wholesale. As screens get built for real in `apps/web`, pull their
-// reusable pieces out into this package one at a time — starting with the
-// component inventory already named in ABRO_FRONTEND_SPEC.md §12
-// (MoneyDisplay, BalanceCard, ExpenseListItem, ParticipantChip, SplitPreview,
-// Avatar, ActivityItem, EmptyState, ...) — so `apps/web` imports real,
-// tested components instead of re-copying prototype JSX.
+// ABRO design system. Source: the Figma Make prototype at
+// `~/Downloads/Design Ultra Modern UI (1)/src/App.tsx` -- a reference for
+// visual/interaction design, not something imported wholesale. Pulled out
+// one screen's reusable pieces at a time as apps/web builds them for real
+// (docs/WIRING_PLAN.md); started in Phase 3 with the dashboard screens'
+// shared financial/list primitives.
 
-export {};
+export { Avatar, type AvatarProps } from './Avatar';
+export {
+  MoneyDisplay,
+  type MoneyDisplayProps,
+  AmountBadge,
+  type AmountBadgeProps,
+  type AmountDirection,
+} from './MoneyDisplay';
+export { BalanceCard, type BalanceCardProps } from './BalanceCard';
+export { ActivityItem, type ActivityItemProps } from './ActivityItem';
+export { EmptyState, type EmptyStateProps } from './EmptyState';
+export { CategoryIcon, GroupIcon } from './icons';
+export { PersonRow, type PersonRowProps } from './PersonRow';
+export { SectionLabel } from './SectionLabel';
+export { BackButton } from './BackButton';

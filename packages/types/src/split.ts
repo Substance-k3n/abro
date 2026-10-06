@@ -17,11 +17,18 @@ export type SplitType = (typeof SplitType)[keyof typeof SplitType];
 
 export const splitTypeSchema = z.nativeEnum(SplitType);
 
-/** One participant's row within an expense — shape shared by every split type. */
+/**
+ * One participant's row within an expense — shape shared by every split
+ * type. Non-negative only: every ExpenseParticipant.amount in this system
+ * is non-negative, including for SETTLEMENT (see docs/DECISIONS.md ADR-003's
+ * implementation note) -- and SettlementsService builds its own rows
+ * directly rather than through this schema, so there's no legitimate case
+ * for a negative amount here.
+ */
 export const expenseParticipantSchema = z.object({
   userId: z.string(),
   /** Amount in minor units, always sent as a string over the wire (bigint isn't JSON-safe). */
-  amount: z.string().regex(/^-?\d+$/, 'amount must be an integer string of minor units'),
+  amount: z.string().regex(/^\d+$/, 'amount must be a non-negative integer string of minor units'),
 });
 export type ExpenseParticipantInput = z.infer<typeof expenseParticipantSchema>;
 

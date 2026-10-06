@@ -7,6 +7,511 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-013: OTP email without a domain — Brevo, alongside Resend
+
+**Status:** Accepted (user decision, 2026-10-05).
+
+**Context:** On the free-tier deploy (ADR-012) OTP codes were only
+written to the API log, so nobody but the owner could sign in by email.
+Resend (ADR-004) needs a verified domain to email anyone but the account
+owner, and there's no domain yet. Sending through Gmail over SMTP isn't
+possible either: Render's free plan blocks outbound ports 25/465/587.
+
+**Decision:** Add `BrevoOTPMailer` (`apps/api/internal/auth/otp_mailer.go`),
+one JSON POST to Brevo's transactional API (HTTPS, so not blocked). Brevo
+lets a single verified sender address (e.g. a Gmail address) send to any
+recipient on its free plan (300 emails/day). Selection in
+`cmd/api/main.go`: Resend if configured, else Brevo, else the console
+mailer. The startup log names the mailer in use.
+
+**Alternatives considered:** Gmail SMTP with an app password (blocked on
+Render free); SendGrid/Mailjet (similar idea, but Brevo's free plan and
+single-sender verification were the simplest fit); buying a domain for
+Resend (the right long-term fix, blocked on payment for now).
+
+**Consequences:**
+
+- Anyone can sign in by email on the free tier.
+- Mail "from" a Gmail address sent through a third party can land in
+  spam. A verified domain (Resend or Brevo) removes that.
+- One more env-configured provider. Resend stays first, so adding a
+  domain later only needs `RESEND_*` set.
+
+---
+
+## ADR-012: Free-tier deployment — Vercel (web) + Render (api) + Neon (Postgres)
+
+**Status:** Accepted (user decision, 2026-10-05). An alternative to
+ADR-011, not a replacement. ADR-011's VPS stack stays the target once a
+server and domain are available.
+
+**Context:** ADR-011's VPS deploy is blocked: the card payment for a VPS
+didn't go through, and there's no domain yet. The user wants ABRO
+online now at no cost. Vercel only runs the Next.js app, so the Go API
+and Postgres need other homes. The session cookie is `SameSite=Lax`
+with no `Domain`, and `*.vercel.app` / `*.onrender.com` are different
+sites (both on the Public Suffix List), so a browser on the web app
+would not send the cookie on credentialed cross-site fetches to the API.
+
+**Decision:**
+
+- **Web on Vercel** (`apps/web/vercel.json`, root dir `apps/web`,
+  built through turbo). **API on Render's free plan** from the existing
+  `apps/api/Dockerfile` (`render.yaml`). **Postgres on Neon's free plan.**
+- **Same-origin proxy:** with `API_PROXY_TARGET` set, `next.config.mjs`
+  rewrites `/api/*` to the API. `NEXT_PUBLIC_API_URL=/api`, so every
+  call, `Set-Cookie` and OAuth redirect happens on the Vercel origin. The
+  API code and cookie policy are unchanged. Google's callback URL is the
+  proxied `https://<project>.vercel.app/api/auth/google/callback`.
+- **Migrations at container start:** Render's free plan has no
+  pre-deploy step, so `apps/api/start.sh` runs the image's own
+  `migrate up` when `RUN_MIGRATIONS=true`, then execs the API. This keeps
+  ADR-011's "schema comes from the same image" rule. The compose stack
+  leaves the flag unset and keeps its `migrate` service.
+- **No S3 for now.** The API already runs without it (receipt endpoints
+  report "not configured"), and there's no receipt UI. This avoids adding
+  a storage vendor (e.g. Supabase Storage, which ADR-001 steered away
+  from) before it's needed.
+
+**Alternatives considered:**
+
+- _`SameSite=None` cookie + cross-site CORS_: works today, but third-party
+  cookies are increasingly blocked (Safari ITP, Chrome settings), and
+  it weakens the CSRF posture for every deploy, not just this one.
+- _Fly.io / Railway / Koyeb for the API_: these need a card or have
+  time-limited trials.
+- _Self-host at home behind a tunnel_: depends on a machine staying on.
+
+**Consequences:**
+
+- Three dashboards instead of one server. Every piece is replaceable,
+  since the API is still the same Docker image and the DB is plain Postgres.
+- Render free cold starts (~30-60 s after ~15 min idle), and Neon free
+  storage and compute caps. There's no automated off-site backup.
+- Each request takes an extra hop (browser → Vercel → Render).
+- OTP email to arbitrary users still needs a domain verified with Resend.
+  Until then, Google sign-in is the way for others to log in.
+
+---
+
+## ADR-011: Production deployment — one VPS running Docker Compose
+
+**Status:** Accepted (user decision, 2026-09-30). Artifacts built; the
+first real deploy is still pending (it needs the server and the domain
+name).
+
+**Context:** With Phase 8 done, every screen runs on apps/api, but
+nothing could be deployed: no production images, no production config,
+no runbook. The stack is a Go API plus its migrations, a Next.js app,
+Postgres, an S3-compatible bucket (ADR-008), and Resend for OTP email
+(ADR-004). The session is an `HttpOnly` cookie set by the API with
+`SameSite=Lax`, and the web app calls the API cross-origin with
+credentials.
+
+**Decision:** Run everything on one VPS with Docker Compose
+(`infra/docker/prod/`):
+
+- **Caddy** terminates TLS (automatic Let's Encrypt) and routes
+  `APP_DOMAIN` to web and `API_DOMAIN` to the API. Web and API are
+  sibling subdomains of one domain (e.g. `app.` and `api.`), so they're
+  the same _site_: the Lax cookie is sent on the web app's fetches, and
+  CORS stays locked to `WEB_ORIGIN`.
+- **The API image** (`apps/api/Dockerfile`) contains the server, the
+  golang-migrate CLI and the migrations. A one-shot `migrate` service
+  runs `migrate up` from that same image before the API starts, so the
+  schema always matches the code.
+- **The web image** (`apps/web/Dockerfile`) is Next.js `standalone`
+  output. `NEXT_PUBLIC_API_URL` is inlined at build time, so the image
+  is built for one API origin.
+- **Postgres 17 and RustFS** stay on the private network with no
+  published ports.
+- **A backup service** writes a daily `pg_dump` to `./backups`, keeping
+  14 days. Copying those off the server is part of the runbook.
+- **Images** can be built on the server (`docker compose up --build`)
+  or pulled prebuilt (`WEB_IMAGE`/`API_IMAGE`). CI builds both images
+  on every PR, so a broken Dockerfile fails early.
+
+**Alternatives considered:** managed platforms (Fly.io/Railway/Render +
+managed Postgres + R2). Less server upkeep, but more vendors and a
+higher monthly cost, and it moves away from ADR-001's "runs anywhere
+Postgres runs". Kept as the fallback if server upkeep becomes a burden,
+since the images work there too.
+
+**Consequences:**
+
+- One server is a single point of failure, and you apply OS updates
+  yourself. Backups are the recovery path, and restoring one is
+  documented in docs/DEPLOY.md.
+- Two known gaps, now tied to this deployment:
+  - Receipt downloads use presigned URLs pointing at the internal
+    `http://s3:9000`. There's no receipt UI yet, but when there is, S3
+    needs a public hostname via Caddy.
+  - Recurring expenses still have no scheduler (ADR-005). A cron on the
+    server can call the generate endpoint once that endpoint is
+    protected.
+- `next/font/google` fetches fonts during the web build, so a build
+  needs internet access (the CI font flake can also hit it).
+
+---
+
+## ADR-010: Group settlements are validated against group nets
+
+**Status:** Accepted (user decision, 2026-09-29)
+
+**Context:** `POST /settlements` capped a group settlement at the
+_pairwise_ debt, meaning what the settler owes the recipient through
+their shared expenses in that group. Every group screen shows _nets_
+instead (paid − owed per member, `GET /balances/groups/{id}`), and the
+simplified plan (`/simplified`, ABRO_PRD.md §18) routes payments
+between nets. So a plan payment could exceed the pair's shared debt and
+be refused.
+
+Example: C pays 900 for A, B and C, and B pays 99 for all three. The
+nets are A −333, B −234, C +567. The plan says A → C 333, but A's
+pairwise debt to C is only 300, and pairwise also let A pay B, whom the
+group view shows as owing.
+
+**Decision:** Inside a group, a settlement is allowed when the settler's
+net is below 0 (`NO_OUTSTANDING_DEBT` otherwise) and the recipient's is
+above 0 (`RECIPIENT_NOT_OWED` otherwise). The amount is capped at
+`min(−settlerNet, recipientNet)` (`EXCEEDS_OUTSTANDING_DEBT`).
+Personal settlements keep the pairwise check.
+
+**Alternatives considered:** keep pairwise and make the simplified view
+informational only. Rejected: the app would show two different answers
+to "who do I owe in this group", and the plan couldn't be acted on.
+
+**Consequences:**
+
+- Every simplified-plan payment is payable. A settlement moves only the
+  settler's and recipient's nets, each toward 0.
+- The pair's pairwise balance inside the group can go "backwards"
+  (e.g. C now owes A 33 pairwise). Nothing displays pairwise group
+  balances, and friend balances count personal expenses only
+  (`GetSummary`), so no screen changes.
+- Settlements stay plain expense rows (ADR-003); only the validation
+  changed.
+
+---
+
+## ADR-009: Group integrity rules — settled-only leave/remove/delete, soft-deleted groups, locked currency
+
+**Status:** Accepted (user decisions, 2026-09-29)
+
+**Context:** Wiring the group screens (Phase 8 slice 8) showed three
+gaps in apps/api's group rules:
+
+- A member could leave, or be removed, while owing or being owed money.
+  Balances stay correct because they're calculated from expenses, but a
+  departed member can no longer open the group, so they can't see or
+  settle that debt.
+- There was no way to delete a group. GRP-07 asks for one (creator
+  only, not while balances are outstanding).
+- `PATCH /groups/{id}` accepted a currency change after expenses
+  existed. Amounts are stored as bare minor units, so 1000 ETB would
+  silently become 1000 USD.
+
+**Decision:**
+
+- **Leave/remove** (`DELETE /groups/{id}/members/{userId}`) is refused
+  with `409 OUTSTANDING_BALANCE` while the target's net in the group
+  (paid − owed over non-deleted expenses, settlements included, the
+  same figure as `GET /balances/groups/{id}`) isn't 0.
+- **Delete** (`DELETE /groups/{id}`) is a soft delete: migration
+  `0011_group_soft_delete` adds `groups.deleted_at`/`deleted_by_id`,
+  the same shape as expenses. It's allowed for the creator only (who
+  must still be an active member), and only when every member's net is 0.
+  The group's expenses stay in place as facts. From then on the group
+  reads as not found everywhere:
+  - `GetGroupByID` and `GetGroupMember` filter on `deleted_at IS NULL`,
+    so every membership check in groups, expenses, balances, settlements
+    and recurring inherits it.
+  - The group, invite, expense, recurring and analytics list queries
+    filter deleted groups out.
+  - An expense in a deleted group can't be edited or deleted
+    (`GROUP_NOT_FOUND`), because that would reopen a balance nobody can
+    see.
+  - Recurring templates in a deleted group are skipped by
+    `ListDueRecurringExpenses`. Otherwise `GenerateDue`, which stops at
+    its first error, would stall every user's recurring expenses.
+- **Currency** changes are refused with `409 CURRENCY_LOCKED` once the
+  group has any non-deleted expense. Resending the current currency is
+  fine.
+
+**Alternatives considered:** allowing leave with a UI warning only
+(rejected: it strands the debt from the debtor's view); a hard delete
+of the group (rejected: it destroys expense history, against
+"expenses are facts"); converting the currency on change (rejected:
+needs exchange rates ABRO doesn't have).
+
+**Consequences:** A group can only be deleted, or left, after settling
+up, which is the Settle flow's job (slice 9). A soft-deleted group has
+no restore path yet. A personal-expense participant can still open a
+deleted group's expense by direct link (read-only), since visibility
+for payers and participants doesn't depend on the group.
+
+---
+
+## ADR-008: Receipt storage server — RustFS, superseding ADR-006's MinIO choice
+
+**Status:** Accepted
+
+**Context:** MinIO stopped being distributable as open source in
+practice: its Docker Hub images were removed earlier (already worked
+around by moving to `quay.io/minio/*`), and by September 2026 both
+`quay.io/minio/minio` and `quay.io/minio/mc` require authentication
+(HTTP 401) while the `minio/minio` GitHub repo is archived (last
+release October 2025). Every CI run's `api` job failed at "Start
+MinIO" before running any code, and a fresh clone couldn't
+`docker compose up` either — only machines with the image already
+cached still worked.
+
+**Decision:** Replace the MinIO _server_ with **RustFS**
+(`rustfs/rustfs`, Apache-2.0, pinned to `1.0.0`) in
+`infra/docker/dev/compose.yml` and CI. Everything else in ADR-006
+stands: upload-through-API, presigned reads, one receipt per expense.
+
+- apps/api keeps `minio-go/v7` — despite the name it's a generic S3
+  client, and switching server needed zero Go code changes.
+- Bucket provisioning uses the AWS CLI (`amazon/aws-cli` in compose,
+  the runner's preinstalled `aws` in CI), since `mc` is gone too.
+- Same ports (9460 API / 9461 console) and same default credentials
+  (`abro-minio` / `password123`), so existing `apps/api/.env` files
+  keep working; the key name is now just a legacy label.
+- RustFS runs as UID/GID 10001: compose chowns its named volume with a
+  one-shot helper (as RustFS's own example compose does); CI uses a
+  tmpfs owned by that UID.
+
+**Alternatives considered:** SeaweedFS (mature, but more setup — S3
+config file, different startup model — and far more system than ABRO
+needs); Garage (lightweight, but cluster layout and key creation are
+imperative CLI steps, awkward in compose/CI); mirroring the last
+cached MinIO image into our own registry (zero change, but frozen on
+an archived, unmaintained version).
+
+**Consequences:** RustFS is a young project (1.0.0 released September 2026) — acceptable for a dev/CI dependency, re-evaluate before
+self-hosting it in production (a managed S3/R2/B2 bucket stays a
+config-only change either way). Local dev: the compose service is now
+`s3` (container `abro-s3`) with a new `s3-data` volume — run
+`docker compose -f infra/docker/dev/compose.yml up -d --remove-orphans`
+once to drop the old `minio` containers. Receipts stored in the old
+local MinIO volume aren't migrated (dev data only).
+
+---
+
+## ADR-007: Backend rewrite — Go, superseding ADR-002
+
+**Status:** Accepted
+
+**Context:** ADR-002 chose NestJS specifically so `apps/web` and
+`apps/api` could share `packages/types` (`Money`/`SplitType`/Zod
+schemas) verbatim, on the reasoning that one language across the stack
+is faster for a small team and keeps client/server math from silently
+drifting apart. That NestJS backend was fully built and tested (backend
+plan items 1-6: auth, users, friends, groups, expenses, balances,
+settlements, debt simplification, analytics, notifications, recurring
+expenses, MinIO receipts — 100+ tests, CI green, merged to `dev`).
+
+**Decision:** Rewrite the backend from scratch in Go
+(`apps/api`, replacing the NestJS implementation), explicitly requested
+by the user. Stack: `chi` router, `pgx/v5` + `sqlc` for typed Postgres
+access (no ORM), `golang-migrate` for schema migrations (plain SQL,
+translated from the Prisma schema), stdlib `crypto/sha256`+`crypto/rand`
+for session/OTP hashing (same approach as ADR-004, just not
+Prisma-mediated), `golang.org/x/oauth2` for Google OAuth,
+`minio-go/v7` for receipt storage (still S3-protocol-compatible, so
+ADR-006's "swap to real S3 later is a config change" still holds).
+Every domain module is rebuilt in the same order the original backend
+was built (`docs/BACKEND_PLAN.md`'s history), each with its own tests
+run against a real Postgres/MinIO — no mocking library, matching the
+convention the NestJS backend established.
+
+**Why:** Explicit user decision, not driven by a discovered technical
+problem with NestJS — the previous backend was working, tested, and
+CI-green at the time of this rewrite.
+
+**Consequence:**
+
+- ADR-002's core rationale (one shared `packages/types` module across
+  both sides) no longer holds for the backend. `packages/types` still
+  exists and is still used by `apps/web` (Phase 4+ split-validation
+  UI per `docs/WIRING_PLAN.md`), but the Go backend has its own
+  independent port of the same money/split/debt-simplification logic
+  (`apps/api/internal/money`), test-ported case-for-case from
+  `packages/types/src/{money,split,debt-simplification}.test.ts` to
+  keep both sides' behavior verified equivalent at rewrite time — but
+  nothing mechanically keeps them in sync going forward. A future
+  change to a split/rounding/debt-simplification rule must be applied
+  in both places by hand, and reviewed as such.
+- One simplification the rewrite gets for free: Go's `int64` covers
+  ABRO's realistic minor-units range and serializes through
+  `encoding/json` without precision loss, unlike JS `bigint` (not
+  JSON-safe). The `common/bigint-json.ts` response-shape shim and its
+  `toAuthProfile`-style mappers have no Go equivalent requirement —
+  though the _wire format_ for amounts is kept as a numeric string on
+  requests (`internal/money.ParseAmount`), matching what `apps/web`'s
+  still-bigint-based `packages/types` will send once Phase 8 wires the
+  frontend to this API, so the two sides don't need to renegotiate the
+  contract later.
+- The entire NestJS implementation (`apps/api`'s previous contents,
+  Prisma schema, 100+ Jest tests) is removed from the working tree.
+  Fully recoverable from git history — it shipped and was merged to
+  `dev` before this rewrite (see the `feature/friends-groups-expenses`
+  → `dev` PR) — but no longer live code.
+- CI (`.github/workflows/ci.yml`) needs a Go job (build/vet/test against
+  real Postgres/MinIO services) replacing the Node/Jest one for `apps/api`.
+- `docs/BACKEND_PLAN.md` described the NestJS build order; a parallel
+  tracking doc for the Go rewrite exists at `docs/GO_BACKEND_PLAN.md`.
+
+---
+
+## ADR-006: Receipt storage — MinIO (S3-compatible), upload-through-API, presigned reads
+
+**Status:** Accepted — storage _server_ choice (MinIO) superseded by
+ADR-008 (RustFS); the upload/read design below still stands.
+
+**Context:** `docs/ABRO_PRD.md` §36 specifies receipts (JPG/PNG/WebP,
+authenticated access, expense-level authorization, private storage)
+via Supabase Storage — superseded by ADR-001, which explicitly left
+"the team picks explicitly, S3-compatible bucket" as an **Open** item.
+Nothing in `Expense.receiptPath` (a placeholder string column) is
+backed by an actual storage integration yet.
+
+**Decision:**
+
+- **MinIO**, self-hosted, added to `infra/docker/dev/compose.yml`
+  alongside Postgres — matches ADR-001's self-hosted-first direction.
+- Accessed via `@aws-sdk/client-s3` (AWS SDK v3) against MinIO's
+  S3-compatible endpoint, not MinIO's own SDK — so swapping to real
+  AWS S3, Cloudflare R2, Backblaze B2, etc. in production later is an
+  endpoint/credentials change, not a code change.
+- **Uploads go through the API**, not a client-presigned PUT straight
+  to storage: `POST /expenses/:id/receipt` (multipart, `multer`
+  memory storage, no disk write) validates auth + expense-edit
+  authority + mimetype (JPG/PNG/WebP only, per §36) + a size cap
+  before ever touching MinIO. Credentials never reach the client.
+- **Reads use a short-lived presigned GET URL**
+  (`GET /expenses/:id/receipt`, 5-minute expiry) instead of proxying
+  bytes through the API — avoids the API becoming a bandwidth
+  bottleneck for images, while still enforcing the same
+  expense-visibility check as every other expense read before a URL
+  is ever issued.
+- One receipt per expense (matches the schema's singular
+  `receiptPath`, not an array) — a new upload replaces the old object
+  after the new one succeeds, so a failed upload never destroys the
+  previous receipt.
+
+**Why:** Mirrors the codebase's existing "server stays authoritative,
+never trust the client" posture (same reasoning as ADR-003's
+settlement-amount validation) — every access, read or write, is
+re-checked against the same authorization rules `ExpensesService`
+already enforces for the expense itself, not a separate parallel
+permission system for files.
+
+**Consequence:** New env vars (`S3_ENDPOINT`/`S3_REGION`/
+`S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`/`RECEIPTS_BUCKET`) join
+`apps/api/.env.example`. Dev requires `docker compose up -d` to also
+bring up MinIO now, not just Postgres. Production still needs a real
+bucket provisioned and credentials issued — same category of "code
+is done, real infra isn't" gap as OTP email/Google OAuth (see ADR-004's
+Consequence section).
+
+---
+
+## ADR-005: Recurring expense generation trigger — manual endpoint, not a scheduler
+
+**Status:** Accepted (MVP), revisit before production
+
+**Context:** `docs/ABRO_PRD.md` §35 says every generated occurrence
+becomes an independent `Expense` row but doesn't say what causes
+generation to run. `docs/BACKEND_PLAN.md` item 4 flagged this
+explicitly as an infra decision, not something to pick silently. No
+scheduler infra (`@nestjs/schedule`, an external cron hitting an
+endpoint, a hosted scheduler like a Postgres `pg_cron` job) exists
+anywhere in this repo yet.
+
+**Decision:** `RecurringService.generateDue()` is the trigger-agnostic
+core (finds every `enabled` `RecurringExpense` with `nextRunAt <= now`,
+generates one `Expense` per due row, advances `nextRunAt`), exposed as
+`POST /recurring/generate-due` behind the normal `SessionGuard` — same
+authentication as every other route, no separate service/cron secret.
+Nothing in this repo calls it automatically yet.
+
+**Why:** Building real scheduler infra (in-process cron, a hosted
+scheduler, or a authenticated-service-account pattern for an external
+caller) is a deployment-target decision this project hasn't made yet
+(see ADR-001's "Open" note on self-hosted vs. managed). Shipping a
+manual/externally-triggerable endpoint now means the generation logic
+itself is written, tested, and reusable regardless of which scheduling
+answer comes later — swapping in a real trigger later means adding a
+caller, not rewriting `generateDue()`.
+
+**Consequence:** Recurring expenses do not generate on their own in
+any deployed environment today — something (a person, a manual `curl`,
+a script) has to call the endpoint. Any authenticated user can trigger
+it, not just an admin or the affected users, which is a known
+over-broad-access gap (harmless in effect, since it only ever
+generates rows that are genuinely due) to close in a hardening pass
+once a real trigger mechanism and, if needed, a service-role concept
+exist. **Open:** pick a real scheduler once the deployment target
+(ADR-001's "Open" note) is decided.
+
+---
+
+## ADR-004: Auth mechanism — DB-backed sessions, Email OTP + Google OAuth
+
+**Status:** Accepted
+
+**Context:** ADR-001 deferred this explicitly ("still to be decided —
+email OTP vs. Google OAuth vs. both"). `ABRO_PRD.md` §30/§39 requires
+both Email OTP and Google Sign-In at MVP, originally via Supabase
+Auth; ADR-001/002 already ruled out Supabase, so both flows need a
+from-scratch implementation inside `apps/api`.
+
+**Decision:**
+
+- **Session strategy:** DB-backed sessions, not JWT. A `Session` row
+  (`apps/api/prisma/schema/auth.prisma`) stores only a SHA-256 hash of
+  the session token; the raw token lives in an httpOnly cookie. A
+  NestJS guard hashes the incoming cookie and looks up the row on each
+  request.
+- **Email OTP:** `OtpCode` table, one row per send, `codeHash` only
+  (never the plaintext code), `attempts` counter for rate limiting,
+  `expiresAt`/`consumedAt` for one-time use.
+- **Google OAuth:** `OAuthAccount` table linking a `provider` +
+  `providerAccountId` to a `Profile`. Scaffolded now against
+  `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` env vars — real values are
+  a manual step (Google Cloud Console project) outside this repo.
+- **Account linking:** both methods resolve to the same `Profile` by
+  matching `email` — a user who first signs in via OTP and later via
+  Google (same email) lands on one account, not two.
+
+**Why:** DB-backed sessions were chosen over stateless JWT because
+revocation (logout-everywhere, banning a device) needs a server-side
+record either way once you take it seriously — a JWT-plus-denylist
+ends up with the same DB dependency but two token formats to reason
+about instead of one. A hybrid JWT-access/refresh-token design was
+considered (better fit for a future mobile client) but rejected for
+now as unnecessary complexity while only a web client exists; revisit
+if/when a mobile client is actually planned.
+
+**Consequence:** `apps/api/.env.example` needs
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`GOOGLE_CALLBACK_URL`. Every
+authenticated route depends on the session guard reading this table —
+until the `auth` module ships, no other module's endpoints can be
+wired to real authorization.
+
+**OTP provider follow-up (resolved 2026-09-21):** Resend, via a plain
+HTTP POST (`internal/auth.ResendOTPMailer`, no SDK). Selected over SMTP
+(would need a relay/account already in hand) and SES (needs a verified
+AWS sending domain — more setup) for being the lowest-friction to get
+working in dev. Gated the same way as Google OAuth and MinIO —
+`RESEND_API_KEY`/`RESEND_FROM_EMAIL` unset means
+`internal/auth.ConsoleOTPMailer` stays in use (logs the code instead of
+emailing it), so dev/CI never needs a real Resend account.
+
+---
+
 ## ADR-003: Settlements are Expense rows with `splitType: SETTLEMENT`
 
 **Status:** Accepted
@@ -33,11 +538,24 @@ set of indexes, one place the "never a stored balance" rule
 settlements get their own service/endpoint that enforces §19's rule
 (`settlement amount <= outstanding debt`) before writing the row.
 
+**Implementation (added 2026-09-17, `SettlementsService`):** this ADR was
+written before the balance engine existed, and "two `ExpenseParticipant`
+rows... summing to zero net effect on the payer" was ambiguous between a
+signed-amounts scheme and a non-negative one. Resolved in favor of
+non-negative: `{ paidById: settler, amount: settlementAmount }` with
+participants `[{settler, 0}, {recipient, settlementAmount}]`. This keeps
+every `ExpenseParticipant.amount` non-negative system-wide (matching every
+other split type), so `assertSharesMatchTotal` (`sum = total`) applies
+unchanged with no settlement-specific exception, and `BalancesService`
+needs exactly one netting rule — "a non-payer participant's amount is owed
+to the payer" — for every split type including `SETTLEMENT`, with zero
+`splitType` branches in the read path.
+
 ---
 
 ## ADR-002: NestJS over Go for the backend
 
-**Status:** Accepted
+**Status:** Superseded by ADR-007 (backend rewritten in Go)
 
 **Context:** `ABRO_PRD.md` §33 recommends Supabase (Auth + Storage +
 Edge Functions) with no separate backend service. We're deviating
@@ -101,9 +619,9 @@ the same pattern the team already knows from the SplitPro reference
 - Matches tooling the team has already exercised first-hand on
   SplitPro this week (Prisma migrate, docker compose dev stack).
 
-**Consequence:** Auth is NextAuth-or-equivalent inside `apps/api`, not
-Supabase Auth — still to be decided (email OTP vs. Google OAuth vs.
-both, per PRD §9). Receipts need object storage the team picks
+**Consequence:** Auth is a custom implementation inside `apps/api`, not
+Supabase Auth — mechanism decided in ADR-004 (DB-backed sessions,
+Email OTP + Google OAuth). Receipts need object storage the team picks
 explicitly (S3-compatible bucket, not "Supabase Storage" by default).
 Row-level security can still be added later in Postgres as defense in
 depth; it just isn't the primary boundary.
