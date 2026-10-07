@@ -28,6 +28,9 @@ const (
 	TypeGroupMembershipChange    Type = "GROUP_MEMBERSHIP_CHANGE"
 	TypeRecurringExpense         Type = "RECURRING_EXPENSE"
 	TypeDebtSimplificationChange Type = "DEBT_SIMPLIFICATION_CHANGE"
+	// TypePaymentReminder is not in PRD §34's list: a group admin's nudge
+	// to a member who owes (roadmap P6, ADR-018).
+	TypePaymentReminder Type = "PAYMENT_REMINDER"
 )
 
 // AllTypes is every Type, in the order SET-02 lists them. A user can
@@ -35,7 +38,7 @@ const (
 var AllTypes = []Type{
 	TypeExpenseAdded, TypeExpenseEdited, TypeExpenseDeleted, TypeSettlement,
 	TypeGroupInvitation, TypeGroupMembershipChange, TypeRecurringExpense,
-	TypeDebtSimplificationChange,
+	TypeDebtSimplificationChange, TypePaymentReminder,
 }
 
 func isKnownType(t string) bool {

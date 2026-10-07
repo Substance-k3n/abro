@@ -7,6 +7,52 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-018: Payment reminders — admin-only, owes-only, once per 24 hours
+
+**Status:** Accepted (roadmap Phase 6, 2026-10-07).
+
+**Context:** The group admin dashboard (P6) should let an admin nudge
+members who owe the group. PRD §34's notification list has no reminder
+event, and the frontend spec only lists "Payment reminder (future)".
+Without a limit, a reminder button becomes a way to spam someone.
+
+**Decision:** `POST /groups/{id}/members/{userId}/remind` sends an
+in-app notification of the new type `PAYMENT_REMINDER` ("Ana reminded
+you that you owe 1234.50 ETB in \"Trip\"."). Rules:
+
+- Only an **active admin** can send one, and only to an **active**
+  member whose net in the group is **negative** (they owe). Never to
+  yourself.
+- **One reminder per member per group every 24 hours**, whoever sends
+  it. Too soon → `429 REMINDER_TOO_SOON` with `details.nextAllowedAt`.
+- Each reminder is a row in the new `payment_reminders` table (group,
+  sender, recipient, created_at; migration 0014). That's the audit
+  trail and what the 24-hour check reads. **No amount is stored**: the
+  amount in the message is the member's net at that moment, derived
+  from expenses like every other balance.
+- `PAYMENT_REMINDER` can be turned off in notification settings. The
+  admin gets the same success either way, and the reminder still
+  counts toward the 24 hours, so a reminder never reveals that setting.
+- `GET /groups/{id}/reminders` (admins) lists the latest reminder per
+  member, so the dashboard can show "Reminded 3h ago" after a reload.
+
+**Alternatives considered:** checking the notifications table for a
+recent reminder instead of a new table (a notification doesn't record
+its group or sender, and isn't written at all for someone who opted
+out, which would let the limit be bypassed); letting any member remind
+(the dashboard is an admin tool, and members can already see who owes);
+a lock to make the limit exact under concurrent taps (two admins
+reminding at the same instant can both get through — the cost is one
+extra notification, not worth a lock).
+
+**Consequences:**
+
+- Reminders are in-app only, like every notification (no push or email
+  yet, PRD "Later").
+- The table grows by at most one row per member per group per day.
+
+---
+
 ## ADR-017: Profile and group photos, served through the API at versioned URLs
 
 **Status:** Accepted (roadmap Phase 4, 2026-10-06).

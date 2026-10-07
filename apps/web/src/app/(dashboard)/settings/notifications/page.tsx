@@ -48,6 +48,11 @@ const TYPES: { type: string; label: string; sub: string }[] = [
     label: 'Debt simplification',
     sub: "A group's simplify setting changes",
   },
+  {
+    type: 'PAYMENT_REMINDER',
+    label: 'Payment reminders',
+    sub: 'A group admin reminds you that you owe the group',
+  },
 ];
 
 export default function NotificationSettingsPage() {
