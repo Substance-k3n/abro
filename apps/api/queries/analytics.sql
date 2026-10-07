@@ -84,3 +84,52 @@ JOIN expenses e ON e.id = ep.expense_id
 WHERE ep.user_id = sqlc.arg('user_id') AND ep.amount > 0 AND e.paid_by_id != sqlc.arg('user_id')
   AND e.split_type = 'SETTLEMENT' AND e.deleted_at IS NULL
   AND e.expense_date >= sqlc.arg('start_date') AND e.expense_date < sqlc.arg('end_date');
+
+-- Group stats (GET /analytics/groups/{id}, roadmap P6): one group's
+-- spending over its whole life, for the group admin dashboard. Same
+-- exclusions as above -- deleted expenses never count, and SETTLEMENT
+-- rows are reported only as settled_total, never as spending.
+
+-- name: GetGroupStatsTotals :one
+SELECT
+    COALESCE(sum(amount) FILTER (WHERE split_type != 'SETTLEMENT'), 0)::bigint AS total_spent,
+    count(*) FILTER (WHERE split_type != 'SETTLEMENT')::int AS expense_count,
+    COALESCE(sum(amount) FILTER (WHERE split_type = 'SETTLEMENT'), 0)::bigint AS settled_total
+FROM expenses
+WHERE group_id = $1 AND deleted_at IS NULL;
+
+-- name: GetGroupMemberPaidShare :many
+-- What each person paid for the group's expenses and what their share of
+-- them was. Anyone with activity appears, including a member who has
+-- since left, same as balances.GetGroupSummary.
+WITH paid AS (
+    SELECT x.paid_by_id AS user_id, sum(x.amount)::bigint AS total FROM expenses x
+    WHERE x.group_id = sqlc.arg('group_id') AND x.deleted_at IS NULL AND x.split_type != 'SETTLEMENT'
+    GROUP BY x.paid_by_id
+), share AS (
+    SELECT ep.user_id, sum(ep.amount)::bigint AS total FROM expense_participants ep
+    JOIN expenses e ON e.id = ep.expense_id
+    WHERE e.group_id = sqlc.arg('group_id') AND e.deleted_at IS NULL AND e.split_type != 'SETTLEMENT'
+    GROUP BY ep.user_id
+)
+SELECT COALESCE(paid.user_id, share.user_id)::uuid AS user_id,
+       COALESCE(paid.total, 0)::bigint AS paid,
+       COALESCE(share.total, 0)::bigint AS share
+FROM paid FULL OUTER JOIN share ON share.user_id = paid.user_id;
+
+-- name: GetGroupCategoryBreakdown :many
+SELECT category, sum(amount)::bigint AS amount FROM expenses
+WHERE group_id = $1 AND deleted_at IS NULL AND split_type != 'SETTLEMENT'
+GROUP BY category
+ORDER BY amount DESC, category;
+
+-- name: GetGroupMonthlyTrendRaw :many
+-- Only months with spending are returned; the caller fills the rest of
+-- the window with zero.
+SELECT EXTRACT(YEAR FROM expense_date AT TIME ZONE 'UTC')::int AS year,
+       EXTRACT(MONTH FROM expense_date AT TIME ZONE 'UTC')::int AS month,
+       sum(amount)::bigint AS total_spending
+FROM expenses
+WHERE group_id = sqlc.arg('group_id') AND deleted_at IS NULL AND split_type != 'SETTLEMENT'
+  AND expense_date >= sqlc.arg('start_date') AND expense_date < sqlc.arg('end_date')
+GROUP BY 1, 2;
