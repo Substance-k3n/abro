@@ -1,0 +1,34 @@
+# Keeps the free-tier API awake. Render's free plan stops a web service
+# after 15 minutes without requests, and the next visitor then waits
+# about a minute while it starts again (docs/DEPLOY.md "Free tier").
+# Every 10 minutes this calls /health through the live site, the same
+# path a real visitor's request takes (Vercel's /api rewrite to Render).
+# /health never touches the database, so Neon still sleeps when idle.
+#
+# GitHub runs scheduled workflows only from the default branch (main),
+# so this starts once it's released to main. GitHub may delay or skip
+# scheduled runs when busy; a failed run (the API didn't answer after
+# retries) shows up red in Actions and emails the repo owner.
+name: Keep API awake
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Call /health
+        env:
+          HEALTH_URL: ${{ vars.HEALTH_URL || 'https://abro-pi.vercel.app/api/health' }}
+        run: |
+          # A cold start takes up to about a minute, hence the long
+          # timeout and retries.
+          curl --fail --silent --show-error --max-time 90 \
+            --retry 3 --retry-delay 20 --retry-all-errors \
+            "$HEALTH_URL"
