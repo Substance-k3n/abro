@@ -291,24 +291,8 @@ func (s *Service) UploadReceipt(ctx context.Context, actorID, expenseID pgtype.U
 		return Expense{}, err
 	}
 
-	if size > maxReceiptBytes {
-		return Expense{}, httpx.BadRequest("RECEIPT_TOO_LARGE", fmt.Sprintf("Receipt must be %dMB or smaller.", maxReceiptBytes/(1024*1024)))
-	}
-	head := make([]byte, 512)
-	n, err := io.ReadFull(body, head)
-	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
-		return Expense{}, err
-	}
-	head = head[:n]
-	mimeType := http.DetectContentType(head)
-	extension, ok := receiptExtensionByMimeType[mimeType]
-	if !ok {
-		return Expense{}, httpx.BadRequest("UNSUPPORTED_RECEIPT_TYPE", "Receipts must be JPG, PNG, or WebP.")
-	}
-	body = io.MultiReader(bytes.NewReader(head), body)
-
-	key := fmt.Sprintf("receipts/%s/%s.%s", idutil.String(expenseID), uuid.NewString(), extension)
-	if err := s.receiptStore.Upload(ctx, key, body, size, mimeType); err != nil {
+	key, err := s.StoreReceipt(ctx, "receipts/"+idutil.String(expenseID), body, size)
+	if err != nil {
 		return Expense{}, err
 	}
 
@@ -322,6 +306,61 @@ func (s *Service) UploadReceipt(ctx context.Context, actorID, expenseID pgtype.U
 	}
 
 	return s.loadExpense(ctx, updated)
+}
+
+// StoreReceipt checks a receipt image (size cap; JPG/PNG/WebP by its
+// bytes, never the declared type) and uploads it under prefix, returning
+// its storage key. Shared with settlement requests (ADR-019), so every
+// receipt goes through the same checks.
+func (s *Service) StoreReceipt(ctx context.Context, prefix string, body io.Reader, size int64) (string, error) {
+	if err := s.requireStorageConfigured(); err != nil {
+		return "", err
+	}
+	if size > maxReceiptBytes {
+		return "", httpx.BadRequest("RECEIPT_TOO_LARGE", fmt.Sprintf("Receipt must be %dMB or smaller.", maxReceiptBytes/(1024*1024)))
+	}
+	head := make([]byte, 512)
+	n, err := io.ReadFull(body, head)
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	head = head[:n]
+	mimeType := http.DetectContentType(head)
+	extension, ok := receiptExtensionByMimeType[mimeType]
+	if !ok {
+		return "", httpx.BadRequest("UNSUPPORTED_RECEIPT_TYPE", "Receipts must be JPG, PNG, or WebP.")
+	}
+	body = io.MultiReader(bytes.NewReader(head), body)
+
+	key := fmt.Sprintf("%s/%s.%s", prefix, uuid.NewString(), extension)
+	if err := s.receiptStore.Upload(ctx, key, body, size, mimeType); err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
+// ReceiptURLForKey is a short-lived presigned URL for a stored receipt;
+// the caller has already checked the viewer may see it.
+func (s *Service) ReceiptURLForKey(ctx context.Context, key string) (string, error) {
+	if err := s.requireStorageConfigured(); err != nil {
+		return "", err
+	}
+	return s.receiptStore.GetPresignedGetURL(ctx, key)
+}
+
+// DeleteReceiptKey removes a stored receipt, ignoring storage that isn't
+// configured (nothing could have been stored).
+func (s *Service) DeleteReceiptKey(ctx context.Context, key string) {
+	if s.receiptStore.IsConfigured() {
+		_ = s.receiptStore.Delete(ctx, key)
+	}
+}
+
+// SetReceiptPath points an expense at an already-stored receipt (a
+// confirmed settlement request's, ADR-019).
+func (s *Service) SetReceiptPath(ctx context.Context, expenseID pgtype.UUID, key string) error {
+	_, err := s.q.UpdateExpenseReceiptPath(ctx, db.UpdateExpenseReceiptPathParams{ID: expenseID, ReceiptPath: pgtype.Text{String: key, Valid: true}})
+	return err
 }
 
 // GetReceiptURL returns a short-lived presigned URL -- the caller must

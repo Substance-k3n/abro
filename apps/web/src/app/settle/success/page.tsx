@@ -34,7 +34,7 @@
 // STL-03 after apps/api accepted the settlement) plus who/which group;
 // the new balance is reloaded from apps/api, not computed here.
 
-import { CheckCircle2, Home as HomeIcon, Plus, Receipt } from 'lucide-react';
+import { Clock, Home as HomeIcon, Plus, Receipt } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -68,7 +68,8 @@ export default function SettleSuccessPage() {
     return null;
   }
 
-  const { personName, amount } = snapshot.recorded;
+  const { personName, amount, receiptFailed } = snapshot.recorded;
+  const firstName = personName.split(' ')[0];
 
   const goTo = (path: string) => {
     reset();
@@ -79,9 +80,9 @@ export default function SettleSuccessPage() {
     <div className="flex flex-col items-center gap-5 py-6 text-center">
       <div
         className="flex h-16 w-16 items-center justify-center rounded-full"
-        style={{ background: 'rgba(34,197,94,0.15)', color: 'var(--c-green)' }}
+        style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
       >
-        <CheckCircle2 size={34} strokeWidth={2} />
+        <Clock size={34} strokeWidth={2} />
       </div>
 
       <div>
@@ -89,11 +90,17 @@ export default function SettleSuccessPage() {
           className="font-display mb-1 text-[1.3rem] font-extrabold tracking-tight"
           style={{ color: 'var(--t-primary)' }}
         >
-          Settlement recorded
+          Sent to {firstName}
         </h2>
         <p className="text-[0.85rem]" style={{ color: 'var(--t-dim)' }}>
-          You paid {personName.split(' ')[0]} {formatMoney(amount, ETB)}. Balances are updated.
+          Your payment of {formatMoney(amount, ETB)} is waiting for {firstName} to confirm it. Your
+          balance changes once they do.
         </p>
+        {receiptFailed && (
+          <p className="mt-2 text-[0.8rem]" style={{ color: 'var(--c-red)' }}>
+            The photo didn&apos;t upload. You can add it from Payments.
+          </p>
+        )}
       </div>
 
       <div className="neo-raised-sm w-full rounded-2xl p-4 text-left">
@@ -107,7 +114,7 @@ export default function SettleSuccessPage() {
         </div>
         <div className="flex items-center justify-between">
           <span className="text-[0.82rem]" style={{ color: 'var(--t-dim)' }}>
-            Still to settle
+            Still to settle until confirmed
           </span>
           <span
             className="font-mono text-[0.9rem] font-bold"
@@ -120,11 +127,11 @@ export default function SettleSuccessPage() {
 
       <div className="flex w-full flex-col gap-2.5">
         <button
-          onClick={() => goTo('/settlements')}
+          onClick={() => goTo('/payments')}
           className="neo-btn flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-[0.85rem] font-medium"
           style={{ color: 'var(--t-secondary)' }}
         >
-          <Receipt size={17} strokeWidth={1.9} /> View settlement history
+          <Receipt size={17} strokeWidth={1.9} /> View payments
         </button>
         <button
           onClick={() => goTo('/expenses/new')}
