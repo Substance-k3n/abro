@@ -11,6 +11,8 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     autoDeploy: true
+    # Liveness only (no database query), so it's cheap to call often.
+    healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production

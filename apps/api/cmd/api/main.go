@@ -110,6 +110,13 @@ func main() {
 	r.Use(httpx.Recoverer)
 	r.Use(httpx.CORS(cfg.WebOrigin))
 
+	// Liveness only: answers without touching the database, so the
+	// keep-awake ping (.github/workflows/keep-awake.yml) and Render's
+	// health check never keep Neon's free-tier compute running.
+	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
+
 	r.Route("/auth", authHandler.Mount)
 	r.Route("/users", func(r chi.Router) {
 		usersHandler.Mount(r)
