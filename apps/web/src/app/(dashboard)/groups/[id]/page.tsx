@@ -17,10 +17,21 @@
 //  - Settle Up only shows when you owe the group net: apps/api only
 //    lets the debtor record a settlement (ADR-003).
 //  - Members tab lists ACTIVE members; pending invites are on GRP-06.
+//  - Admins get a fourth quick action, Dashboard (roadmap P6), opening
+//    /groups/[id]/admin.
 
 import { ETB, abs, formatMoney } from '@abro/types';
 import { ActivityItem, EmptyState } from '@abro/ui';
-import { ArrowLeft, Handshake, Plus, Receipt, Settings, Split, UserPlus } from 'lucide-react';
+import {
+  ArrowLeft,
+  Handshake,
+  LayoutDashboard,
+  Plus,
+  Receipt,
+  Settings,
+  Split,
+  UserPlus,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -152,7 +163,7 @@ function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpens
       </div>
 
       {/* Quick actions */}
-      <div className="mb-5 grid grid-cols-3 gap-2.5">
+      <div className={`mb-5 grid gap-2.5 ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <Link
           href={`/expenses/new?groupId=${group.id}`}
           className="neo-btn-accent flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
@@ -189,6 +200,16 @@ function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpens
           <Split size={18} strokeWidth={2} />
           <span className="text-[0.68rem] font-medium">Simplify</span>
         </Link>
+        {isAdmin && (
+          <Link
+            href={`/groups/${group.id}/admin`}
+            className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
+            style={{ color: 'var(--t-secondary)' }}
+          >
+            <LayoutDashboard size={18} strokeWidth={2} />
+            <span className="text-[0.68rem] font-medium">Dashboard</span>
+          </Link>
+        )}
       </div>
 
       {/* Tabs */}
