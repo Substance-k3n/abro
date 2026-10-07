@@ -58,8 +58,8 @@ func setup(t *testing.T) env {
 	t.Cleanup(pool.Close)
 
 	queries := db.New(pool)
-	friendsSvc := friends.NewService(queries)
 	notifySvc := notifications.NewService(queries)
+	friendsSvc := friends.NewService(queries, notifySvc)
 	groupsSvc := groups.NewService(queries, friendsSvc, notifySvc)
 	receiptStore, err := storage.NewReceiptStorage(
 		getenv("S3_ENDPOINT", "http://localhost:9460"), getenv("S3_REGION", "us-east-1"),
@@ -382,5 +382,15 @@ func TestService_Create(t *testing.T) {
 		}
 		assert.Equal(t, 1, countOf(recipient.ID))
 		assert.Equal(t, 0, countOf(settler.ID))
+
+		// The amount reads as money ("50" minor units = 0.50 ETB), not raw
+		// minor units.
+		list, err := e.notifySvc.List(ctx, recipient.ID, false, 100, 0)
+		require.NoError(t, err)
+		for _, n := range list {
+			if n.Type == string(notifications.TypeSettlement) {
+				assert.Equal(t, "Test Settler recorded a payment of 0.50 ETB to you.", n.Body)
+			}
+		}
 	})
 }

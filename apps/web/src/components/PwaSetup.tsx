@@ -9,5 +9,20 @@ import { setUpPwa } from '~/lib/pwa';
  * that show an install button. Renders nothing. */
 export function PwaSetup() {
   useEffect(setUpPwa, []);
+  useEffect(preventPinchZoom, []);
   return null;
+}
+
+/** iOS Safari ignores the viewport's user-scalable=no, so pinch zoom is
+ * stopped at its gesture events (iOS-only; other browsers never fire
+ * them). Double-tap zoom is off everywhere via touch-action in
+ * globals.css. */
+function preventPinchZoom() {
+  const stop = (e: Event) => e.preventDefault();
+  document.addEventListener('gesturestart', stop);
+  document.addEventListener('gesturechange', stop);
+  return () => {
+    document.removeEventListener('gesturestart', stop);
+    document.removeEventListener('gesturechange', stop);
+  };
 }

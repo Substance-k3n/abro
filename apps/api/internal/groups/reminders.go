@@ -68,7 +68,7 @@ func (s *Service) RemindMember(ctx context.Context, actorID, groupID, targetUser
 	// the same answer either way, so a reminder never reveals that.
 	if _, err := s.notifications.Notify(ctx, targetUserID, notifications.TypePaymentReminder,
 		"Payment reminder", fmt.Sprintf("%s reminded you that you owe %s in %q.",
-			actorName, money.FormatMoney(owes, currencyMeta(group.Currency)), group.Name)); err != nil {
+			actorName, money.Format(owes, group.Currency), group.Name)); err != nil {
 		return db.PaymentReminder{}, err
 	}
 	return reminder, nil
@@ -94,14 +94,4 @@ func (s *Service) reminderTooSoon(ctx context.Context, groupID, targetUserID pgt
 	}
 	apiErr.Details = map[string]time.Time{"nextAllowedAt": last.CreatedAt.Time.Add(ReminderCooldown).UTC()}
 	return apiErr
-}
-
-// currencyMeta is the display formatting for a group's currency. ETB is
-// the only one with full metadata; any other code gets two decimals, the
-// same as the web app, which enters every amount with two.
-func currencyMeta(code string) money.CurrencyMeta {
-	if code == money.ETB.Code {
-		return money.ETB
-	}
-	return money.CurrencyMeta{Code: code, DecimalDigits: 2}
 }

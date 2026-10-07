@@ -17,6 +17,10 @@
 // Home never needed it (it hides zero-balance friends entirely) --
 // derived as `owes === 0n && iOwe === 0n`.
 //
+// Tabs (trial feedback 2026-10-07, replacing the spec's collapsed
+// "Settled up" section): Unsettled (owe you / you owe), Settled, All.
+// Opens on Unsettled when anyone has a balance, otherwise All.
+//
 // A friend row opens Friend Detail (`/friends/[friendId]`, DASH-04,
 // real since slice 4).
 //
@@ -30,7 +34,7 @@
 // (which would nest a button inside an anchor).
 
 import { AmountBadge, Avatar, EmptyState, PersonRow, SectionLabel } from '@abro/ui';
-import { Check, ChevronDown, ChevronUp, Plus, Search, UserX, X } from 'lucide-react';
+import { Check, Plus, Search, UserX, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -49,10 +53,24 @@ import {
 import { colorForId, initialsOf } from '~/lib/identity';
 import { photoSrc } from '~/lib/photos';
 
+type FriendsTab = 'unsettled' | 'settled' | 'all';
+
+const EMPTY_TITLES: Record<FriendsTab, string> = {
+  unsettled: 'All settled up',
+  settled: 'Nobody settled yet',
+  all: 'No friends yet',
+};
+
+const EMPTY_DESCRIPTIONS: Record<FriendsTab, string> = {
+  unsettled: "You don't owe anyone and nobody owes you.",
+  settled: 'Friends you have no balance with show here.',
+  all: 'Add a friend to start splitting expenses.',
+};
+
 export default function FriendsPage() {
   const router = useRouter();
   const [search, setSearch] = useState('');
-  const [settledOpen, setSettledOpen] = useState(false);
+  const [chosenTab, setTab] = useState<FriendsTab | null>(null);
   const [friends, setFriends] = useState<FriendListItem[] | null>(null);
   const [rows, setRows] = useState<ReturnType<typeof deriveFriendRows> | null>(null);
   const [requests, setRequests] = useState<IncomingFriendRequest[]>([]);
@@ -111,7 +129,12 @@ export default function FriendsPage() {
   const youOwe = filtered.filter((f) => f.iOwe > 0n);
   const settled = filtered.filter((f) => f.owes === 0n && f.iOwe === 0n);
 
-  const isEmpty = owedToYou.length === 0 && youOwe.length === 0 && settled.length === 0;
+  const unsettledCount = owedToYou.length + youOwe.length;
+  // Until you pick a tab: Unsettled if anyone has a balance, else All.
+  const tab: FriendsTab = chosenTab ?? (unsettledCount > 0 ? 'unsettled' : 'all');
+  const showOwedToYou = tab !== 'settled';
+  const showSettled = tab !== 'unsettled';
+  const isEmpty = (showOwedToYou ? unsettledCount : 0) + (showSettled ? settled.length : 0) === 0;
 
   return (
     <div className="fade-in px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
@@ -206,17 +229,43 @@ export default function FriendsPage() {
         </div>
       )}
 
+      <div className="neo-inset-sm mb-5 flex max-w-md gap-1 rounded-2xl p-1" role="tablist">
+        {(
+          [
+            ['unsettled', `Unsettled (${unsettledCount})`],
+            ['settled', `Settled (${settled.length})`],
+            ['all', 'All'],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => setTab(id)}
+            className={`neo-tab flex-1 rounded-xl border-none py-2 text-[0.8rem] font-medium ${
+              tab === id ? 'active' : ''
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {isEmpty ? (
         <EmptyState
           icon={<UserX size={26} strokeWidth={1.5} />}
-          title="No friends found"
+          title={search ? 'No friends found' : EMPTY_TITLES[tab]}
           description={
-            search ? `No friends match "${search}".` : 'Add a friend to start splitting expenses.'
+            search
+              ? `No friends match "${search}".`
+              : rows.length === 0
+                ? 'Add a friend to start splitting expenses.'
+                : EMPTY_DESCRIPTIONS[tab]
           }
         />
       ) : (
         <div className="flex flex-col gap-6">
-          {owedToYou.length > 0 && (
+          {showOwedToYou && owedToYou.length > 0 && (
             <div>
               <SectionLabel>People who owe you</SectionLabel>
               <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -235,7 +284,7 @@ export default function FriendsPage() {
             </div>
           )}
 
-          {youOwe.length > 0 && (
+          {showOwedToYou && youOwe.length > 0 && (
             <div>
               <SectionLabel>People you owe</SectionLabel>
               <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
@@ -254,46 +303,29 @@ export default function FriendsPage() {
             </div>
           )}
 
-          {settled.length > 0 && (
+          {showSettled && settled.length > 0 && (
             <div>
-              <button
-                onClick={() => setSettledOpen((v) => !v)}
-                className="mb-2 flex w-full items-center justify-between pl-1 pr-1"
-              >
-                <span
-                  className="text-[0.72rem] font-bold uppercase tracking-[0.09em]"
-                  style={{ color: 'var(--t-dim)' }}
-                >
-                  Settled up ({settled.length})
-                </span>
-                {settledOpen ? (
-                  <ChevronUp size={16} strokeWidth={2} style={{ color: 'var(--t-dim)' }} />
-                ) : (
-                  <ChevronDown size={16} strokeWidth={2} style={{ color: 'var(--t-dim)' }} />
-                )}
-              </button>
-              {settledOpen && (
-                <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                  {settled.map((f) => (
-                    <PersonRow
-                      key={f.id}
-                      initials={f.initials}
-                      photo={f.photo}
-                      color={f.color}
-                      name={f.name}
-                      right={
-                        <span
-                          className="text-[0.78rem] font-medium"
-                          style={{ color: 'var(--t-dim)' }}
-                        >
-                          Settled
-                        </span>
-                      }
-                      onClick={() => router.push(`/friends/${f.id}`)}
-                    />
-                  ))}
-                </div>
-              )}
+              <SectionLabel>Settled up</SectionLabel>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {settled.map((f) => (
+                  <PersonRow
+                    key={f.id}
+                    initials={f.initials}
+                    photo={f.photo}
+                    color={f.color}
+                    name={f.name}
+                    right={
+                      <span
+                        className="text-[0.78rem] font-medium"
+                        style={{ color: 'var(--t-dim)' }}
+                      >
+                        Settled
+                      </span>
+                    }
+                    onClick={() => router.push(`/friends/${f.id}`)}
+                  />
+                ))}
+              </div>
             </div>
           )}
         </div>

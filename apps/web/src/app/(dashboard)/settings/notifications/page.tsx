@@ -53,6 +53,12 @@ const TYPES: { type: string; label: string; sub: string }[] = [
     label: 'Payment reminders',
     sub: 'A group admin reminds you that you owe the group',
   },
+  { type: 'FRIEND_REQUEST', label: 'Friend requests', sub: 'Someone wants to be friends' },
+  {
+    type: 'FRIEND_ACCEPTED',
+    label: 'Accepted requests',
+    sub: 'Someone accepts your friend request',
+  },
 ];
 
 export default function NotificationSettingsPage() {

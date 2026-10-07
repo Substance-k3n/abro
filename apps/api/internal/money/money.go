@@ -136,6 +136,18 @@ func pow10(n int) float64 {
 	return result
 }
 
+// Format renders minor units in a currency by its code, for messages
+// such as notification bodies: 123450 ETB -> "1234.50 ETB". ETB is the
+// only currency with full metadata; any other code gets two decimals,
+// the same as the web app, which enters every amount with two.
+func Format(amount MinorUnits, currencyCode string) string {
+	meta := ETB
+	if currencyCode != ETB.Code {
+		meta = CurrencyMeta{Code: currencyCode, DecimalDigits: 2}
+	}
+	return FormatMoney(amount, meta)
+}
+
 // FormatMoney renders amount using currency's decimal digits, e.g. "100.50 ETB".
 func FormatMoney(amount MinorUnits, currency CurrencyMeta) string {
 	decimal := ToDecimal(amount, currency.DecimalDigits)

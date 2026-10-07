@@ -31,6 +31,12 @@ const (
 	// TypePaymentReminder is not in PRD §34's list: a group admin's nudge
 	// to a member who owes (roadmap P6, ADR-018).
 	TypePaymentReminder Type = "PAYMENT_REMINDER"
+	// TypeFriendRequest / TypeFriendAccepted are not in PRD §34's list
+	// either (it left friend events out); added from trial feedback
+	// (2026-10-07): people didn't know a request was waiting, or that
+	// theirs had been accepted.
+	TypeFriendRequest  Type = "FRIEND_REQUEST"
+	TypeFriendAccepted Type = "FRIEND_ACCEPTED"
 )
 
 // AllTypes is every Type, in the order SET-02 lists them. A user can
@@ -39,6 +45,7 @@ var AllTypes = []Type{
 	TypeExpenseAdded, TypeExpenseEdited, TypeExpenseDeleted, TypeSettlement,
 	TypeGroupInvitation, TypeGroupMembershipChange, TypeRecurringExpense,
 	TypeDebtSimplificationChange, TypePaymentReminder,
+	TypeFriendRequest, TypeFriendAccepted,
 }
 
 func isKnownType(t string) bool {

@@ -40,10 +40,15 @@ import { useEffect, useState } from 'react';
 import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { me } from '~/lib/auth-api';
-import { type AuthExpense, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
+import {
+  ACTIVITY_PAGE_SIZE,
+  type AuthExpense,
+  listExpenses,
+  toActivityDisplay,
+} from '~/lib/expenses-api';
 import { listGroups } from '~/lib/groups-api';
 
-const PAGE_SIZE = 30;
+const PAGE_SIZE = ACTIVITY_PAGE_SIZE;
 
 type FilterKey = 'all' | 'expenses' | 'settlements' | 'groups';
 

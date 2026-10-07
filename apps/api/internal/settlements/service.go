@@ -103,7 +103,7 @@ func (s *Service) Create(ctx context.Context, actorID pgtype.UUID, in apitypes.C
 		actorName = actor.DisplayName
 	}
 	if _, err := s.notifications.Notify(ctx, toUserID, notifications.TypeSettlement,
-		"Settlement recorded", fmt.Sprintf("%s recorded a settlement of %d %s.", actorName, in.ParsedAmount, currency)); err != nil {
+		"Settlement recorded", fmt.Sprintf("%s recorded a payment of %s to you.", actorName, money.Format(in.ParsedAmount, currency))); err != nil {
 		return expenses.Expense{}, err
 	}
 

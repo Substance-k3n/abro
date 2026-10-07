@@ -187,7 +187,8 @@ export default function HomePage() {
             )}
           </Link>
           <Link
-            href="/profile"
+            href="/settings"
+            aria-label="Settings"
             className="neo-btn flex h-[42px] w-[42px] items-center justify-center rounded-2xl"
           >
             <Settings size={20} strokeWidth={1.75} />

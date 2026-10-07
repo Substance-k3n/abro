@@ -18,6 +18,9 @@ export const notificationTypes = [
   'DEBT_SIMPLIFICATION_CHANGE',
   // Not in PRD §34: a group admin's nudge to a member who owes (ADR-018).
   'PAYMENT_REMINDER',
+  // Not in PRD §34 either: friend requests and accepted requests.
+  'FRIEND_REQUEST',
+  'FRIEND_ACCEPTED',
 ] as const;
 export type NotificationType = (typeof notificationTypes)[number];
 

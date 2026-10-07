@@ -72,11 +72,11 @@ func main() {
 	usersSvc := users.NewService(queries)
 	usersHandler := users.NewHandler(usersSvc, queries)
 
-	friendsSvc := friends.NewService(queries)
-	friendsHandler := friends.NewHandler(friendsSvc, queries)
-
 	notificationsSvc := notifications.NewService(queries)
 	notificationsHandler := notifications.NewHandler(notificationsSvc, queries)
+
+	friendsSvc := friends.NewService(queries, notificationsSvc)
+	friendsHandler := friends.NewHandler(friendsSvc, queries)
 
 	groupsSvc := groups.NewService(queries, friendsSvc, notificationsSvc)
 	groupsHandler := groups.NewHandler(groupsSvc, queries)

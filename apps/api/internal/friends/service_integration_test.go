@@ -17,6 +17,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/friends"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
+	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 )
 
 func testDatabaseURL() string {
@@ -36,7 +37,7 @@ func testEnv(t *testing.T) (*friends.Service, *pgxpool.Pool, func(t *testing.T, 
 	require.NoError(t, pool.Ping(context.Background()))
 
 	queries := db.New(pool)
-	svc := friends.NewService(queries)
+	svc := friends.NewService(queries, notifications.NewService(queries))
 
 	makeProfile := func(t *testing.T, label string) db.Profile {
 		t.Helper()
@@ -49,6 +50,7 @@ func testEnv(t *testing.T) (*friends.Service, *pgxpool.Pool, func(t *testing.T, 
 		t.Cleanup(func() {
 			ctx := context.Background()
 			pool.Exec(ctx, `DELETE FROM friendships WHERE user_id = $1 OR friend_id = $1`, profile.ID)
+			pool.Exec(ctx, `DELETE FROM notifications WHERE user_id = $1`, profile.ID)
 			pool.Exec(ctx, `DELETE FROM profiles WHERE id = $1`, profile.ID)
 		})
 		return profile
@@ -310,4 +312,42 @@ func TestService_ListIncludesUsernames(t *testing.T) {
 		}
 	}
 	require.True(t, found)
+}
+
+func TestService_FriendNotifications(t *testing.T) {
+	t.Run("a request notifies the recipient; accepting notifies the sender", func(t *testing.T) {
+		svc, pool, makeProfile := testEnv(t)
+		a := makeProfile(t, "A")
+		b := makeProfile(t, "B")
+		ctx := context.Background()
+		_, err := pool.Exec(ctx, `UPDATE profiles SET username = $2 WHERE id = $1`, a.ID,
+			fmt.Sprintf("tfa_%d", rand.Intn(1_000_000_000)))
+		require.NoError(t, err)
+
+		bodies := func(userID pgtype.UUID, typ notifications.Type) []string {
+			rows, err := pool.Query(ctx, `SELECT body FROM notifications WHERE user_id = $1 AND type = $2`, userID, string(typ))
+			require.NoError(t, err)
+			defer rows.Close()
+			var out []string
+			for rows.Next() {
+				var body string
+				require.NoError(t, rows.Scan(&body))
+				out = append(out, body)
+			}
+			return out
+		}
+
+		request, err := svc.SendRequest(ctx, a.ID, idutil.String(b.ID))
+		require.NoError(t, err)
+		got := bodies(b.ID, notifications.TypeFriendRequest)
+		require.Len(t, got, 1)
+		assert.True(t, strings.HasPrefix(got[0], "Test A (@tfa_"), got[0])
+		assert.True(t, strings.HasSuffix(got[0], ") wants to be friends."), got[0])
+		assert.Empty(t, bodies(a.ID, notifications.TypeFriendRequest))
+
+		_, err = svc.AcceptRequest(ctx, b.ID, idutil.String(request.ID))
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Test B accepted your friend request."}, bodies(a.ID, notifications.TypeFriendAccepted))
+		assert.Empty(t, bodies(b.ID, notifications.TypeFriendAccepted))
+	})
 }
