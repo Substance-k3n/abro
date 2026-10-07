@@ -1,6 +1,6 @@
 -- name: CreateNotification :one
-INSERT INTO notifications (user_id, type, title, body)
-VALUES ($1, $2, $3, $4)
+INSERT INTO notifications (user_id, type, title, body, link)
+VALUES ($1, $2, $3, $4, sqlc.narg('link'))
 RETURNING *;
 
 -- name: CreateNotificationsBulk :many

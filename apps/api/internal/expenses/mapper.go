@@ -46,6 +46,10 @@ func ToAuthExpense(e Expense) apitypes.AuthExpense {
 		out.Participants[i] = apitypes.ExpenseParticipantOut{
 			ID: idutil.String(p.ID), Amount: strconv.FormatInt(p.Amount, 10), User: user,
 		}
+		if p.DisputedAt.Valid {
+			t := p.DisputedAt.Time
+			out.Participants[i].DisputedAt = &t
+		}
 	}
 	return out
 }

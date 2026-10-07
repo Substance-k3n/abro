@@ -396,10 +396,11 @@ type ExpenseNote struct {
 }
 
 type ExpenseParticipant struct {
-	ID        pgtype.UUID `json:"id"`
-	ExpenseID pgtype.UUID `json:"expense_id"`
-	UserID    pgtype.UUID `json:"user_id"`
-	Amount    int64       `json:"amount"`
+	ID         pgtype.UUID        `json:"id"`
+	ExpenseID  pgtype.UUID        `json:"expense_id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Amount     int64              `json:"amount"`
+	DisputedAt pgtype.Timestamptz `json:"disputed_at"`
 }
 
 type Friendship struct {
@@ -451,6 +452,7 @@ type Notification struct {
 	Body      string             `json:"body"`
 	ReadAt    pgtype.Timestamptz `json:"read_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Link      pgtype.Text        `json:"link"`
 }
 
 type NotificationOptOut struct {

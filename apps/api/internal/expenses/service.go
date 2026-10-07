@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -654,6 +655,111 @@ func (s *Service) requireEditAuthority(ctx context.Context, actorID pgtype.UUID,
 		}
 	}
 	return httpx.Forbidden("NOT_EDIT_AUTHORIZED", "Only the payer or a group admin can edit this expense.")
+}
+
+// Dispute is a participant saying they weren't part of an expense
+// (ADR-020). It only flags their share and tells the payer: the expense
+// counts exactly as entered until the payer or a group admin edits it
+// (which clears every dispute on it) or keeps it with Dismiss.
+func (s *Service) Dispute(ctx context.Context, actorID, expenseID pgtype.UUID) (Expense, error) {
+	expense, err := s.requireDisputable(ctx, actorID, expenseID)
+	if err != nil {
+		return Expense{}, err
+	}
+	share, err := s.q.GetExpenseParticipant(ctx, db.GetExpenseParticipantParams{ExpenseID: expenseID, UserID: actorID})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && share.Amount == 0) {
+		return Expense{}, httpx.Conflict("NOT_A_PARTICIPANT", "You don't have a share in this expense.")
+	}
+	if err != nil {
+		return Expense{}, err
+	}
+	if expense.PaidByID == actorID {
+		return Expense{}, httpx.Conflict("PAYER_CANNOT_DISPUTE", "You paid for this expense -- edit it instead.")
+	}
+	if share.DisputedAt.Valid {
+		return Expense{}, httpx.Conflict("ALREADY_DISPUTED", "You've already said you weren't part of this.")
+	}
+	if _, err := s.q.SetParticipantDispute(ctx, db.SetParticipantDisputeParams{
+		ExpenseID: expenseID, UserID: actorID, DisputedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+	}); err != nil {
+		return Expense{}, err
+	}
+
+	if _, err := s.notifications.NotifyLink(ctx, expense.PaidByID, notifications.TypeExpenseDisputed, "Expense disputed",
+		fmt.Sprintf("%s says they weren't part of %q (%s). Edit it if they're right, or keep it as it is.",
+			s.displayName(ctx, actorID), expense.Name, money.Format(share.Amount, expense.Currency)),
+		"/expenses/"+idutil.String(expenseID)); err != nil {
+		return Expense{}, err
+	}
+	return s.FindByID(ctx, actorID, expenseID)
+}
+
+// WithdrawDispute is the participant taking their dispute back.
+func (s *Service) WithdrawDispute(ctx context.Context, actorID, expenseID pgtype.UUID) (Expense, error) {
+	if _, err := s.requireDisputable(ctx, actorID, expenseID); err != nil {
+		return Expense{}, err
+	}
+	if err := s.clearDispute(ctx, expenseID, actorID); err != nil {
+		return Expense{}, err
+	}
+	return s.FindByID(ctx, actorID, expenseID)
+}
+
+// DismissDispute is the payer (or a group admin) keeping the expense as
+// it is; the participant is told.
+func (s *Service) DismissDispute(ctx context.Context, actorID, expenseID, participantID pgtype.UUID) (Expense, error) {
+	expense, err := s.requireDisputable(ctx, actorID, expenseID)
+	if err != nil {
+		return Expense{}, err
+	}
+	if err := s.requireEditAuthority(ctx, actorID, expense); err != nil {
+		return Expense{}, err
+	}
+	if err := s.clearDispute(ctx, expenseID, participantID); err != nil {
+		return Expense{}, err
+	}
+	if _, err := s.notifications.NotifyLink(ctx, participantID, notifications.TypeExpenseDisputed, "Expense kept as it is",
+		fmt.Sprintf("%s kept %q as it is, with you in it. Talk to them if you still disagree.",
+			s.displayName(ctx, actorID), expense.Name),
+		"/expenses/"+idutil.String(expenseID)); err != nil {
+		return Expense{}, err
+	}
+	return s.FindByID(ctx, actorID, expenseID)
+}
+
+func (s *Service) clearDispute(ctx context.Context, expenseID, userID pgtype.UUID) error {
+	share, err := s.q.GetExpenseParticipant(ctx, db.GetExpenseParticipantParams{ExpenseID: expenseID, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && !share.DisputedAt.Valid) {
+		return httpx.Conflict("NOT_DISPUTED", "There's no dispute from this person on this expense.")
+	}
+	if err != nil {
+		return err
+	}
+	_, err = s.q.SetParticipantDispute(ctx, db.SetParticipantDisputeParams{ExpenseID: expenseID, UserID: userID})
+	return err
+}
+
+// requireDisputable: an expense the actor can see that isn't deleted or
+// a settlement (a settlement is confirmed by the person paid, ADR-019).
+func (s *Service) requireDisputable(ctx context.Context, actorID, expenseID pgtype.UUID) (db.Expense, error) {
+	expense, err := s.requireVisible(ctx, actorID, expenseID)
+	if err != nil {
+		return db.Expense{}, err
+	}
+	if expense.DeletedAt.Valid {
+		return db.Expense{}, httpx.Conflict("EXPENSE_DELETED", "This expense was deleted.")
+	}
+	if expense.SplitType == db.SplitTypeSETTLEMENT {
+		return db.Expense{}, httpx.Conflict("SETTLEMENT_NOT_DISPUTABLE", "A payment is confirmed or rejected from Payments, not disputed.")
+	}
+	return expense, nil
+}
+
+func (s *Service) displayName(ctx context.Context, userID pgtype.UUID) string {
+	if p, err := s.q.GetProfileByID(ctx, userID); err == nil {
+		return p.DisplayName
+	}
+	return "Someone"
 }
 
 // LoadExpense assembles the full Expense (participants + payer) for a raw

@@ -20,9 +20,9 @@
 // FRIEND_ACCEPTED), mapped to the same four lucide icons the mock version
 // used, matched by category rather than 1:1.
 //
-// Tapping one marks it read and, for the types with an obvious place to
-// act (DESTINATIONS), opens that screen. Notifications carry no ids of
-// what they're about, so these are the list screens, not one item.
+// Tapping one marks it read and opens what it's about: its own `link`
+// when it has one (e.g. the disputed expense), otherwise a screen per
+// type (DESTINATIONS) -- older notifications carry no link.
 
 import { EmptyState } from '@abro/ui';
 import { Bell, type LucideIcon, Receipt, UserPlus, Utensils, Wallet } from 'lucide-react';
@@ -51,6 +51,7 @@ const ICONS: Record<string, LucideIcon> = {
   PAYMENT_REMINDER: Wallet,
   FRIEND_REQUEST: UserPlus,
   FRIEND_ACCEPTED: UserPlus,
+  EXPENSE_DISPUTED: Receipt,
 };
 
 const DESTINATIONS: Record<string, string> = {
@@ -153,7 +154,7 @@ export default function NotificationsPage() {
                 key={n.id}
                 onClick={() => {
                   markRead(n.id);
-                  const to = DESTINATIONS[n.type];
+                  const to = n.link ?? DESTINATIONS[n.type];
                   if (to) {
                     router.push(to);
                   }

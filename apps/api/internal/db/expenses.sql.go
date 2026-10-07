@@ -94,7 +94,7 @@ func (q *Queries) CreateExpenseNote(ctx context.Context, arg CreateExpenseNotePa
 const createExpenseParticipant = `-- name: CreateExpenseParticipant :one
 INSERT INTO expense_participants (expense_id, user_id, amount)
 VALUES ($1, $2, $3)
-RETURNING id, expense_id, user_id, amount
+RETURNING id, expense_id, user_id, amount, disputed_at
 `
 
 type CreateExpenseParticipantParams struct {
@@ -111,6 +111,7 @@ func (q *Queries) CreateExpenseParticipant(ctx context.Context, arg CreateExpens
 		&i.ExpenseID,
 		&i.UserID,
 		&i.Amount,
+		&i.DisputedAt,
 	)
 	return i, err
 }
@@ -154,7 +155,7 @@ func (q *Queries) GetExpenseByID(ctx context.Context, id pgtype.UUID) (Expense, 
 }
 
 const getExpenseParticipant = `-- name: GetExpenseParticipant :one
-SELECT id, expense_id, user_id, amount FROM expense_participants WHERE expense_id = $1 AND user_id = $2
+SELECT id, expense_id, user_id, amount, disputed_at FROM expense_participants WHERE expense_id = $1 AND user_id = $2
 `
 
 type GetExpenseParticipantParams struct {
@@ -170,6 +171,7 @@ func (q *Queries) GetExpenseParticipant(ctx context.Context, arg GetExpenseParti
 		&i.ExpenseID,
 		&i.UserID,
 		&i.Amount,
+		&i.DisputedAt,
 	)
 	return i, err
 }
@@ -231,7 +233,7 @@ func (q *Queries) ListExpenseNotesWithAuthor(ctx context.Context, expenseID pgty
 }
 
 const listExpenseParticipantsForExpenseIDs = `-- name: ListExpenseParticipantsForExpenseIDs :many
-SELECT ep.expense_id, ep.id, ep.user_id, ep.amount,
+SELECT ep.expense_id, ep.id, ep.user_id, ep.amount, ep.disputed_at,
        p.display_name, p.avatar_url, p.email, p.username, p.preferred_currency, p.locale
 FROM expense_participants ep
 JOIN profiles p ON p.id = ep.user_id
@@ -239,16 +241,17 @@ WHERE ep.expense_id = ANY($1::uuid[])
 `
 
 type ListExpenseParticipantsForExpenseIDsRow struct {
-	ExpenseID         pgtype.UUID `json:"expense_id"`
-	ID                pgtype.UUID `json:"id"`
-	UserID            pgtype.UUID `json:"user_id"`
-	Amount            int64       `json:"amount"`
-	DisplayName       string      `json:"display_name"`
-	AvatarUrl         pgtype.Text `json:"avatar_url"`
-	Email             pgtype.Text `json:"email"`
-	Username          pgtype.Text `json:"username"`
-	PreferredCurrency string      `json:"preferred_currency"`
-	Locale            string      `json:"locale"`
+	ExpenseID         pgtype.UUID        `json:"expense_id"`
+	ID                pgtype.UUID        `json:"id"`
+	UserID            pgtype.UUID        `json:"user_id"`
+	Amount            int64              `json:"amount"`
+	DisputedAt        pgtype.Timestamptz `json:"disputed_at"`
+	DisplayName       string             `json:"display_name"`
+	AvatarUrl         pgtype.Text        `json:"avatar_url"`
+	Email             pgtype.Text        `json:"email"`
+	Username          pgtype.Text        `json:"username"`
+	PreferredCurrency string             `json:"preferred_currency"`
+	Locale            string             `json:"locale"`
 }
 
 func (q *Queries) ListExpenseParticipantsForExpenseIDs(ctx context.Context, expenseIds []pgtype.UUID) ([]ListExpenseParticipantsForExpenseIDsRow, error) {
@@ -265,6 +268,7 @@ func (q *Queries) ListExpenseParticipantsForExpenseIDs(ctx context.Context, expe
 			&i.ID,
 			&i.UserID,
 			&i.Amount,
+			&i.DisputedAt,
 			&i.DisplayName,
 			&i.AvatarUrl,
 			&i.Email,
@@ -480,6 +484,32 @@ func (q *Queries) ListMyExpenses(ctx context.Context, arg ListMyExpensesParams) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const setParticipantDispute = `-- name: SetParticipantDispute :one
+UPDATE expense_participants SET disputed_at = $1
+WHERE expense_id = $2 AND user_id = $3
+RETURNING id, expense_id, user_id, amount, disputed_at
+`
+
+type SetParticipantDisputeParams struct {
+	DisputedAt pgtype.Timestamptz `json:"disputed_at"`
+	ExpenseID  pgtype.UUID        `json:"expense_id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+}
+
+// disputed_at = NULL clears it (withdrawn, or the payer kept the expense).
+func (q *Queries) SetParticipantDispute(ctx context.Context, arg SetParticipantDisputeParams) (ExpenseParticipant, error) {
+	row := q.db.QueryRow(ctx, setParticipantDispute, arg.DisputedAt, arg.ExpenseID, arg.UserID)
+	var i ExpenseParticipant
+	err := row.Scan(
+		&i.ID,
+		&i.ExpenseID,
+		&i.UserID,
+		&i.Amount,
+		&i.DisputedAt,
+	)
+	return i, err
 }
 
 const softDeleteExpense = `-- name: SoftDeleteExpense :exec

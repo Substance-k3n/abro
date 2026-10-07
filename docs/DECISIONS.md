@@ -7,6 +7,44 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-020: Expense disputes flag a share; only the payer changes it
+
+**Status:** Accepted (phone-trial feedback, 2026-10-07).
+
+**Context:** Someone can be added to an expense they weren't part of
+(X adds Y and Z to a dinner Z skipped), and Z then owes money with no
+way to object inside the app.
+
+**Decision (chosen with the user):** Z taps **"I wasn't part of this"**
+on the expense. That sets `expense_participants.disputed_at` on Z's share
+(migration 0017), shows a "Disputed" badge and banner to everyone on it,
+and notifies the payer with a link to the expense. **Nothing about the
+amounts changes:** the expense counts exactly as entered until the payer
+(or a group admin, the same people who may edit it) either **edits** it
+-- editing rewrites the participant rows, which clears every dispute -- or
+taps **Keep as is**, which clears it and tells Z. Z can take it back.
+Settlements can't be disputed; they're confirmed or rejected instead
+(ADR-019).
+
+The same migration adds `notifications.link`, so a notification can open
+the exact thing it's about (`/expenses/<id>`); older ones fall back to a
+screen per type.
+
+**Alternatives considered:** Z removes themselves and the rest is
+re-split automatically (changes other people's amounts without the
+payer agreeing, and turns an unequal split into an equal one); every
+expense needs everyone's approval before it counts (safest, but a tap
+from every person on every expense).
+
+**Consequences:**
+
+- Balances stay a pure function of expenses: a dispute is information,
+  not a ledger change.
+- A payer who ignores a dispute leaves it showing; the badge and banner
+  keep it visible to everyone on the expense.
+
+---
+
 ## ADR-019: Payments are confirmed by the person paid
 
 **Status:** Accepted (phone-trial feedback, 2026-10-07).

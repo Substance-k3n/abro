@@ -1,10 +1,12 @@
 package expenses
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Substance-k3n/abro/apps/api/internal/apitypes"
 	authpkg "github.com/Substance-k3n/abro/apps/api/internal/auth"
@@ -38,6 +40,9 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/{id}/receipt", httpx.Wrap(h.uploadReceipt))
 	r.Get("/{id}/receipt", httpx.Wrap(h.getReceiptURL))
 	r.Delete("/{id}/receipt", httpx.Wrap(h.removeReceipt))
+	r.Post("/{id}/dispute", httpx.Wrap(h.dispute))
+	r.Delete("/{id}/dispute", httpx.Wrap(h.withdrawDispute))
+	r.Delete("/{id}/dispute/{userId}", httpx.Wrap(h.dismissDispute))
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) error {
@@ -229,5 +234,39 @@ func (h *Handler) removeReceipt(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 	w.WriteHeader(http.StatusNoContent)
+	return nil
+}
+
+// dispute / withdrawDispute / dismissDispute (ADR-020) answer with the
+// whole expense, so the screen shows the new state straight away.
+func (h *Handler) dispute(w http.ResponseWriter, r *http.Request) error {
+	return h.disputeAction(w, r, h.svc.Dispute)
+}
+
+func (h *Handler) withdrawDispute(w http.ResponseWriter, r *http.Request) error {
+	return h.disputeAction(w, r, h.svc.WithdrawDispute)
+}
+
+func (h *Handler) dismissDispute(w http.ResponseWriter, r *http.Request) error {
+	participantID, err := idutil.Parse(chi.URLParam(r, "userId"))
+	if err != nil {
+		return httpx.Conflict("NOT_DISPUTED", "There's no dispute from this person on this expense.")
+	}
+	return h.disputeAction(w, r, func(ctx context.Context, actorID, expenseID pgtype.UUID) (Expense, error) {
+		return h.svc.DismissDispute(ctx, actorID, expenseID, participantID)
+	})
+}
+
+func (h *Handler) disputeAction(w http.ResponseWriter, r *http.Request, action func(ctx context.Context, actorID, expenseID pgtype.UUID) (Expense, error)) error {
+	id, err := idutil.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		return httpx.NotFound("EXPENSE_NOT_FOUND", "No such expense.")
+	}
+	user := authpkg.CurrentUser(r.Context())
+	expense, err := action(r.Context(), user.ID, id)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, ToAuthExpense(expense))
 	return nil
 }
