@@ -98,7 +98,7 @@ func main() {
 	settlementsHandler := settlements.NewHandler(settlementsSvc, idempotencySvc, queries)
 
 	analyticsSvc := analytics.NewService(queries)
-	analyticsHandler := analytics.NewHandler(analyticsSvc, queries)
+	analyticsHandler := analytics.NewHandler(analyticsSvc, groupsSvc, queries)
 
 	recurringSvc := recurring.NewService(queries, expensesSvc, notificationsSvc)
 	recurringHandler := recurring.NewHandler(recurringSvc, queries)

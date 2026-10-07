@@ -43,16 +43,29 @@ type Querier interface {
 	GetFriendshipByID(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	// A deleted group reads as not found (0011_group_soft_delete).
 	GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, error)
+	GetGroupCategoryBreakdown(ctx context.Context, groupID pgtype.UUID) ([]GetGroupCategoryBreakdownRow, error)
 	// Every membership check (groups, expenses, balances, settlements,
 	// recurring) goes through this, so a deleted group's memberships read
 	// as not found too.
 	GetGroupMember(ctx context.Context, arg GetGroupMemberParams) (GroupMember, error)
+	// What each person paid for the group's expenses and what their share of
+	// them was. Anyone with activity appears, including a member who has
+	// since left, same as balances.GetGroupSummary.
+	GetGroupMemberPaidShare(ctx context.Context, groupID pgtype.UUID) ([]GetGroupMemberPaidShareRow, error)
+	// Only months with spending are returned; the caller fills the rest of
+	// the window with zero.
+	GetGroupMonthlyTrendRaw(ctx context.Context, arg GetGroupMonthlyTrendRawParams) ([]GetGroupMonthlyTrendRawRow, error)
 	GetGroupOwedSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupOwedSumsRow, error)
 	GetGroupPaidSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupPaidSumsRow, error)
 	// Only groups with actual matching spending appear (an INNER JOIN to
 	// expenses naturally excludes an active membership with zero spend in
 	// the period, same as the original's post-hoc "> 0" filter).
 	GetGroupSpending(ctx context.Context, arg GetGroupSpendingParams) ([]GetGroupSpendingRow, error)
+	// Group stats (GET /analytics/groups/{id}, roadmap P6): one group's
+	// spending over its whole life, for the group admin dashboard. Same
+	// exclusions as above -- deleted expenses never count, and SETTLEMENT
+	// rows are reported only as settled_total, never as spending.
+	GetGroupStatsTotals(ctx context.Context, groupID pgtype.UUID) (GetGroupStatsTotalsRow, error)
 	GetIdempotencyKeyByUserKeyEndpoint(ctx context.Context, arg GetIdempotencyKeyByUserKeyEndpointParams) (IdempotencyKey, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
 	// Only months with matching spending are returned; the caller fills the

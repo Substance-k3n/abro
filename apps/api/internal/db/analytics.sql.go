@@ -52,6 +52,128 @@ func (q *Queries) GetCategoryBreakdown(ctx context.Context, arg GetCategoryBreak
 	return items, nil
 }
 
+const getGroupCategoryBreakdown = `-- name: GetGroupCategoryBreakdown :many
+SELECT category, sum(amount)::bigint AS amount FROM expenses
+WHERE group_id = $1 AND deleted_at IS NULL AND split_type != 'SETTLEMENT'
+GROUP BY category
+ORDER BY amount DESC, category
+`
+
+type GetGroupCategoryBreakdownRow struct {
+	Category string `json:"category"`
+	Amount   int64  `json:"amount"`
+}
+
+func (q *Queries) GetGroupCategoryBreakdown(ctx context.Context, groupID pgtype.UUID) ([]GetGroupCategoryBreakdownRow, error) {
+	rows, err := q.db.Query(ctx, getGroupCategoryBreakdown, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupCategoryBreakdownRow
+	for rows.Next() {
+		var i GetGroupCategoryBreakdownRow
+		if err := rows.Scan(&i.Category, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupMemberPaidShare = `-- name: GetGroupMemberPaidShare :many
+WITH paid AS (
+    SELECT x.paid_by_id AS user_id, sum(x.amount)::bigint AS total FROM expenses x
+    WHERE x.group_id = $1 AND x.deleted_at IS NULL AND x.split_type != 'SETTLEMENT'
+    GROUP BY x.paid_by_id
+), share AS (
+    SELECT ep.user_id, sum(ep.amount)::bigint AS total FROM expense_participants ep
+    JOIN expenses e ON e.id = ep.expense_id
+    WHERE e.group_id = $1 AND e.deleted_at IS NULL AND e.split_type != 'SETTLEMENT'
+    GROUP BY ep.user_id
+)
+SELECT COALESCE(paid.user_id, share.user_id)::uuid AS user_id,
+       COALESCE(paid.total, 0)::bigint AS paid,
+       COALESCE(share.total, 0)::bigint AS share
+FROM paid FULL OUTER JOIN share ON share.user_id = paid.user_id
+`
+
+type GetGroupMemberPaidShareRow struct {
+	UserID pgtype.UUID `json:"user_id"`
+	Paid   int64       `json:"paid"`
+	Share  int64       `json:"share"`
+}
+
+// What each person paid for the group's expenses and what their share of
+// them was. Anyone with activity appears, including a member who has
+// since left, same as balances.GetGroupSummary.
+func (q *Queries) GetGroupMemberPaidShare(ctx context.Context, groupID pgtype.UUID) ([]GetGroupMemberPaidShareRow, error) {
+	rows, err := q.db.Query(ctx, getGroupMemberPaidShare, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupMemberPaidShareRow
+	for rows.Next() {
+		var i GetGroupMemberPaidShareRow
+		if err := rows.Scan(&i.UserID, &i.Paid, &i.Share); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getGroupMonthlyTrendRaw = `-- name: GetGroupMonthlyTrendRaw :many
+SELECT EXTRACT(YEAR FROM expense_date AT TIME ZONE 'UTC')::int AS year,
+       EXTRACT(MONTH FROM expense_date AT TIME ZONE 'UTC')::int AS month,
+       sum(amount)::bigint AS total_spending
+FROM expenses
+WHERE group_id = $1 AND deleted_at IS NULL AND split_type != 'SETTLEMENT'
+  AND expense_date >= $2 AND expense_date < $3
+GROUP BY 1, 2
+`
+
+type GetGroupMonthlyTrendRawParams struct {
+	GroupID   pgtype.UUID        `json:"group_id"`
+	StartDate pgtype.Timestamptz `json:"start_date"`
+	EndDate   pgtype.Timestamptz `json:"end_date"`
+}
+
+type GetGroupMonthlyTrendRawRow struct {
+	Year          int32 `json:"year"`
+	Month         int32 `json:"month"`
+	TotalSpending int64 `json:"total_spending"`
+}
+
+// Only months with spending are returned; the caller fills the rest of
+// the window with zero.
+func (q *Queries) GetGroupMonthlyTrendRaw(ctx context.Context, arg GetGroupMonthlyTrendRawParams) ([]GetGroupMonthlyTrendRawRow, error) {
+	rows, err := q.db.Query(ctx, getGroupMonthlyTrendRaw, arg.GroupID, arg.StartDate, arg.EndDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupMonthlyTrendRawRow
+	for rows.Next() {
+		var i GetGroupMonthlyTrendRawRow
+		if err := rows.Scan(&i.Year, &i.Month, &i.TotalSpending); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getGroupSpending = `-- name: GetGroupSpending :many
 SELECT g.id AS group_id, g.name AS group_name, sum(e.amount)::bigint AS total_spending
 FROM group_members gm
@@ -98,6 +220,33 @@ func (q *Queries) GetGroupSpending(ctx context.Context, arg GetGroupSpendingPara
 		return nil, err
 	}
 	return items, nil
+}
+
+const getGroupStatsTotals = `-- name: GetGroupStatsTotals :one
+
+SELECT
+    COALESCE(sum(amount) FILTER (WHERE split_type != 'SETTLEMENT'), 0)::bigint AS total_spent,
+    count(*) FILTER (WHERE split_type != 'SETTLEMENT')::int AS expense_count,
+    COALESCE(sum(amount) FILTER (WHERE split_type = 'SETTLEMENT'), 0)::bigint AS settled_total
+FROM expenses
+WHERE group_id = $1 AND deleted_at IS NULL
+`
+
+type GetGroupStatsTotalsRow struct {
+	TotalSpent   int64 `json:"total_spent"`
+	ExpenseCount int32 `json:"expense_count"`
+	SettledTotal int64 `json:"settled_total"`
+}
+
+// Group stats (GET /analytics/groups/{id}, roadmap P6): one group's
+// spending over its whole life, for the group admin dashboard. Same
+// exclusions as above -- deleted expenses never count, and SETTLEMENT
+// rows are reported only as settled_total, never as spending.
+func (q *Queries) GetGroupStatsTotals(ctx context.Context, groupID pgtype.UUID) (GetGroupStatsTotalsRow, error) {
+	row := q.db.QueryRow(ctx, getGroupStatsTotals, groupID)
+	var i GetGroupStatsTotalsRow
+	err := row.Scan(&i.TotalSpent, &i.ExpenseCount, &i.SettledTotal)
+	return i, err
 }
 
 const getMonthlyTrendRaw = `-- name: GetMonthlyTrendRaw :many
