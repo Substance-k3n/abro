@@ -57,6 +57,13 @@
   --c-red-text: #b91c1c;
   --c-amber: #d97706;
 
+  /* Chart series (group admin dashboard), checked as a pair for
+     colorblind separation on --neo-bg. Never green/red: those mean
+     owed/owing. --viz-2 is under 3:1 here, so its bars always carry a
+     visible value label. */
+  --viz-1: #6366f1;
+  --viz-2: #eb6834;
+
   /* Borders / surfaces */
   --border-sub: rgba(60, 50, 130, 0.07);
   --border-med: rgba(60, 50, 130, 0.12);
@@ -101,6 +108,9 @@
   --c-red: #f87171;
   --c-red-text: #fca5a5;
   --c-amber: #fbbf24;
+
+  --viz-1: #7c83f0;
+  --viz-2: #d95926;
 
   --border-sub: rgba(255, 255, 255, 0.08);
   --border-med: rgba(255, 255, 255, 0.14);
