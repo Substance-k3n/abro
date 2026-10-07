@@ -368,32 +368,38 @@ body {
   box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
 }
 
-/* Neo input, used by sign-in / profile-setup forms */
-.neo-input {
-  background: var(--neo-bg);
-  border: none;
-  outline: none;
-  box-shadow:
-    inset 4px 4px 10px var(--neo-dark),
-    inset -4px -4px 10px var(--neo-light);
-  border-radius: 14px;
-  padding: 14px 18px;
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  color: var(--t-primary);
-  width: 100%;
-  transition: box-shadow 0.2s ease;
-}
+/* Neo input. In Tailwind's components layer so a field's own utility
+   classes win over these defaults: a search box's pl-11 makes room for
+   its icon, an amount field's font-mono / text-[1.2rem] apply. Outside
+   a layer, this padding beat pl-11 and the first letters typed sat
+   under the search icon (phone-trial feedback, 2026-10-07). */
+@layer components {
+  .neo-input {
+    background: var(--neo-bg);
+    border: none;
+    outline: none;
+    box-shadow:
+      inset 4px 4px 10px var(--neo-dark),
+      inset -4px -4px 10px var(--neo-light);
+    border-radius: 14px;
+    padding: 14px 18px;
+    font-family: var(--font-body);
+    font-size: 0.9rem;
+    color: var(--t-primary);
+    width: 100%;
+    transition: box-shadow 0.2s ease;
+  }
 
-.neo-input:focus {
-  box-shadow:
-    inset 4px 4px 10px var(--neo-dark),
-    inset -4px -4px 10px var(--neo-light),
-    0 0 0 2px rgba(99, 102, 241, 0.35);
-}
+  .neo-input:focus {
+    box-shadow:
+      inset 4px 4px 10px var(--neo-dark),
+      inset -4px -4px 10px var(--neo-light),
+      0 0 0 2px rgba(99, 102, 241, 0.35);
+  }
 
-.neo-input::placeholder {
-  color: var(--t-dim);
+  .neo-input::placeholder {
+    color: var(--t-dim);
+  }
 }
 
 /* OTP input, used by email verification */
