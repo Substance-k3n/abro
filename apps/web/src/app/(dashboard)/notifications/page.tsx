@@ -16,7 +16,7 @@
 // (apps/api/internal/notifications/service.go's `Type` enum:
 // EXPENSE_ADDED/EXPENSE_EDITED/EXPENSE_DELETED/SETTLEMENT/
 // GROUP_INVITATION/GROUP_MEMBERSHIP_CHANGE/RECURRING_EXPENSE/
-// DEBT_SIMPLIFICATION_CHANGE), mapped to the same four lucide icons the
+// DEBT_SIMPLIFICATION_CHANGE/PAYMENT_REMINDER), mapped to the same four lucide icons the
 // mock version used, matched by category rather than 1:1.
 
 import { EmptyState } from '@abro/ui';
@@ -42,6 +42,7 @@ const ICONS: Record<string, LucideIcon> = {
   GROUP_MEMBERSHIP_CHANGE: UserPlus,
   RECURRING_EXPENSE: Receipt,
   DEBT_SIMPLIFICATION_CHANGE: Receipt,
+  PAYMENT_REMINDER: Wallet,
 };
 
 export default function NotificationsPage() {

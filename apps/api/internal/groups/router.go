@@ -36,6 +36,8 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/{id}/invite/accept", httpx.Wrap(h.acceptInvite))
 	r.Patch("/{id}/members/{userId}", httpx.Wrap(h.updateMemberRole))
 	r.Delete("/{id}/members/{userId}", httpx.Wrap(h.removeMember))
+	r.Post("/{id}/members/{userId}/remind", httpx.Wrap(h.remindMember))
+	r.Get("/{id}/reminders", httpx.Wrap(h.listReminders))
 }
 
 func parseIDParam(r *http.Request, name string) (pgtype.UUID, error) {
@@ -299,4 +301,51 @@ func toAuthGroup(g Group) apitypes.AuthGroup {
 		}
 	}
 	return out
+}
+
+func (h *Handler) remindMember(w http.ResponseWriter, r *http.Request) error {
+	groupID, err := parseIDParam(r, "id")
+	if err != nil {
+		return err
+	}
+	targetUserID, err := idutil.Parse(chi.URLParam(r, "userId"))
+	if err != nil {
+		return httpx.NotFound("MEMBERSHIP_NOT_FOUND", "No membership record found.")
+	}
+
+	user := authpkg.CurrentUser(r.Context())
+	reminder, err := h.svc.RemindMember(r.Context(), user.ID, groupID, targetUserID)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusCreated, toPaymentReminder(reminder))
+	return nil
+}
+
+func (h *Handler) listReminders(w http.ResponseWriter, r *http.Request) error {
+	groupID, err := parseIDParam(r, "id")
+	if err != nil {
+		return err
+	}
+	user := authpkg.CurrentUser(r.Context())
+	reminders, err := h.svc.LatestReminders(r.Context(), user.ID, groupID)
+	if err != nil {
+		return err
+	}
+	out := make([]apitypes.PaymentReminder, len(reminders))
+	for i, rem := range reminders {
+		out[i] = toPaymentReminder(rem)
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+func toPaymentReminder(rem db.PaymentReminder) apitypes.PaymentReminder {
+	return apitypes.PaymentReminder{
+		GroupID:       idutil.String(rem.GroupID),
+		RecipientID:   idutil.String(rem.RecipientID),
+		SenderID:      idutil.String(rem.SenderID),
+		RemindedAt:    rem.CreatedAt.Time,
+		NextAllowedAt: rem.CreatedAt.Time.Add(ReminderCooldown),
+	}
 }

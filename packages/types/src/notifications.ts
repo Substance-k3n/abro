@@ -16,6 +16,8 @@ export const notificationTypes = [
   'GROUP_MEMBERSHIP_CHANGE',
   'RECURRING_EXPENSE',
   'DEBT_SIMPLIFICATION_CHANGE',
+  // Not in PRD §34: a group admin's nudge to a member who owes (ADR-018).
+  'PAYMENT_REMINDER',
 ] as const;
 export type NotificationType = (typeof notificationTypes)[number];
 

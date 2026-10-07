@@ -31,6 +31,11 @@ type Querier interface {
 	CreateNotificationsBulk(ctx context.Context, arg CreateNotificationsBulkParams) ([]Notification, error)
 	CreateOAuthAccount(ctx context.Context, arg CreateOAuthAccountParams) (OauthAccount, error)
 	CreateOtpCode(ctx context.Context, arg CreateOtpCodeParams) (OtpCode, error)
+	// Inserts only when the recipient hasn't been reminded in this group in
+	// the last 24 hours; no row back means it's too soon. Two admins tapping
+	// at the same instant could both get through -- harmless (two
+	// notifications), so no lock (ADR-018).
+	CreatePaymentReminderIfDue(ctx context.Context, arg CreatePaymentReminderIfDueParams) (PaymentReminder, error)
 	CreateRecurringExpense(ctx context.Context, arg CreateRecurringExpenseParams) (RecurringExpense, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	DeleteExpenseParticipants(ctx context.Context, expenseID pgtype.UUID) error
@@ -54,6 +59,7 @@ type Querier interface {
 	// the period, same as the original's post-hoc "> 0" filter).
 	GetGroupSpending(ctx context.Context, arg GetGroupSpendingParams) ([]GetGroupSpendingRow, error)
 	GetIdempotencyKeyByUserKeyEndpoint(ctx context.Context, arg GetIdempotencyKeyByUserKeyEndpointParams) (IdempotencyKey, error)
+	GetLatestPaymentReminder(ctx context.Context, arg GetLatestPaymentReminderParams) (PaymentReminder, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
 	// Only months with matching spending are returned; the caller fills the
 	// other months of the year with zero.
@@ -102,6 +108,8 @@ type Querier interface {
 	ListFriendships(ctx context.Context, userID pgtype.UUID) ([]ListFriendshipsRow, error)
 	ListGroupMembersWithProfiles(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersWithProfilesRow, error)
 	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
+	// The most recent reminder per recipient in a group.
+	ListLatestPaymentReminders(ctx context.Context, groupID pgtype.UUID) ([]PaymentReminder, error)
 	ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([]Group, error)
 	// Same rows as ListMyActiveGroups, plus the two per-group values the
 	// DASH-05 Groups list shows on every card: how many ACTIVE members the
