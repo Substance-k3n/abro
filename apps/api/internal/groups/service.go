@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -252,6 +253,45 @@ func (s *Service) AddMember(ctx context.Context, actorID, groupID, targetUserID 
 	}
 
 	return membership, nil
+}
+
+// InviteResendCooldown is how long after an invite (or its last resend)
+// an admin can resend it.
+const InviteResendCooldown = 24 * time.Hour
+
+// ResendInvite notifies an invited member about their pending invite
+// again (roadmap P6). Cancelling an invite is RemoveMember, as before.
+func (s *Service) ResendInvite(ctx context.Context, actorID, groupID, targetUserID pgtype.UUID) (db.GroupMember, error) {
+	group, err := s.requireGroup(ctx, groupID)
+	if err != nil {
+		return db.GroupMember{}, err
+	}
+	if _, err := s.requireActiveAdmin(ctx, groupID, actorID); err != nil {
+		return db.GroupMember{}, err
+	}
+	target, err := s.requireMembership(ctx, groupID, targetUserID)
+	if err != nil {
+		return db.GroupMember{}, err
+	}
+	if target.Status != db.GroupMemberStatusINVITED {
+		return db.GroupMember{}, httpx.Conflict("NOT_INVITED", "No pending invite for this member.")
+	}
+
+	updated, err := s.q.ResendGroupInvite(ctx, target.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		apiErr := httpx.TooManyRequests("INVITE_RESENT_RECENTLY", "This invite was sent in the last 24 hours.")
+		apiErr.Details = map[string]time.Time{"nextAllowedAt": target.JoinedAt.Time.Add(InviteResendCooldown).UTC()}
+		return db.GroupMember{}, apiErr
+	}
+	if err != nil {
+		return db.GroupMember{}, err
+	}
+
+	if _, err := s.notifications.Notify(ctx, targetUserID, notifications.TypeGroupInvitation,
+		"Group invitation", fmt.Sprintf("Reminder: you've been invited to join %q.", group.Name)); err != nil {
+		return db.GroupMember{}, err
+	}
+	return updated, nil
 }
 
 func (s *Service) AcceptInvite(ctx context.Context, userID, groupID pgtype.UUID) (db.GroupMember, error) {

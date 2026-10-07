@@ -38,6 +38,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Delete("/{id}/members/{userId}", httpx.Wrap(h.removeMember))
 	r.Post("/{id}/members/{userId}/remind", httpx.Wrap(h.remindMember))
 	r.Get("/{id}/reminders", httpx.Wrap(h.listReminders))
+	r.Post("/{id}/members/{userId}/resend-invite", httpx.Wrap(h.resendInvite))
 }
 
 func parseIDParam(r *http.Request, name string) (pgtype.UUID, error) {
@@ -348,4 +349,23 @@ func toPaymentReminder(rem db.PaymentReminder) apitypes.PaymentReminder {
 		RemindedAt:    rem.CreatedAt.Time,
 		NextAllowedAt: rem.CreatedAt.Time.Add(ReminderCooldown),
 	}
+}
+
+func (h *Handler) resendInvite(w http.ResponseWriter, r *http.Request) error {
+	groupID, err := parseIDParam(r, "id")
+	if err != nil {
+		return err
+	}
+	targetUserID, err := idutil.Parse(chi.URLParam(r, "userId"))
+	if err != nil {
+		return httpx.NotFound("MEMBERSHIP_NOT_FOUND", "No membership record found.")
+	}
+
+	user := authpkg.CurrentUser(r.Context())
+	membership, err := h.svc.ResendInvite(r.Context(), user.ID, groupID, targetUserID)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, toMembershipResult(membership))
+	return nil
 }

@@ -164,6 +164,11 @@ type Querier interface {
 	// timestamp/ordering from the original membership.
 	ReinviteGroupMember(ctx context.Context, id pgtype.UUID) (GroupMember, error)
 	RemoveNotificationOptOut(ctx context.Context, arg RemoveNotificationOptOutParams) error
+	// Roadmap P6: an admin resends a pending invite, at most once every 24
+	// hours (joined_at is the invite time while INVITED). No row back means
+	// it isn't a pending invite, or was sent too recently. Bumping joined_at
+	// also moves it to the top of the invitee's invites list.
+	ResendGroupInvite(ctx context.Context, id pgtype.UUID) (GroupMember, error)
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
 	// Exact match on email or phone (an address or number someone already
 	// knows) -- never a fuzzy search. Emails are stored lowercased, so the
