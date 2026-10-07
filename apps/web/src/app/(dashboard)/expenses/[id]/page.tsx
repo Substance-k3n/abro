@@ -38,6 +38,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { DisputeSection } from '~/components/DisputeSection';
 import { ReceiptSection } from '~/components/ReceiptSection';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
@@ -256,6 +257,15 @@ export default function ExpenseDetailPage() {
         </div>
       )}
 
+      <DisputeSection
+        expense={expense}
+        me={profile}
+        mightManage={mightManage}
+        onChange={(updated) =>
+          setState({ status: 'ready', data: { ...state.data, expense: updated } })
+        }
+      />
+
       {/* Info card */}
       <div className="neo-raised-sm mb-4 flex flex-col items-center gap-2 rounded-[20px] p-6 text-center">
         <div
@@ -328,6 +338,14 @@ export default function ExpenseDetailPage() {
                 <Avatar user={p.user} size="h-7 w-7 text-[0.65rem]" />
                 <span className="flex-1 text-[0.85rem]" style={{ color: 'var(--t-secondary)' }}>
                   {nameOf(p.user)}
+                  {p.disputedAt && (
+                    <span
+                      className="ml-1.5 rounded-md px-1.5 py-0.5 text-[0.64rem] font-semibold"
+                      style={{ background: 'var(--red-bg)', color: 'var(--c-red-text)' }}
+                    >
+                      Disputed
+                    </span>
+                  )}
                 </span>
                 <span
                   className="font-mono text-[0.88rem] font-bold"

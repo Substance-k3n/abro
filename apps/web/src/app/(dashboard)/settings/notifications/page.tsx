@@ -59,6 +59,11 @@ const TYPES: { type: string; label: string; sub: string }[] = [
     label: 'Accepted requests',
     sub: 'Someone accepts your friend request',
   },
+  {
+    type: 'EXPENSE_DISPUTED',
+    label: 'Disputed expenses',
+    sub: "Someone says they weren't part of an expense",
+  },
 ];
 
 export default function NotificationSettingsPage() {

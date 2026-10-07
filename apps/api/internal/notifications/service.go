@@ -37,6 +37,9 @@ const (
 	// theirs had been accepted.
 	TypeFriendRequest  Type = "FRIEND_REQUEST"
 	TypeFriendAccepted Type = "FRIEND_ACCEPTED"
+	// TypeExpenseDisputed: someone on an expense says they weren't part
+	// of it, or the payer kept it as it is (ADR-020).
+	TypeExpenseDisputed Type = "EXPENSE_DISPUTED"
 )
 
 // AllTypes is every Type, in the order SET-02 lists them. A user can
@@ -45,7 +48,7 @@ var AllTypes = []Type{
 	TypeExpenseAdded, TypeExpenseEdited, TypeExpenseDeleted, TypeSettlement,
 	TypeGroupInvitation, TypeGroupMembershipChange, TypeRecurringExpense,
 	TypeDebtSimplificationChange, TypePaymentReminder,
-	TypeFriendRequest, TypeFriendAccepted,
+	TypeFriendRequest, TypeFriendAccepted, TypeExpenseDisputed,
 }
 
 func isKnownType(t string) bool {
@@ -68,6 +71,12 @@ func NewService(q db.Querier) *Service {
 // Notify creates one in-app notification, unless the user opted out of
 // this type -- then it's a no-op returning a zero Notification.
 func (s *Service) Notify(ctx context.Context, userID pgtype.UUID, t Type, title, body string) (db.Notification, error) {
+	return s.NotifyLink(ctx, userID, t, title, body, "")
+}
+
+// NotifyLink is Notify with the in-app path of what it's about (e.g.
+// /expenses/<id>), which tapping the notification opens.
+func (s *Service) NotifyLink(ctx context.Context, userID pgtype.UUID, t Type, title, body, link string) (db.Notification, error) {
 	optedOut, err := s.q.IsNotificationOptedOut(ctx, db.IsNotificationOptedOutParams{UserID: userID, Type: string(t)})
 	if err != nil {
 		return db.Notification{}, err
@@ -77,6 +86,7 @@ func (s *Service) Notify(ctx context.Context, userID pgtype.UUID, t Type, title,
 	}
 	return s.q.CreateNotification(ctx, db.CreateNotificationParams{
 		UserID: userID, Type: string(t), Title: title, Body: body,
+		Link: pgtype.Text{String: link, Valid: link != ""},
 	})
 }
 

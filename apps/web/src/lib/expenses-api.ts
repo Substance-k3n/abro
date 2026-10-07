@@ -16,6 +16,9 @@ export interface ExpenseParticipant {
   id: string;
   amount: string;
   user: AuthProfile;
+  /** Set while this person says they weren't part of the expense
+   * (ADR-020). Their share still counts until the expense is edited. */
+  disputedAt: string | null;
 }
 
 export interface AuthExpense {
@@ -235,4 +238,20 @@ export function getReceiptUrl(id: string): Promise<{ url: string }> {
 /** DELETE /expenses/{id}/receipt -- same edit authority as uploading. */
 export function deleteReceipt(id: string): Promise<void> {
   return api.delete(`/expenses/${id}/receipt`);
+}
+
+/** "I wasn't part of this" (ADR-020): flags your share and tells the
+ * payer. Amounts don't change until they edit the expense. */
+export function disputeExpense(id: string): Promise<AuthExpense> {
+  return api.post(`/expenses/${id}/dispute`);
+}
+
+/** Take your own dispute back. */
+export function withdrawDispute(id: string): Promise<AuthExpense> {
+  return api.delete(`/expenses/${id}/dispute`);
+}
+
+/** Payer or group admin: keep the expense as it is; they're told. */
+export function dismissDispute(id: string, userId: string): Promise<AuthExpense> {
+  return api.delete(`/expenses/${id}/dispute/${userId}`);
 }

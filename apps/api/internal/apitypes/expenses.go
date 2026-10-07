@@ -160,6 +160,9 @@ type ExpenseParticipantOut struct {
 	ID     string      `json:"id"`
 	Amount string      `json:"amount"`
 	User   AuthProfile `json:"user"`
+	// DisputedAt is set while this person says they weren't part of the
+	// expense (ADR-020).
+	DisputedAt *time.Time `json:"disputedAt"`
 }
 
 type AuthExpense struct {

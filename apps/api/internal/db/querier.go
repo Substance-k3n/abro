@@ -195,6 +195,8 @@ type Querier interface {
 	SearchProfilesByUsernamePrefix(ctx context.Context, arg SearchProfilesByUsernamePrefixParams) ([]Profile, error)
 	SetGroupPhoto(ctx context.Context, arg SetGroupPhotoParams) (Group, error)
 	SetIdempotencyKeyResponse(ctx context.Context, arg SetIdempotencyKeyResponseParams) error
+	// disputed_at = NULL clears it (withdrawn, or the payer kept the expense).
+	SetParticipantDispute(ctx context.Context, arg SetParticipantDisputeParams) (ExpenseParticipant, error)
 	// avatar_url is what clients show; avatar_path is the stored object.
 	// Both NULL removes the photo.
 	SetProfileAvatar(ctx context.Context, arg SetProfileAvatarParams) (Profile, error)

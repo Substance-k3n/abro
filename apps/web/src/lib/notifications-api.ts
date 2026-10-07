@@ -9,6 +9,8 @@ export interface Notification {
   type: string;
   title: string;
   body: string;
+  /** In-app path of what it's about (e.g. /expenses/<id>), if any. */
+  link: string | null;
   readAt: string | null;
   createdAt: string;
 }

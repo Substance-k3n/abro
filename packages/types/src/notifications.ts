@@ -21,6 +21,8 @@ export const notificationTypes = [
   // Not in PRD §34 either: friend requests and accepted requests.
   'FRIEND_REQUEST',
   'FRIEND_ACCEPTED',
+  // ADR-020: someone says they weren't part of an expense.
+  'EXPENSE_DISPUTED',
 ] as const;
 export type NotificationType = (typeof notificationTypes)[number];
 
