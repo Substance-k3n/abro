@@ -4,9 +4,10 @@
 // GRP-05's Simplified view and GRP-08. `large` is GRP-08's roomier card
 // with a full-width button.
 //
-// The Settle action opens /settle only when you're the one paying:
-// apps/api only lets the debtor record a settlement (ADR-003), so a
-// payment owed to you stays disabled with an explanation.
+// The action opens /settle when you're the one paying (it then waits for
+// them to confirm, ADR-019), and "They paid me" (/payments/received)
+// when the payment is to you -- you can record it yourself, and it counts
+// at once. A payment between two other members has no action for you.
 
 import { ETB, formatMoney } from '@abro/types';
 import { ArrowRight } from 'lucide-react';
@@ -25,8 +26,17 @@ export function PaymentRow({
   large?: boolean;
 }) {
   const youPay = payment.fromUserId === view.profile.id;
-  const href = `/settle?groupId=${view.group.id}&toUserId=${payment.toUserId}`;
-  const label = large ? 'Mark as Settled' : 'Settle';
+  const youReceive = payment.toUserId === view.profile.id;
+  const href = youPay
+    ? `/settle?groupId=${view.group.id}&toUserId=${payment.toUserId}`
+    : `/payments/received?groupId=${view.group.id}&fromUserId=${payment.fromUserId}`;
+  const label = youReceive
+    ? large
+      ? 'They paid me'
+      : 'Received'
+    : large
+      ? 'Mark as Settled'
+      : 'Settle';
   const avatar = large ? 36 : 32;
 
   const line = (
@@ -52,7 +62,7 @@ export function PaymentRow({
       >
         {formatMoney(payment.amount, ETB)}
       </span>
-      {!large && <SettleButton youPay={youPay} href={href} label={label} />}
+      {!large && <SettleButton enabled={youPay || youReceive} href={href} label={label} />}
     </div>
   );
 
@@ -62,23 +72,23 @@ export function PaymentRow({
   return (
     <div className="neo-raised-sm flex flex-col gap-2.5 rounded-2xl p-4">
       {line}
-      <SettleButton youPay={youPay} href={href} label={label} large />
+      <SettleButton enabled={youPay || youReceive} href={href} label={label} large />
     </div>
   );
 }
 
 function SettleButton({
-  youPay,
+  enabled,
   href,
   label,
   large = false,
 }: {
-  youPay: boolean;
+  enabled: boolean;
   href: string;
   label: string;
   large?: boolean;
 }) {
-  if (youPay) {
+  if (enabled) {
     return (
       <Link
         href={href}
@@ -96,7 +106,7 @@ function SettleButton({
     <button
       type="button"
       disabled
-      title="They need to record this from their side"
+      title="Only the two people in this payment can record it"
       className={
         large
           ? 'neo-flat cursor-not-allowed rounded-xl py-2 text-[0.78rem] font-semibold opacity-50'

@@ -39,17 +39,26 @@ import {
   Avatar,
   BalanceCard,
   EmptyState,
-  GroupIcon,
   MoneyDisplay,
   PersonRow,
   SectionLabel,
 } from '@abro/ui';
-import { ETB } from '@abro/types';
-import { Bell, Handshake, Plus, Receipt, Settings, Users } from 'lucide-react';
+import { ETB, formatMoney } from '@abro/types';
+import {
+  Bell,
+  ChevronRight,
+  Handshake,
+  Plus,
+  Receipt,
+  Settings,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { InstallApp } from '~/components/InstallApp';
 import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
@@ -70,6 +79,9 @@ import { type FriendListItem, listFriends } from '~/lib/friends-api';
 import { type AuthGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { listNotifications } from '~/lib/notifications-api';
+import { photoSrc } from '~/lib/photos';
+import { type SettlementRequest, listSettlementRequests } from '~/lib/settlements-api';
+import { GroupPicture } from '~/components/GroupPicture';
 
 const QUICK_ACTIONS = [
   { label: 'Add Expense', href: '/expenses/new', icon: Plus, accent: true },
@@ -85,6 +97,8 @@ interface HomeData {
   balances: BalancesSummary;
   unreadCount: number;
   recentActivity: AuthExpense[];
+  /** Payments others say they made to you, waiting for you (ADR-019). */
+  toConfirm: SettlementRequest[];
 }
 
 export default function HomePage() {
@@ -102,9 +116,20 @@ export default function HomePage() {
       getBalancesSummary(),
       listNotifications({ unreadOnly: true, limit: 100 }),
       listExpenses({ limit: 5 }),
+      listSettlementRequests(),
     ])
-      .then(([profile, friends, groups, balances, unread, recentActivity]) => {
-        setData({ profile, friends, groups, balances, unreadCount: unread.length, recentActivity });
+      .then(([profile, friends, groups, balances, unread, recentActivity, requests]) => {
+        setData({
+          profile,
+          friends,
+          groups,
+          balances,
+          unreadCount: unread.length,
+          recentActivity,
+          toConfirm: requests.filter(
+            (r) => r.status === 'PENDING' && r.recipient.id === profile.id,
+          ),
+        });
       })
       .catch((err) => {
         setError(
@@ -124,7 +149,8 @@ export default function HomePage() {
     return <LoadingState minHeight="60vh" />;
   }
 
-  const { profile, friends, groups, balances, unreadCount, recentActivity } = data;
+  const { profile, friends, groups, balances, unreadCount, recentActivity, toConfirm } = data;
+  const toConfirmTotal = toConfirm.reduce((sum, r) => sum + BigInt(r.amount), 0n);
   const groupNameById = new Map(groups.map((g) => [g.id, g.name]));
 
   const friendRows = deriveFriendRows(friends, balances);
@@ -148,11 +174,15 @@ export default function HomePage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Avatar
-            initials={initialsOf(profile.displayName)}
-            color={colorForId(profile.id)}
-            size={44}
-          />
+          {/* Profile lives here on phones (the bottom bar has Friends instead). */}
+          <Link href="/profile" aria-label="Your profile">
+            <Avatar
+              initials={initialsOf(profile.displayName)}
+              color={colorForId(profile.id)}
+              size={44}
+              src={photoSrc(profile.avatarUrl)}
+            />
+          </Link>
           <div>
             <p className="mb-0.5 text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
               Good morning
@@ -181,7 +211,8 @@ export default function HomePage() {
             )}
           </Link>
           <Link
-            href="/profile"
+            href="/settings"
+            aria-label="Settings"
             className="neo-btn flex h-[42px] w-[42px] items-center justify-center rounded-2xl"
           >
             <Settings size={20} strokeWidth={1.75} />
@@ -189,11 +220,47 @@ export default function HomePage() {
         </div>
       </div>
 
+      <InstallApp variant="banner" />
+
+      {toConfirm.length > 0 && (
+        <Link
+          href="/payments"
+          className="neo-raised-sm mb-4 flex items-center gap-3 rounded-2xl px-4 py-3"
+        >
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+            style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
+          >
+            <Wallet size={19} strokeWidth={2} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span
+              className="block text-[0.88rem] font-semibold"
+              style={{ color: 'var(--t-primary)' }}
+            >
+              {toConfirm.length === 1
+                ? `${toConfirm[0]!.payer.displayName.split(' ')[0]} says they paid you`
+                : `${toConfirm.length} payments to confirm`}
+            </span>
+            <span className="block text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
+              {formatMoney(toConfirmTotal, ETB)} · tap to confirm
+            </span>
+          </span>
+          <ChevronRight size={18} strokeWidth={2} style={{ color: 'var(--t-dim)' }} />
+        </Link>
+      )}
+
       <div className="md:grid md:grid-cols-[1.4fr_1fr] md:gap-6">
         <div>
           {/* Balance Summary Card */}
           <div className="mb-5">
-            <BalanceCard net={net} owedTotal={owedTotal} oweTotal={oweTotal} />
+            <BalanceCard
+              net={net}
+              owedTotal={owedTotal}
+              oweTotal={oweTotal}
+              onOwedClick={() => router.push('/balances/owed')}
+              onOweClick={() => router.push('/balances/owe')}
+            />
           </div>
 
           {/* Quick Actions */}
@@ -256,6 +323,7 @@ export default function HomePage() {
                         <PersonRow
                           key={f.id}
                           initials={f.initials}
+                          photo={f.photo}
                           color={f.color}
                           name={f.name}
                           right={
@@ -278,6 +346,7 @@ export default function HomePage() {
                         <PersonRow
                           key={f.id}
                           initials={f.initials}
+                          photo={f.photo}
                           color={f.color}
                           name={f.name}
                           right={
@@ -322,10 +391,10 @@ export default function HomePage() {
                     className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
                   >
                     <div
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]"
+                      className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[13px]"
                       style={{ background: g.groupType.tint, color: g.groupType.color }}
                     >
-                      <GroupIcon icon={g.groupType.icon} size={19} />
+                      <GroupPicture photo={g.photo} icon={g.groupType.icon} size={19} />
                     </div>
                     <span
                       className="flex-1 text-[0.88rem] font-semibold"

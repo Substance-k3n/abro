@@ -270,6 +270,50 @@ func (ns NullRecurringFrequency) Value() (driver.Value, error) {
 	return string(ns.RecurringFrequency), nil
 }
 
+type SettlementRequestStatus string
+
+const (
+	SettlementRequestStatusPENDING   SettlementRequestStatus = "PENDING"
+	SettlementRequestStatusCONFIRMED SettlementRequestStatus = "CONFIRMED"
+	SettlementRequestStatusREJECTED  SettlementRequestStatus = "REJECTED"
+	SettlementRequestStatusCANCELLED SettlementRequestStatus = "CANCELLED"
+)
+
+func (e *SettlementRequestStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SettlementRequestStatus(s)
+	case string:
+		*e = SettlementRequestStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SettlementRequestStatus: %T", src)
+	}
+	return nil
+}
+
+type NullSettlementRequestStatus struct {
+	SettlementRequestStatus SettlementRequestStatus `json:"settlement_request_status"`
+	Valid                   bool                    `json:"valid"` // Valid is true if SettlementRequestStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSettlementRequestStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.SettlementRequestStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SettlementRequestStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSettlementRequestStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SettlementRequestStatus), nil
+}
+
 type SplitType string
 
 const (
@@ -352,10 +396,11 @@ type ExpenseNote struct {
 }
 
 type ExpenseParticipant struct {
-	ID        pgtype.UUID `json:"id"`
-	ExpenseID pgtype.UUID `json:"expense_id"`
-	UserID    pgtype.UUID `json:"user_id"`
-	Amount    int64       `json:"amount"`
+	ID         pgtype.UUID        `json:"id"`
+	ExpenseID  pgtype.UUID        `json:"expense_id"`
+	UserID     pgtype.UUID        `json:"user_id"`
+	Amount     int64              `json:"amount"`
+	DisputedAt pgtype.Timestamptz `json:"disputed_at"`
 }
 
 type Friendship struct {
@@ -378,6 +423,7 @@ type Group struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
 	DeletedByID   pgtype.UUID        `json:"deleted_by_id"`
+	PhotoPath     pgtype.Text        `json:"photo_path"`
 }
 
 type GroupMember struct {
@@ -406,6 +452,7 @@ type Notification struct {
 	Body      string             `json:"body"`
 	ReadAt    pgtype.Timestamptz `json:"read_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	Link      pgtype.Text        `json:"link"`
 }
 
 type NotificationOptOut struct {
@@ -432,6 +479,14 @@ type OtpCode struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
+type PaymentReminder struct {
+	ID          pgtype.UUID        `json:"id"`
+	GroupID     pgtype.UUID        `json:"group_id"`
+	SenderID    pgtype.UUID        `json:"sender_id"`
+	RecipientID pgtype.UUID        `json:"recipient_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type Profile struct {
 	ID                pgtype.UUID        `json:"id"`
 	DisplayName       string             `json:"display_name"`
@@ -443,6 +498,7 @@ type Profile struct {
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	Username          pgtype.Text        `json:"username"`
+	AvatarPath        pgtype.Text        `json:"avatar_path"`
 }
 
 type PushSubscription struct {
@@ -474,4 +530,18 @@ type Session struct {
 	LastUsedAt pgtype.Timestamptz `json:"last_used_at"`
 	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
 	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+}
+
+type SettlementRequest struct {
+	ID           pgtype.UUID             `json:"id"`
+	PayerID      pgtype.UUID             `json:"payer_id"`
+	RecipientID  pgtype.UUID             `json:"recipient_id"`
+	GroupID      pgtype.UUID             `json:"group_id"`
+	Amount       int64                   `json:"amount"`
+	Currency     string                  `json:"currency"`
+	ReceiptPath  pgtype.Text             `json:"receipt_path"`
+	Status       SettlementRequestStatus `json:"status"`
+	SettlementID pgtype.UUID             `json:"settlement_id"`
+	CreatedAt    pgtype.Timestamptz      `json:"created_at"`
+	ResolvedAt   pgtype.Timestamptz      `json:"resolved_at"`
 }

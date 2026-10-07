@@ -56,8 +56,8 @@ func setup(t *testing.T) env {
 	t.Cleanup(pool.Close)
 
 	queries := db.New(pool)
-	friendsSvc := friends.NewService(queries)
 	notifySvc := notifications.NewService(queries)
+	friendsSvc := friends.NewService(queries, notifySvc)
 	groupsSvc := groups.NewService(queries, friendsSvc, notifySvc)
 	receiptStore, err := storage.NewReceiptStorage(
 		getenv("S3_ENDPOINT", "http://localhost:9460"), getenv("S3_REGION", "us-east-1"),

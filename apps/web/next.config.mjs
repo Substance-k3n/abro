@@ -19,6 +19,20 @@ const nextConfig = {
   // monorepo root so the workspace packages are included.
   output: 'standalone',
   outputFileTracingRoot: repoRoot,
+  // The service worker (public/sw.js, ADR-015) must never be cached by
+  // the browser or a CDN, or a fixed worker could take days to reach
+  // installed apps.
+  async headers() {
+    return [
+      {
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     if (!apiProxyTarget) return [];
     return [{ source: '/api/:path*', destination: `${apiProxyTarget}/:path*` }];

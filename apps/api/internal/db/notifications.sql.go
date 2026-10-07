@@ -27,9 +27,9 @@ func (q *Queries) AddNotificationOptOut(ctx context.Context, arg AddNotification
 }
 
 const createNotification = `-- name: CreateNotification :one
-INSERT INTO notifications (user_id, type, title, body)
-VALUES ($1, $2, $3, $4)
-RETURNING id, user_id, type, title, body, read_at, created_at
+INSERT INTO notifications (user_id, type, title, body, link)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, user_id, type, title, body, read_at, created_at, link
 `
 
 type CreateNotificationParams struct {
@@ -37,6 +37,7 @@ type CreateNotificationParams struct {
 	Type   string      `json:"type"`
 	Title  string      `json:"title"`
 	Body   string      `json:"body"`
+	Link   pgtype.Text `json:"link"`
 }
 
 func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error) {
@@ -45,6 +46,7 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		arg.Type,
 		arg.Title,
 		arg.Body,
+		arg.Link,
 	)
 	var i Notification
 	err := row.Scan(
@@ -55,6 +57,7 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		&i.Body,
 		&i.ReadAt,
 		&i.CreatedAt,
+		&i.Link,
 	)
 	return i, err
 }
@@ -67,7 +70,7 @@ WHERE NOT EXISTS (
     SELECT 1 FROM notification_opt_outs o
     WHERE o.user_id = r.user_id AND o.type = $1
 )
-RETURNING id, user_id, type, title, body, read_at, created_at
+RETURNING id, user_id, type, title, body, read_at, created_at, link
 `
 
 type CreateNotificationsBulkParams struct {
@@ -101,6 +104,7 @@ func (q *Queries) CreateNotificationsBulk(ctx context.Context, arg CreateNotific
 			&i.Body,
 			&i.ReadAt,
 			&i.CreatedAt,
+			&i.Link,
 		); err != nil {
 			return nil, err
 		}
@@ -113,7 +117,7 @@ func (q *Queries) CreateNotificationsBulk(ctx context.Context, arg CreateNotific
 }
 
 const getNotificationByID = `-- name: GetNotificationByID :one
-SELECT id, user_id, type, title, body, read_at, created_at FROM notifications WHERE id = $1
+SELECT id, user_id, type, title, body, read_at, created_at, link FROM notifications WHERE id = $1
 `
 
 func (q *Queries) GetNotificationByID(ctx context.Context, id pgtype.UUID) (Notification, error) {
@@ -127,6 +131,7 @@ func (q *Queries) GetNotificationByID(ctx context.Context, id pgtype.UUID) (Noti
 		&i.Body,
 		&i.ReadAt,
 		&i.CreatedAt,
+		&i.Link,
 	)
 	return i, err
 }
@@ -174,7 +179,7 @@ func (q *Queries) ListNotificationOptOuts(ctx context.Context, userID pgtype.UUI
 }
 
 const listNotifications = `-- name: ListNotifications :many
-SELECT id, user_id, type, title, body, read_at, created_at FROM notifications
+SELECT id, user_id, type, title, body, read_at, created_at, link FROM notifications
 WHERE user_id = $1 AND (NOT $4::bool OR read_at IS NULL)
 ORDER BY created_at DESC, id DESC -- id: total order for stable paging
 LIMIT $2 OFFSET $3
@@ -211,6 +216,7 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 			&i.Body,
 			&i.ReadAt,
 			&i.CreatedAt,
+			&i.Link,
 		); err != nil {
 			return nil, err
 		}
@@ -232,7 +238,7 @@ func (q *Queries) MarkAllNotificationsRead(ctx context.Context, userID pgtype.UU
 }
 
 const markNotificationRead = `-- name: MarkNotificationRead :one
-UPDATE notifications SET read_at = COALESCE(read_at, now()) WHERE id = $1 RETURNING id, user_id, type, title, body, read_at, created_at
+UPDATE notifications SET read_at = COALESCE(read_at, now()) WHERE id = $1 RETURNING id, user_id, type, title, body, read_at, created_at, link
 `
 
 // Preserves the original read_at if already read, rather than bumping it to
@@ -248,6 +254,7 @@ func (q *Queries) MarkNotificationRead(ctx context.Context, id pgtype.UUID) (Not
 		&i.Body,
 		&i.ReadAt,
 		&i.CreatedAt,
+		&i.Link,
 	)
 	return i, err
 }

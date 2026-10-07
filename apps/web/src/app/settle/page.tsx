@@ -43,6 +43,7 @@ import {
 import { listFriends } from '~/lib/friends-api';
 import { type AuthGroup, getGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
+import { photoSrc } from '~/lib/photos';
 
 export default function SettleChoosePage() {
   return (
@@ -190,6 +191,7 @@ function SettleChooseForm() {
                 <PersonRow
                   key={f.id}
                   initials={f.initials}
+                  photo={f.photo}
                   color={f.color}
                   name={f.name}
                   right={<AmountBadge amount={f.iOwe} dir="owe" />}
@@ -239,6 +241,7 @@ function SettleChooseForm() {
                 <PersonRow
                   key={f.id}
                   initials={f.initials}
+                  photo={f.photo}
                   color={f.color}
                   name={f.name}
                   sub="They can settle from their side"
@@ -310,6 +313,8 @@ function GroupPayments({
   const payments = typeof state === 'object' ? state.payments : [];
   const nameOf = (id: string) =>
     group?.members.find((m) => m.userId === id)?.user.displayName ?? 'Former member';
+  const photoOf = (id: string) =>
+    photoSrc(group?.members.find((m) => m.userId === id)?.user.avatarUrl);
 
   return (
     <div className="flex flex-col gap-5">
@@ -347,6 +352,7 @@ function GroupPayments({
               key={p.toUserId}
               initials={initialsOf(nameOf(p.toUserId))}
               color={colorForId(p.toUserId)}
+              photo={photoOf(p.toUserId)}
               name={nameOf(p.toUserId)}
               sub="Suggested payment in this group"
               right={<AmountBadge amount={p.amount} dir="owe" />}

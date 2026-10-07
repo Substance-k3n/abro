@@ -43,6 +43,7 @@ import { listFriends } from '~/lib/friends-api';
 import { getGroup } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { CATEGORIES } from '~/lib/reference-data';
+import { photoSrc } from '~/lib/photos';
 
 interface EditData {
   profile: AuthProfile;
@@ -283,6 +284,7 @@ function EditForm({ data }: { data: EditData }) {
                 key={p.id}
                 initials={initialsOf(p.displayName)}
                 color={colorForId(p.id)}
+                photo={photoSrc(p.avatarUrl)}
                 name={p.id === profile.id ? 'You' : p.displayName}
                 right={
                   <span

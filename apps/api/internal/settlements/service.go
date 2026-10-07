@@ -3,6 +3,11 @@
 // split_type = SETTLEMENT, never a separate table, and must never go
 // through the general create-expense path.
 //
+// ADR-019: a payment the payer records is first a settlement *request*
+// (settlement_requests), which never affects a balance; the SETTLEMENT
+// expense is written when the recipient confirms it. A payment the
+// recipient records is written straight away.
+//
 // Shape (ADR-003's implementation note): every expense_participants.amount
 // stays non-negative, matching every other split type.
 // {paid_by_id: settler, amount: settlementAmount} with participants
@@ -16,6 +21,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -44,70 +50,313 @@ func NewService(q db.Querier, balancesSvc *balances.Service, groupsSvc *groups.S
 	return &Service{q: q, balances: balancesSvc, groups: groupsSvc, notifications: notificationsSvc, expenses: expensesSvc}
 }
 
-func (s *Service) Create(ctx context.Context, actorID pgtype.UUID, in apitypes.CreateSettlementInput) (expenses.Expense, error) {
-	toUserID, err := idutil.Parse(in.ToUserID)
+// Create is the payer recording a payment they made. It doesn't settle
+// anything yet: it's a PENDING request until the recipient confirms it
+// (ADR-019), so it can't push any balance around on the payer's word
+// alone. The claim is checked against the live debt, less what this
+// payer already has waiting on the same recipient.
+func (s *Service) Create(ctx context.Context, actorID pgtype.UUID, in apitypes.CreateSettlementInput) (db.SettlementRequest, error) {
+	toUserID, err := s.requireOtherProfile(ctx, actorID, in.ToUserID)
 	if err != nil {
-		return expenses.Expense{}, httpx.NotFound("PROFILE_NOT_FOUND", "No such user.")
+		return db.SettlementRequest{}, err
 	}
-	if actorID == toUserID {
-		return expenses.Expense{}, httpx.BadRequest("CANNOT_SETTLE_WITH_SELF", "You cannot record a settlement with yourself.")
-	}
-
-	if _, err := s.q.GetProfileByID(ctx, toUserID); errors.Is(err, pgx.ErrNoRows) {
-		return expenses.Expense{}, httpx.NotFound("PROFILE_NOT_FOUND", "No such user.")
-	} else if err != nil {
-		return expenses.Expense{}, err
-	}
-
 	currency, groupID, err := s.resolveCurrency(ctx, actorID, toUserID, in.GroupID)
 	if err != nil {
-		return expenses.Expense{}, err
+		return db.SettlementRequest{}, err
 	}
 
 	// ABRO_PRD.md §19/§45: "settlement <= outstanding debt", validated
 	// against the live balance, never a client-supplied figure.
 	outstanding, err := s.outstanding(ctx, actorID, toUserID, groupID)
 	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	pending, err := s.q.SumPendingSettlementRequests(ctx, db.SumPendingSettlementRequestsParams{
+		PayerID: actorID, RecipientID: toUserID, GroupID: groupID,
+	})
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	if in.ParsedAmount > outstanding-pending {
+		msg := fmt.Sprintf("You owe %s, so you can't record more than that.", money.Format(outstanding, currency))
+		if pending > 0 {
+			msg = fmt.Sprintf("You owe %s and %s of it is already waiting to be confirmed, so you can record at most %s.",
+				money.Format(outstanding, currency), money.Format(pending, currency), money.Format(max(outstanding-pending, 0), currency))
+		}
+		return db.SettlementRequest{}, httpx.Conflict("EXCEEDS_OUTSTANDING_DEBT", msg)
+	}
+
+	req, err := s.q.CreateSettlementRequest(ctx, db.CreateSettlementRequestParams{
+		PayerID: actorID, RecipientID: toUserID, GroupID: groupID, Amount: in.ParsedAmount, Currency: currency,
+	})
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+
+	if _, err := s.notifications.Notify(ctx, toUserID, notifications.TypeSettlement, "Payment to confirm",
+		fmt.Sprintf("%s says they paid you %s. Confirm it once you've received it.",
+			s.nameOf(ctx, actorID), money.Format(in.ParsedAmount, currency))); err != nil {
+		return db.SettlementRequest{}, err
+	}
+	return req, nil
+}
+
+// RecordReceived is the recipient recording a payment they received.
+// They're the one who would lose out if it were wrong, so it counts at
+// once: a SETTLEMENT expense, no request (ADR-019).
+func (s *Service) RecordReceived(ctx context.Context, actorID pgtype.UUID, in apitypes.RecordReceivedInput) (expenses.Expense, error) {
+	fromUserID, err := s.requireOtherProfile(ctx, actorID, in.FromUserID)
+	if err != nil {
+		return expenses.Expense{}, err
+	}
+	currency, groupID, err := s.resolveCurrency(ctx, actorID, fromUserID, in.GroupID)
+	if err != nil {
+		return expenses.Expense{}, err
+	}
+
+	outstanding, err := s.outstanding(ctx, fromUserID, actorID, groupID)
+	if isAPIError(err) {
+		// outstanding words its errors for the payer; say it from here.
+		return expenses.Expense{}, httpx.Conflict("NO_OUTSTANDING_DEBT", "They don't owe you anything to record.")
+	}
+	if err != nil {
 		return expenses.Expense{}, err
 	}
 	if in.ParsedAmount > outstanding {
 		return expenses.Expense{}, httpx.Conflict("EXCEEDS_OUTSTANDING_DEBT",
-			fmt.Sprintf("Settlement amount (%d) exceeds the outstanding debt (%d).", in.ParsedAmount, outstanding))
+			fmt.Sprintf("They owe you %s, so you can't record more than that.", money.Format(outstanding, currency)))
 	}
 
+	settlement, err := s.writeSettlement(ctx, fromUserID, actorID, groupID, currency, in.ParsedAmount)
+	if err != nil {
+		return expenses.Expense{}, err
+	}
+
+	if _, err := s.notifications.Notify(ctx, fromUserID, notifications.TypeSettlement, "Payment recorded",
+		fmt.Sprintf("%s recorded that you paid them %s.", s.nameOf(ctx, actorID), money.Format(in.ParsedAmount, currency))); err != nil {
+		return expenses.Expense{}, err
+	}
+	return settlement, nil
+}
+
+// Confirm is the recipient confirming a payment request: it becomes a
+// SETTLEMENT expense and the balance moves. Checked again against the
+// live debt, which may have changed since the payer recorded it.
+func (s *Service) Confirm(ctx context.Context, actorID, requestID pgtype.UUID) (db.SettlementRequest, error) {
+	req, err := s.requireRequest(ctx, actorID, requestID)
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	if req.RecipientID != actorID {
+		return db.SettlementRequest{}, httpx.Forbidden("NOT_REQUEST_RECIPIENT", "Only the person who was paid can confirm this.")
+	}
+	if req.Status != db.SettlementRequestStatusPENDING {
+		return db.SettlementRequest{}, httpx.Conflict("NOT_PENDING", "This payment is no longer waiting to be confirmed.")
+	}
+	if req.GroupID.Valid {
+		for _, id := range []pgtype.UUID{req.PayerID, req.RecipientID} {
+			if _, err := s.groups.RequireActiveMembership(ctx, req.GroupID, id); err != nil {
+				return db.SettlementRequest{}, err
+			}
+		}
+	}
+	outstanding, err := s.outstanding(ctx, req.PayerID, req.RecipientID, req.GroupID)
+	if err != nil && !isAPIError(err) {
+		return db.SettlementRequest{}, err
+	}
+	if err != nil || req.Amount > outstanding {
+		owes := money.MinorUnits(0)
+		if err == nil {
+			owes = outstanding
+		}
+		return db.SettlementRequest{}, httpx.Conflict("EXCEEDS_OUTSTANDING_DEBT",
+			fmt.Sprintf("They only owe you %s now, less than this payment. Reject it and ask them to record the right amount.",
+				money.Format(owes, req.Currency)))
+	}
+
+	// Claim it first, atomically, so two taps can't both confirm it.
+	if _, err := s.q.ResolveSettlementRequest(ctx, db.ResolveSettlementRequestParams{ID: req.ID, Status: db.SettlementRequestStatusCONFIRMED}); errors.Is(err, pgx.ErrNoRows) {
+		return db.SettlementRequest{}, httpx.Conflict("NOT_PENDING", "This payment is no longer waiting to be confirmed.")
+	} else if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	settlement, err := s.writeSettlement(ctx, req.PayerID, req.RecipientID, req.GroupID, req.Currency, req.Amount)
+	if err != nil {
+		_ = s.q.ReopenSettlementRequest(ctx, req.ID)
+		return db.SettlementRequest{}, err
+	}
+	linked, err := s.q.LinkSettlementRequest(ctx, db.LinkSettlementRequestParams{ID: req.ID, SettlementID: settlement.ID})
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	if req.ReceiptPath.Valid {
+		if err := s.expenses.SetReceiptPath(ctx, settlement.ID, req.ReceiptPath.String); err != nil {
+			return db.SettlementRequest{}, err
+		}
+	}
+
+	if _, err := s.notifications.Notify(ctx, req.PayerID, notifications.TypeSettlement, "Payment confirmed",
+		fmt.Sprintf("%s confirmed your payment of %s.", s.nameOf(ctx, actorID), money.Format(req.Amount, req.Currency))); err != nil {
+		return db.SettlementRequest{}, err
+	}
+	return linked, nil
+}
+
+// Reject is the recipient saying they didn't receive it. Nothing changes
+// in any balance; the payer is told.
+func (s *Service) Reject(ctx context.Context, actorID, requestID pgtype.UUID) (db.SettlementRequest, error) {
+	req, err := s.requireRequest(ctx, actorID, requestID)
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	if req.RecipientID != actorID {
+		return db.SettlementRequest{}, httpx.Forbidden("NOT_REQUEST_RECIPIENT", "Only the person who was paid can reject this.")
+	}
+	resolved, err := s.resolve(ctx, req, db.SettlementRequestStatusREJECTED)
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	if _, err := s.notifications.Notify(ctx, req.PayerID, notifications.TypeSettlement, "Payment not confirmed",
+		fmt.Sprintf("%s says they didn't receive your payment of %s.", s.nameOf(ctx, actorID), money.Format(req.Amount, req.Currency))); err != nil {
+		return db.SettlementRequest{}, err
+	}
+	return resolved, nil
+}
+
+// Cancel is the payer withdrawing a payment they recorded by mistake,
+// while it's still waiting.
+func (s *Service) Cancel(ctx context.Context, actorID, requestID pgtype.UUID) (db.SettlementRequest, error) {
+	req, err := s.requireRequest(ctx, actorID, requestID)
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	if req.PayerID != actorID {
+		return db.SettlementRequest{}, httpx.Forbidden("NOT_REQUEST_PAYER", "Only the person who recorded this payment can cancel it.")
+	}
+	resolved, err := s.resolve(ctx, req, db.SettlementRequestStatusCANCELLED)
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	if _, err := s.notifications.Notify(ctx, req.RecipientID, notifications.TypeSettlement, "Payment cancelled",
+		fmt.Sprintf("%s cancelled the payment of %s they had recorded.", s.nameOf(ctx, actorID), money.Format(req.Amount, req.Currency))); err != nil {
+		return db.SettlementRequest{}, err
+	}
+	return resolved, nil
+}
+
+// List is the user's payment requests, either side: every pending one,
+// and those resolved in the last 30 days.
+func (s *Service) List(ctx context.Context, actorID pgtype.UUID) ([]db.SettlementRequest, error) {
+	return s.q.ListSettlementRequestsForUser(ctx, actorID)
+}
+
+// UploadReceipt attaches proof (a transfer screenshot, a receipt) to a
+// pending request; payer only. Replaces any earlier one.
+func (s *Service) UploadReceipt(ctx context.Context, actorID, requestID pgtype.UUID, body io.Reader, size int64) (db.SettlementRequest, error) {
+	req, err := s.requireRequest(ctx, actorID, requestID)
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	if req.PayerID != actorID {
+		return db.SettlementRequest{}, httpx.Forbidden("NOT_REQUEST_PAYER", "Only the person who recorded this payment can attach a receipt.")
+	}
+	if req.Status != db.SettlementRequestStatusPENDING {
+		return db.SettlementRequest{}, httpx.Conflict("NOT_PENDING", "This payment is no longer waiting to be confirmed.")
+	}
+	key, err := s.expenses.StoreReceipt(ctx, "settlement-requests/"+idutil.String(req.ID), body, size)
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	updated, err := s.q.UpdateSettlementRequestReceiptPath(ctx, db.UpdateSettlementRequestReceiptPathParams{
+		ID: req.ID, ReceiptPath: pgtype.Text{String: key, Valid: true},
+	})
+	if err != nil {
+		return db.SettlementRequest{}, err
+	}
+	if req.ReceiptPath.Valid {
+		s.expenses.DeleteReceiptKey(ctx, req.ReceiptPath.String)
+	}
+	return updated, nil
+}
+
+// ReceiptURL is a short-lived link to a request's receipt, for the payer
+// or the recipient.
+func (s *Service) ReceiptURL(ctx context.Context, actorID, requestID pgtype.UUID) (string, error) {
+	req, err := s.requireRequest(ctx, actorID, requestID)
+	if err != nil {
+		return "", err
+	}
+	if !req.ReceiptPath.Valid {
+		return "", httpx.NotFound("RECEIPT_NOT_FOUND", "This payment has no receipt.")
+	}
+	return s.expenses.ReceiptURLForKey(ctx, req.ReceiptPath.String)
+}
+
+// requireRequest loads a request the actor is part of; anyone else gets
+// the same not-found as a request that doesn't exist.
+func (s *Service) requireRequest(ctx context.Context, actorID, requestID pgtype.UUID) (db.SettlementRequest, error) {
+	req, err := s.q.GetSettlementRequest(ctx, requestID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && req.PayerID != actorID && req.RecipientID != actorID) {
+		return db.SettlementRequest{}, httpx.NotFound("SETTLEMENT_REQUEST_NOT_FOUND", "No such payment.")
+	}
+	return req, err
+}
+
+func (s *Service) resolve(ctx context.Context, req db.SettlementRequest, status db.SettlementRequestStatus) (db.SettlementRequest, error) {
+	resolved, err := s.q.ResolveSettlementRequest(ctx, db.ResolveSettlementRequestParams{ID: req.ID, Status: status})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.SettlementRequest{}, httpx.Conflict("NOT_PENDING", "This payment is no longer waiting to be confirmed.")
+	}
+	return resolved, err
+}
+
+func (s *Service) requireOtherProfile(ctx context.Context, actorID pgtype.UUID, raw string) (pgtype.UUID, error) {
+	otherID, err := idutil.Parse(raw)
+	if err != nil {
+		return pgtype.UUID{}, httpx.NotFound("PROFILE_NOT_FOUND", "No such user.")
+	}
+	if actorID == otherID {
+		return pgtype.UUID{}, httpx.BadRequest("CANNOT_SETTLE_WITH_SELF", "You cannot record a settlement with yourself.")
+	}
+	if _, err := s.q.GetProfileByID(ctx, otherID); errors.Is(err, pgx.ErrNoRows) {
+		return pgtype.UUID{}, httpx.NotFound("PROFILE_NOT_FOUND", "No such user.")
+	} else if err != nil {
+		return pgtype.UUID{}, err
+	}
+	return otherID, nil
+}
+
+// writeSettlement is the one place a SETTLEMENT expense is written
+// (ADR-003's shape): paid by the payer, the recipient's share carrying
+// the amount, the payer's 0.
+func (s *Service) writeSettlement(ctx context.Context, payerID, recipientID, groupID pgtype.UUID, currency string, amount money.MinorUnits) (expenses.Expense, error) {
 	settlement, err := s.q.CreateExpense(ctx, db.CreateExpenseParams{
-		GroupID: groupID, Name: "Settlement", Category: "Settlement", Amount: in.ParsedAmount,
-		Currency: currency, PaidByID: actorID, SplitType: db.SplitTypeSETTLEMENT,
+		GroupID: groupID, Name: "Settlement", Category: "Settlement", Amount: amount,
+		Currency: currency, PaidByID: payerID, SplitType: db.SplitTypeSETTLEMENT,
 		ExpenseDate: pgtype.Timestamptz{Time: time.Now(), Valid: true},
 	})
 	if err != nil {
 		return expenses.Expense{}, err
 	}
-
-	if _, err := s.q.CreateExpenseParticipant(ctx, db.CreateExpenseParticipantParams{ExpenseID: settlement.ID, UserID: actorID, Amount: 0}); err != nil {
+	if _, err := s.q.CreateExpenseParticipant(ctx, db.CreateExpenseParticipantParams{ExpenseID: settlement.ID, UserID: payerID, Amount: 0}); err != nil {
 		return expenses.Expense{}, err
 	}
-	if _, err := s.q.CreateExpenseParticipant(ctx, db.CreateExpenseParticipantParams{ExpenseID: settlement.ID, UserID: toUserID, Amount: in.ParsedAmount}); err != nil {
+	if _, err := s.q.CreateExpenseParticipant(ctx, db.CreateExpenseParticipantParams{ExpenseID: settlement.ID, UserID: recipientID, Amount: amount}); err != nil {
 		return expenses.Expense{}, err
 	}
+	return s.expenses.LoadExpense(ctx, settlement)
+}
 
-	full, err := s.expenses.LoadExpense(ctx, settlement)
-	if err != nil {
-		return expenses.Expense{}, err
-	}
+func isAPIError(err error) bool {
+	var apiErr *httpx.APIError
+	return errors.As(err, &apiErr)
+}
 
-	// ABRO_PRD.md §34 SETTLEMENT event -- only the recipient, the actor
-	// already knows they just recorded this.
-	actorName := "Someone"
-	if actor, err := s.q.GetProfileByID(ctx, actorID); err == nil {
-		actorName = actor.DisplayName
+func (s *Service) nameOf(ctx context.Context, userID pgtype.UUID) string {
+	if p, err := s.q.GetProfileByID(ctx, userID); err == nil {
+		return p.DisplayName
 	}
-	if _, err := s.notifications.Notify(ctx, toUserID, notifications.TypeSettlement,
-		"Settlement recorded", fmt.Sprintf("%s recorded a settlement of %d %s.", actorName, in.ParsedAmount, currency)); err != nil {
-		return expenses.Expense{}, err
-	}
-
-	return full, nil
+	return "Someone"
 }
 
 // outstanding is the most the actor may settle to toUserID.

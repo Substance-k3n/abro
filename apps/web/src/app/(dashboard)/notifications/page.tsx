@@ -16,11 +16,17 @@
 // (apps/api/internal/notifications/service.go's `Type` enum:
 // EXPENSE_ADDED/EXPENSE_EDITED/EXPENSE_DELETED/SETTLEMENT/
 // GROUP_INVITATION/GROUP_MEMBERSHIP_CHANGE/RECURRING_EXPENSE/
-// DEBT_SIMPLIFICATION_CHANGE), mapped to the same four lucide icons the
-// mock version used, matched by category rather than 1:1.
+// DEBT_SIMPLIFICATION_CHANGE/PAYMENT_REMINDER/FRIEND_REQUEST/
+// FRIEND_ACCEPTED), mapped to the same four lucide icons the mock version
+// used, matched by category rather than 1:1.
+//
+// Tapping one marks it read and opens what it's about: its own `link`
+// when it has one (e.g. the disputed expense), otherwise a screen per
+// type (DESTINATIONS) -- older notifications carry no link.
 
 import { EmptyState } from '@abro/ui';
 import { Bell, type LucideIcon, Receipt, UserPlus, Utensils, Wallet } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { LoadingState } from '~/components/LoadStates';
@@ -42,9 +48,22 @@ const ICONS: Record<string, LucideIcon> = {
   GROUP_MEMBERSHIP_CHANGE: UserPlus,
   RECURRING_EXPENSE: Receipt,
   DEBT_SIMPLIFICATION_CHANGE: Receipt,
+  PAYMENT_REMINDER: Wallet,
+  FRIEND_REQUEST: UserPlus,
+  FRIEND_ACCEPTED: UserPlus,
+  EXPENSE_DISPUTED: Receipt,
+};
+
+const DESTINATIONS: Record<string, string> = {
+  SETTLEMENT: '/payments',
+  PAYMENT_REMINDER: '/balances/owe',
+  GROUP_INVITATION: '/groups',
+  FRIEND_REQUEST: '/friends',
+  FRIEND_ACCEPTED: '/friends',
 };
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -118,7 +137,7 @@ export default function NotificationsPage() {
           </button>
         </div>
       ) : !notifications ? (
-        <LoadingState />
+        <LoadingState inline />
       ) : notifications.length === 0 ? (
         <EmptyState
           icon={<Bell size={26} strokeWidth={1.5} />}
@@ -133,7 +152,13 @@ export default function NotificationsPage() {
             return (
               <button
                 key={n.id}
-                onClick={() => markRead(n.id)}
+                onClick={() => {
+                  markRead(n.id);
+                  const to = n.link ?? DESTINATIONS[n.type];
+                  if (to) {
+                    router.push(to);
+                  }
+                }}
                 className="neo-raised-sm flex items-start gap-3 rounded-2xl p-3.5 text-left"
                 style={{ borderLeft: isRead ? 'none' : '3px solid var(--accent)' }}
               >

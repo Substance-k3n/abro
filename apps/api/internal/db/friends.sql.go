@@ -108,11 +108,13 @@ SELECT
     f.friend_id,
     u.display_name AS user_display_name,
     u.avatar_url AS user_avatar_url,
+    u.username AS user_username,
     u.email AS user_email,
     u.preferred_currency AS user_preferred_currency,
     u.locale AS user_locale,
     fr.display_name AS friend_display_name,
     fr.avatar_url AS friend_avatar_url,
+    fr.username AS friend_username,
     fr.email AS friend_email,
     fr.preferred_currency AS friend_preferred_currency,
     fr.locale AS friend_locale
@@ -130,11 +132,13 @@ type ListFriendshipsRow struct {
 	FriendID                pgtype.UUID        `json:"friend_id"`
 	UserDisplayName         string             `json:"user_display_name"`
 	UserAvatarUrl           pgtype.Text        `json:"user_avatar_url"`
+	UserUsername            pgtype.Text        `json:"user_username"`
 	UserEmail               pgtype.Text        `json:"user_email"`
 	UserPreferredCurrency   string             `json:"user_preferred_currency"`
 	UserLocale              string             `json:"user_locale"`
 	FriendDisplayName       string             `json:"friend_display_name"`
 	FriendAvatarUrl         pgtype.Text        `json:"friend_avatar_url"`
+	FriendUsername          pgtype.Text        `json:"friend_username"`
 	FriendEmail             pgtype.Text        `json:"friend_email"`
 	FriendPreferredCurrency string             `json:"friend_preferred_currency"`
 	FriendLocale            string             `json:"friend_locale"`
@@ -156,11 +160,13 @@ func (q *Queries) ListFriendships(ctx context.Context, userID pgtype.UUID) ([]Li
 			&i.FriendID,
 			&i.UserDisplayName,
 			&i.UserAvatarUrl,
+			&i.UserUsername,
 			&i.UserEmail,
 			&i.UserPreferredCurrency,
 			&i.UserLocale,
 			&i.FriendDisplayName,
 			&i.FriendAvatarUrl,
+			&i.FriendUsername,
 			&i.FriendEmail,
 			&i.FriendPreferredCurrency,
 			&i.FriendLocale,
@@ -182,6 +188,7 @@ SELECT
     u.id AS from_id,
     u.display_name AS from_display_name,
     u.avatar_url AS from_avatar_url,
+    u.username AS from_username,
     u.email AS from_email,
     u.preferred_currency AS from_preferred_currency,
     u.locale AS from_locale
@@ -197,6 +204,7 @@ type ListIncomingFriendRequestsRow struct {
 	FromID                pgtype.UUID        `json:"from_id"`
 	FromDisplayName       string             `json:"from_display_name"`
 	FromAvatarUrl         pgtype.Text        `json:"from_avatar_url"`
+	FromUsername          pgtype.Text        `json:"from_username"`
 	FromEmail             pgtype.Text        `json:"from_email"`
 	FromPreferredCurrency string             `json:"from_preferred_currency"`
 	FromLocale            string             `json:"from_locale"`
@@ -217,6 +225,7 @@ func (q *Queries) ListIncomingFriendRequests(ctx context.Context, friendID pgtyp
 			&i.FromID,
 			&i.FromDisplayName,
 			&i.FromAvatarUrl,
+			&i.FromUsername,
 			&i.FromEmail,
 			&i.FromPreferredCurrency,
 			&i.FromLocale,
@@ -231,21 +240,24 @@ func (q *Queries) ListIncomingFriendRequests(ctx context.Context, friendID pgtyp
 	return items, nil
 }
 
-const searchFriendByEmailOrPhone = `-- name: SearchFriendByEmailOrPhone :one
-SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username FROM profiles
-WHERE id != $1 AND (email = $2 OR phone = $2)
+const searchFriendExact = `-- name: SearchFriendExact :one
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path FROM profiles
+WHERE id != $1
+  AND (email = $2 OR phone = $3)
 LIMIT 1
 `
 
-type SearchFriendByEmailOrPhoneParams struct {
-	ID    pgtype.UUID `json:"id"`
-	Email pgtype.Text `json:"email"`
+type SearchFriendExactParams struct {
+	ExcludeID pgtype.UUID `json:"exclude_id"`
+	Email     pgtype.Text `json:"email"`
+	Phone     pgtype.Text `json:"phone"`
 }
 
-// Exact match only -- never a fuzzy name search, so you can't browse the
-// user directory.
-func (q *Queries) SearchFriendByEmailOrPhone(ctx context.Context, arg SearchFriendByEmailOrPhoneParams) (Profile, error) {
-	row := q.db.QueryRow(ctx, searchFriendByEmailOrPhone, arg.ID, arg.Email)
+// Exact match on email or phone (an address or number someone already
+// knows) -- never a fuzzy search. Emails are stored lowercased, so the
+// caller passes a lowercased email.
+func (q *Queries) SearchFriendExact(ctx context.Context, arg SearchFriendExactParams) (Profile, error) {
+	row := q.db.QueryRow(ctx, searchFriendExact, arg.ExcludeID, arg.Email, arg.Phone)
 	var i Profile
 	err := row.Scan(
 		&i.ID,
@@ -258,6 +270,64 @@ func (q *Queries) SearchFriendByEmailOrPhone(ctx context.Context, arg SearchFrie
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Username,
+		&i.AvatarPath,
 	)
 	return i, err
+}
+
+const searchProfilesByUsernamePrefix = `-- name: SearchProfilesByUsernamePrefix :many
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path FROM profiles
+WHERE id != $1
+  AND username LIKE $2::text ESCAPE '\'
+ORDER BY (username = $3::text) DESC, username
+LIMIT $4
+`
+
+type SearchProfilesByUsernamePrefixParams struct {
+	ExcludeID     pgtype.UUID `json:"exclude_id"`
+	PrefixPattern string      `json:"prefix_pattern"`
+	Exact         string      `json:"exact"`
+	RowLimit      int32       `json:"row_limit"`
+}
+
+// Search-as-you-type on usernames, which are public handles (lowercase,
+// [a-z0-9_.]). Prefix only and at most row_limit rows; display names,
+// emails and phones are never searched this way. The caller escapes
+// LIKE's wildcards ('_' is a legal username character). An exact match
+// sorts first.
+func (q *Queries) SearchProfilesByUsernamePrefix(ctx context.Context, arg SearchProfilesByUsernamePrefixParams) ([]Profile, error) {
+	rows, err := q.db.Query(ctx, searchProfilesByUsernamePrefix,
+		arg.ExcludeID,
+		arg.PrefixPattern,
+		arg.Exact,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Profile
+	for rows.Next() {
+		var i Profile
+		if err := rows.Scan(
+			&i.ID,
+			&i.DisplayName,
+			&i.AvatarUrl,
+			&i.Phone,
+			&i.Email,
+			&i.PreferredCurrency,
+			&i.Locale,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Username,
+			&i.AvatarPath,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

@@ -138,6 +138,7 @@ export default function AddExpensePayerPage() {
               <PersonRow
                 key={f.id}
                 initials={f.initials}
+                photo={f.photo}
                 color={f.color}
                 name={f.name}
                 right={

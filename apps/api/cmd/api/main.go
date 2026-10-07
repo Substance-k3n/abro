@@ -23,6 +23,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idempotency"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
+	"github.com/Substance-k3n/abro/apps/api/internal/photos"
 	"github.com/Substance-k3n/abro/apps/api/internal/recurring"
 	"github.com/Substance-k3n/abro/apps/api/internal/settlements"
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
@@ -71,11 +72,11 @@ func main() {
 	usersSvc := users.NewService(queries)
 	usersHandler := users.NewHandler(usersSvc, queries)
 
-	friendsSvc := friends.NewService(queries)
-	friendsHandler := friends.NewHandler(friendsSvc, queries)
-
 	notificationsSvc := notifications.NewService(queries)
 	notificationsHandler := notifications.NewHandler(notificationsSvc, queries)
+
+	friendsSvc := friends.NewService(queries, notificationsSvc)
+	friendsHandler := friends.NewHandler(friendsSvc, queries)
 
 	groupsSvc := groups.NewService(queries, friendsSvc, notificationsSvc)
 	groupsHandler := groups.NewHandler(groupsSvc, queries)
@@ -86,6 +87,8 @@ func main() {
 	}
 	idempotencySvc := idempotency.NewService(queries)
 	expensesSvc := expenses.NewService(queries, groupsSvc, friendsSvc, notificationsSvc, receiptStore)
+	// Profile and group photos share the receipts bucket (ADR-017).
+	photosHandler := photos.NewHandler(photos.NewService(queries, receiptStore, groupsSvc))
 	expensesHandler := expenses.NewHandler(expensesSvc, idempotencySvc, queries)
 
 	balancesSvc := balances.NewService(queries, friendsSvc, groupsSvc)
@@ -95,7 +98,7 @@ func main() {
 	settlementsHandler := settlements.NewHandler(settlementsSvc, idempotencySvc, queries)
 
 	analyticsSvc := analytics.NewService(queries)
-	analyticsHandler := analytics.NewHandler(analyticsSvc, queries)
+	analyticsHandler := analytics.NewHandler(analyticsSvc, groupsSvc, queries)
 
 	recurringSvc := recurring.NewService(queries, expensesSvc, notificationsSvc)
 	recurringHandler := recurring.NewHandler(recurringSvc, queries)
@@ -107,11 +110,24 @@ func main() {
 	r.Use(httpx.Recoverer)
 	r.Use(httpx.CORS(cfg.WebOrigin))
 
+	// Liveness only: answers without touching the database, so the
+	// keep-awake ping (.github/workflows/keep-awake.yml) and Render's
+	// health check never keep Neon's free-tier compute running.
+	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
+		httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
+
 	r.Route("/auth", authHandler.Mount)
-	r.Route("/users", usersHandler.Mount)
+	r.Route("/users", func(r chi.Router) {
+		usersHandler.Mount(r)
+		photosHandler.MountUsers(r)
+	})
 	r.Route("/friends", friendsHandler.Mount)
 	r.Route("/notifications", notificationsHandler.Mount)
-	r.Route("/groups", groupsHandler.Mount)
+	r.Route("/groups", func(r chi.Router) {
+		groupsHandler.Mount(r)
+		photosHandler.MountGroups(r)
+	})
 	r.Route("/expenses", expensesHandler.Mount)
 	r.Route("/balances", balancesHandler.Mount)
 	r.Route("/settlements", settlementsHandler.Mount)

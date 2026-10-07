@@ -58,8 +58,8 @@
 // to real apps/api data. Deviations/assumptions (Confirmed):
 //  - People = your friends only, matched client-side by name, with their
 //    real balance (deriveFriendRows()). Non-friends are deliberately not
-//    searchable: apps/api's GET /friends/search is exact email/phone
-//    match by design ("so you can't browse the user directory") --
+//    searchable: apps/api's GET /friends/search is exact email/phone/
+//    username match by design ("so you can't browse the user directory") --
 //    adding someone new stays the Add Friend screen's job.
 //  - Groups = your groups, matched client-side by name (a user's group
 //    list is small), showing type + real member count (GET /groups/'s
@@ -342,6 +342,7 @@ export default function SearchPage() {
     <PersonRow
       key={f.id}
       initials={f.initials}
+      photo={f.photo}
       color={f.color}
       name={f.name}
       right={<FriendBalance friend={f} />}

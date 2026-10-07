@@ -1,9 +1,23 @@
--- name: SearchFriendByEmailOrPhone :one
--- Exact match only -- never a fuzzy name search, so you can't browse the
--- user directory.
+-- name: SearchFriendExact :one
+-- Exact match on email or phone (an address or number someone already
+-- knows) -- never a fuzzy search. Emails are stored lowercased, so the
+-- caller passes a lowercased email.
 SELECT * FROM profiles
-WHERE id != $1 AND (email = $2 OR phone = $2)
+WHERE id != sqlc.arg('exclude_id')
+  AND (email = sqlc.arg('email') OR phone = sqlc.arg('phone'))
 LIMIT 1;
+
+-- name: SearchProfilesByUsernamePrefix :many
+-- Search-as-you-type on usernames, which are public handles (lowercase,
+-- [a-z0-9_.]). Prefix only and at most row_limit rows; display names,
+-- emails and phones are never searched this way. The caller escapes
+-- LIKE's wildcards ('_' is a legal username character). An exact match
+-- sorts first.
+SELECT * FROM profiles
+WHERE id != sqlc.arg('exclude_id')
+  AND username LIKE sqlc.arg('prefix_pattern')::text ESCAPE '\'
+ORDER BY (username = sqlc.arg('exact')::text) DESC, username
+LIMIT sqlc.arg('row_limit');
 
 -- name: ListFriendships :many
 SELECT
@@ -13,11 +27,13 @@ SELECT
     f.friend_id,
     u.display_name AS user_display_name,
     u.avatar_url AS user_avatar_url,
+    u.username AS user_username,
     u.email AS user_email,
     u.preferred_currency AS user_preferred_currency,
     u.locale AS user_locale,
     fr.display_name AS friend_display_name,
     fr.avatar_url AS friend_avatar_url,
+    fr.username AS friend_username,
     fr.email AS friend_email,
     fr.preferred_currency AS friend_preferred_currency,
     fr.locale AS friend_locale
@@ -34,6 +50,7 @@ SELECT
     u.id AS from_id,
     u.display_name AS from_display_name,
     u.avatar_url AS from_avatar_url,
+    u.username AS from_username,
     u.email AS from_email,
     u.preferred_currency AS from_preferred_currency,
     u.locale AS from_locale

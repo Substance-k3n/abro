@@ -8,7 +8,10 @@
 // same "never trust client-calculated balances" guarantees independently.
 package money
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 // MinorUnits is an amount in the smallest unit of its currency (cents,
 // santim, etc). int64 is sufficient range for any realistic ETB-scale
@@ -136,8 +139,37 @@ func pow10(n int) float64 {
 	return result
 }
 
-// FormatMoney renders amount using currency's decimal digits, e.g. "100.50 ETB".
+// Format renders minor units in a currency by its code, for messages
+// such as notification bodies: 36000000 ETB -> "360,000.00 ETB". ETB is the
+// only currency with full metadata; any other code gets two decimals,
+// the same as the web app, which enters every amount with two.
+func Format(amount MinorUnits, currencyCode string) string {
+	meta := ETB
+	if currencyCode != ETB.Code {
+		meta = CurrencyMeta{Code: currencyCode, DecimalDigits: 2}
+	}
+	return FormatMoney(amount, meta)
+}
+
+// FormatMoney renders amount using currency's decimal digits, with
+// commas between thousands, e.g. "1,234.50 ETB". Integer arithmetic
+// throughout, so no float rounding on large amounts.
 func FormatMoney(amount MinorUnits, currency CurrencyMeta) string {
-	decimal := ToDecimal(amount, currency.DecimalDigits)
-	return fmt.Sprintf("%.*f %s", currency.DecimalDigits, decimal, currency.Code)
+	sign := ""
+	if amount < 0 {
+		sign = "-"
+		amount = -amount
+	}
+	factor := MinorUnits(1)
+	for i := 0; i < currency.DecimalDigits; i++ {
+		factor *= 10
+	}
+	whole := strconv.FormatInt(amount/factor, 10)
+	for i := len(whole) - 3; i > 0; i -= 3 {
+		whole = whole[:i] + "," + whole[i:]
+	}
+	if currency.DecimalDigits == 0 {
+		return fmt.Sprintf("%s%s %s", sign, whole, currency.Code)
+	}
+	return fmt.Sprintf("%s%s.%0*d %s", sign, whole, currency.DecimalDigits, amount%factor, currency.Code)
 }

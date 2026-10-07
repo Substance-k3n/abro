@@ -19,6 +19,7 @@ import { api } from './api-client';
 import type { FriendListItem } from './friends-api';
 import type { AuthGroup } from './groups-api';
 import { colorForId, initialsOf } from './identity';
+import { photoSrc } from './photos';
 
 export interface FriendBalance {
   friendId: string;
@@ -54,6 +55,8 @@ export interface FriendRow {
   name: string;
   initials: string;
   color: string;
+  /** Profile photo as an <img src>, or null (ADR-017). */
+  photo: string | null;
   owes: bigint;
   iOwe: bigint;
 }
@@ -73,6 +76,7 @@ export function deriveFriendRows(
       name: f.friend.displayName,
       initials: initialsOf(f.friend.displayName),
       color: colorForId(f.friend.id),
+      photo: photoSrc(f.friend.avatarUrl),
       owes,
       iOwe,
     };
@@ -85,6 +89,8 @@ export interface GroupRow {
   /** apps/api's UPPERCASE group type -- pass to ~/lib/groups-api.ts's
    * `groupTypeFor()` for its icon/color. */
   type: string;
+  /** Group photo as an <img src>, or null (ADR-017). */
+  photo: string | null;
   /** Positive = the group owes you (no sign conversion needed, unlike
    * friend balances -- see this file's header comment). */
   balance: bigint;
@@ -100,6 +106,7 @@ export function deriveGroupRows(groups: AuthGroup[], balances: BalancesSummary):
     id: g.id,
     name: g.name,
     type: g.type,
+    photo: photoSrc(g.photoUrl),
     balance: balanceByGroup.get(g.id) ?? 0n,
   }));
 }

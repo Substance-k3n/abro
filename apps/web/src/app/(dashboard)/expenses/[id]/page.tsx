@@ -5,12 +5,14 @@
 // GET /expenses/{id} (~/lib/expenses-api.ts) instead of mock EXPENSES.
 //
 // Deviations:
-//  - Receipt section: skipped -- no receipt-upload UI exists anywhere
-//    in this app yet (EXP-01/EXP-08 both deferred it), so there's
-//    nothing to show a thumbnail for. apps/api's receipt routes exist.
-//  - Actions menu: "Download receipt"/"Share expense" dropped for the
-//    same reason. "Edit expense" opens EXP-10; settlements never get
-//    it -- apps/api's update path can't produce a SETTLEMENT (ADR-003).
+//  - Receipt section: ~/components/ReceiptSection -- thumbnail, full
+//    view, and attach/replace/remove here on the detail page (the
+//    add-expense wizard doesn't take a receipt: the expense must exist
+//    first). "Download receipt" is the full view's "Open original"
+//    rather than an actions-menu item.
+//  - Actions menu: "Share expense" dropped (no sharing feature).
+//    "Edit expense" opens EXP-10; settlements never get it -- apps/api's
+//    update path can't produce a SETTLEMENT (ADR-003).
 //  - The menu shows only when you *might* be allowed to edit or
 //    delete: you paid, or it's a group expense (a group admin may too).
 //    apps/api's requireEditAuthority is the real check -- a group
@@ -36,6 +38,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { DisputeSection } from '~/components/DisputeSection';
+import { ReceiptSection } from '~/components/ReceiptSection';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
 import { type AuthExpense, deleteExpense, getExpense } from '~/lib/expenses-api';
@@ -43,6 +47,7 @@ import { listFriends } from '~/lib/friends-api';
 import { type GroupListItem, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { CATEGORIES } from '~/lib/reference-data';
+import { photoSrc } from '~/lib/photos';
 
 const METHOD_LABEL: Record<string, string> = {
   EQUAL: 'Equal',
@@ -252,6 +257,15 @@ export default function ExpenseDetailPage() {
         </div>
       )}
 
+      <DisputeSection
+        expense={expense}
+        me={profile}
+        mightManage={mightManage}
+        onChange={(updated) =>
+          setState({ status: 'ready', data: { ...state.data, expense: updated } })
+        }
+      />
+
       {/* Info card */}
       <div className="neo-raised-sm mb-4 flex flex-col items-center gap-2 rounded-[20px] p-6 text-center">
         <div
@@ -324,6 +338,14 @@ export default function ExpenseDetailPage() {
                 <Avatar user={p.user} size="h-7 w-7 text-[0.65rem]" />
                 <span className="flex-1 text-[0.85rem]" style={{ color: 'var(--t-secondary)' }}>
                   {nameOf(p.user)}
+                  {p.disputedAt && (
+                    <span
+                      className="ml-1.5 rounded-md px-1.5 py-0.5 text-[0.64rem] font-semibold"
+                      style={{ background: 'var(--red-bg)', color: 'var(--c-red-text)' }}
+                    >
+                      Disputed
+                    </span>
+                  )}
                 </span>
                 <span
                   className="font-mono text-[0.88rem] font-bold"
@@ -345,6 +367,14 @@ export default function ExpenseDetailPage() {
           })}
         </div>
       </div>
+
+      <ReceiptSection
+        expense={expense}
+        canManage={mightManage}
+        onChange={(updated) =>
+          setState({ status: 'ready', data: { ...state.data, expense: updated } })
+        }
+      />
 
       {/* Notes */}
       {expense.notes && (
@@ -377,12 +407,24 @@ export default function ExpenseDetailPage() {
 }
 
 function Avatar({ user, size }: { user: AuthProfile; size: string }) {
+  const src = photoSrc(user.avatarUrl);
   return (
     <div
-      className={`flex shrink-0 items-center justify-center rounded-full font-bold text-white ${size}`}
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold text-white ${size}`}
       style={{ background: colorForId(user.id) }}
     >
       {initialsOf(user.displayName)}
+      {src && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          key={src}
+          src={src}
+          alt=""
+          loading="lazy"
+          onError={(e) => e.currentTarget.remove()}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
     </div>
   );
 }

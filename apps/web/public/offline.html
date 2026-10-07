@@ -1,0 +1,118 @@
+<!doctype html>
+<!--
+  Shown by the service worker (public/sw.js, ADR-015) when a page is opened
+  with no connection. Deliberately plain HTML with inline styles and no app
+  JavaScript: it's served in place of any page while offline, so it can't
+  depend on Next's bundles, which may not be cached. Colours mirror the
+  light/dark tokens in src/app/globals.css.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#6366f1" />
+    <title>ABRO · Offline</title>
+    <!-- Same theme choice as the app (src/lib/theme.ts THEME_SCRIPT). -->
+    <script>
+      (function () {
+        try {
+          var c = localStorage.getItem('abro.theme');
+          var d =
+            c === 'dark' || (c === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.dataset.theme = d ? 'dark' : 'light';
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      :root {
+        --bg: linear-gradient(135deg, #eceaf8 0%, #f4f3fc 50%, #efedf9 100%);
+        --card: #f0eff9;
+        --shadow-dark: #d3d0ea;
+        --shadow-light: #ffffff;
+        --text: #1c1a33;
+        --dim: #625f80;
+      }
+      :root[data-theme='dark'] {
+        --bg: linear-gradient(135deg, #10111c 0%, #181a29 50%, #131422 100%);
+        --card: #1f2134;
+        --shadow-dark: #11121d;
+        --shadow-light: #2d3049;
+        --text: #f1f3fa;
+        --dim: #a9b0c7;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        padding: 32px;
+        text-align: center;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+      }
+      .logo {
+        width: 84px;
+        height: 84px;
+        border-radius: 26px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--card);
+        box-shadow:
+          8px 8px 16px var(--shadow-dark),
+          -8px -8px 16px var(--shadow-light);
+        font-size: 1.9rem;
+        font-weight: 800;
+        letter-spacing: -0.05em;
+      }
+      .logo span {
+        background: linear-gradient(135deg, #6366f1, #a855f7);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.4rem;
+      }
+      p {
+        margin: 0;
+        max-width: 20rem;
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: var(--dim);
+      }
+      button {
+        border: 0;
+        border-radius: 16px;
+        padding: 12px 24px;
+        font: inherit;
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: #fff;
+        background: linear-gradient(135deg, #6366f1, #a855f7);
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="logo" aria-hidden="true"><span>AB</span></div>
+    <h1>You're offline</h1>
+    <p>
+      ABRO needs a connection to show your balances and expenses. Check your internet and try again.
+    </p>
+    <button type="button" onclick="location.reload()">Try again</button>
+  </body>
+</html>

@@ -16,6 +16,9 @@ export interface ExpenseParticipant {
   id: string;
   amount: string;
   user: AuthProfile;
+  /** Set while this person says they weren't part of the expense
+   * (ADR-020). Their share still counts until the expense is edited. */
+  disputedAt: string | null;
 }
 
 export interface AuthExpense {
@@ -35,6 +38,10 @@ export interface AuthExpense {
   updatedAt: string;
   participants: ExpenseParticipant[];
 }
+
+/** Rows per page on Activity (DASH-08); also what ~/components/
+ * PrefetchTabs warms, so the two must ask for the same page. */
+export const ACTIVITY_PAGE_SIZE = 30;
 
 export function listExpenses(opts?: {
   groupId?: string;
@@ -203,4 +210,48 @@ export function getExpense(id: string): Promise<AuthExpense> {
  * or a group admin may; anyone else gets 403 NOT_EDIT_AUTHORIZED. */
 export function deleteExpense(id: string): Promise<void> {
   return api.delete(`/expenses/${id}`);
+}
+
+/** apps/api's receipt rules (internal/expenses/service.go): JPG, PNG or
+ * WebP, 10MB at most. Checked here only to fail fast; the API is the
+ * real check. */
+export const RECEIPT_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+export const RECEIPT_MAX_BYTES = 10 * 1024 * 1024;
+
+/** POST /expenses/{id}/receipt (multipart, field `file`) -- attaches or
+ * replaces the receipt; same edit authority as editing the expense.
+ * Returns the updated expense. A server with no object storage answers
+ * 501 RECEIPT_STORAGE_NOT_CONFIGURED. */
+export function uploadReceipt(id: string, file: File): Promise<AuthExpense> {
+  const form = new FormData();
+  form.append('file', file);
+  return api.postForm(`/expenses/${id}/receipt`, form);
+}
+
+/** GET /expenses/{id}/receipt -- a presigned URL that expires after five
+ * minutes (storage stays private, PRD §36), so fetch it when showing the
+ * receipt rather than caching it. */
+export function getReceiptUrl(id: string): Promise<{ url: string }> {
+  return api.get(`/expenses/${id}/receipt`);
+}
+
+/** DELETE /expenses/{id}/receipt -- same edit authority as uploading. */
+export function deleteReceipt(id: string): Promise<void> {
+  return api.delete(`/expenses/${id}/receipt`);
+}
+
+/** "I wasn't part of this" (ADR-020): flags your share and tells the
+ * payer. Amounts don't change until they edit the expense. */
+export function disputeExpense(id: string): Promise<AuthExpense> {
+  return api.post(`/expenses/${id}/dispute`);
+}
+
+/** Take your own dispute back. */
+export function withdrawDispute(id: string): Promise<AuthExpense> {
+  return api.delete(`/expenses/${id}/dispute`);
+}
+
+/** Payer or group admin: keep the expense as it is; they're told. */
+export function dismissDispute(id: string, userId: string): Promise<AuthExpense> {
+  return api.delete(`/expenses/${id}/dispute/${userId}`);
 }

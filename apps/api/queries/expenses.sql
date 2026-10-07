@@ -31,8 +31,8 @@ SELECT * FROM expenses WHERE id = $1;
 SELECT * FROM expense_participants WHERE expense_id = $1 AND user_id = $2;
 
 -- name: ListExpenseParticipantsForExpenseIDs :many
-SELECT ep.expense_id, ep.id, ep.user_id, ep.amount,
-       p.display_name, p.avatar_url, p.email, p.preferred_currency, p.locale
+SELECT ep.expense_id, ep.id, ep.user_id, ep.amount, ep.disputed_at,
+       p.display_name, p.avatar_url, p.email, p.username, p.preferred_currency, p.locale
 FROM expense_participants ep
 JOIN profiles p ON p.id = ep.user_id
 WHERE ep.expense_id = ANY(sqlc.arg('expense_ids')::uuid[]);
@@ -89,7 +89,7 @@ RETURNING *;
 
 -- name: ListExpenseNotesWithAuthor :many
 SELECT n.id, n.expense_id, n.content, n.created_at,
-       p.id AS author_id, p.display_name AS author_display_name, p.avatar_url AS author_avatar_url,
+       p.id AS author_id, p.display_name AS author_display_name, p.avatar_url AS author_avatar_url, p.username AS author_username,
        p.email AS author_email, p.preferred_currency AS author_preferred_currency, p.locale AS author_locale
 FROM expense_notes n
 JOIN profiles p ON p.id = n.author_id
@@ -98,3 +98,9 @@ ORDER BY n.created_at ASC;
 
 -- name: UpdateExpenseReceiptPath :one
 UPDATE expenses SET receipt_path = $2 WHERE id = $1 RETURNING *;
+
+-- name: SetParticipantDispute :one
+-- disputed_at = NULL clears it (withdrawn, or the payer kept the expense).
+UPDATE expense_participants SET disputed_at = sqlc.narg('disputed_at')
+WHERE expense_id = sqlc.arg('expense_id') AND user_id = sqlc.arg('user_id')
+RETURNING *;

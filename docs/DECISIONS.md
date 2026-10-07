@@ -7,6 +7,281 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-020: Expense disputes flag a share; only the payer changes it
+
+**Status:** Accepted (phone-trial feedback, 2026-10-07).
+
+**Context:** Someone can be added to an expense they weren't part of
+(X adds Y and Z to a dinner Z skipped), and Z then owes money with no
+way to object inside the app.
+
+**Decision (chosen with the user):** Z taps **"I wasn't part of this"**
+on the expense. That sets `expense_participants.disputed_at` on Z's share
+(migration 0017), shows a "Disputed" badge and banner to everyone on it,
+and notifies the payer with a link to the expense. **Nothing about the
+amounts changes:** the expense counts exactly as entered until the payer
+(or a group admin, the same people who may edit it) either **edits** it
+-- editing rewrites the participant rows, which clears every dispute -- or
+taps **Keep as is**, which clears it and tells Z. Z can take it back.
+Settlements can't be disputed; they're confirmed or rejected instead
+(ADR-019).
+
+The same migration adds `notifications.link`, so a notification can open
+the exact thing it's about (`/expenses/<id>`); older ones fall back to a
+screen per type.
+
+**Alternatives considered:** Z removes themselves and the rest is
+re-split automatically (changes other people's amounts without the
+payer agreeing, and turns an unequal split into an equal one); every
+expense needs everyone's approval before it counts (safest, but a tap
+from every person on every expense).
+
+**Consequences:**
+
+- Balances stay a pure function of expenses: a dispute is information,
+  not a ledger change.
+- A payer who ignores a dispute leaves it showing; the badge and banner
+  keep it visible to everyone on the expense.
+
+---
+
+## ADR-019: Payments are confirmed by the person paid
+
+**Status:** Accepted (phone-trial feedback, 2026-10-07).
+
+**Context:** Until now, when the person who owed recorded "I paid X", it
+settled the debt immediately (ADR-003). Trial users found that too
+trusting: the person paid should be the one to agree it happened, see
+proof if there is any, and be able to say "I didn't get this".
+
+**Decision:**
+
+- **The payer records it → a request.** `POST /settlements` now creates
+  a row in the new `settlement_requests` table (migration 0016) with
+  status `PENDING`. A request is a _claim_, not a fact: no balance query
+  reads this table, so it moves nothing. It's capped by what the payer
+  owes **minus what they already have pending** with that person.
+- **The person paid confirms or rejects.** Confirming re-checks the live
+  debt, then writes the `SETTLEMENT` expense exactly as ADR-003 always
+  has, and links it to the request. Only then do balances change. A
+  part-payment takes off only what was paid. Rejecting changes nothing
+  and tells the payer.
+- **The payer can cancel** while it's pending, and attach a **proof
+  photo** (same rules as expense receipts) that the other person sees
+  before confirming; on confirm it carries over to the settlement.
+- **The person paid can record it themselves** (`POST
+/settlements/received`, "They paid me"). That counts at once: they're
+  the one who'd lose out if it were wrong.
+- Confirming **claims the request first** with one atomic `UPDATE …
+WHERE status = 'PENDING'`, then writes the settlement, so two taps (or
+  two devices) can never settle twice. If writing fails, the request
+  goes back to pending.
+- Existing settlements are untouched: they're already expenses.
+
+**Alternatives considered:** a `status` column on `expenses` for
+SETTLEMENT rows (every balance, analytics and group-integrity query
+would need a new filter, and missing one would silently count unconfirmed
+money); confirming by editing the expense in place (same problem).
+
+**Consequences:**
+
+- ADR-003 still holds: a settlement is still an expense, and still the
+  only thing that moves a balance.
+- Debts stay on the books until the other person confirms, so someone
+  who never opens the app delays settling. They get a notification and
+  a Home banner; the payer can see it's waiting on Payments.
+- `POST /settlements` returns a request, not an expense, so the web app
+  ships with this change in the same deploy.
+
+---
+
+## ADR-018: Payment reminders — admin-only, owes-only, once per 24 hours
+
+**Status:** Accepted (roadmap Phase 6, 2026-10-07).
+
+**Context:** The group admin dashboard (P6) should let an admin nudge
+members who owe the group. PRD §34's notification list has no reminder
+event, and the frontend spec only lists "Payment reminder (future)".
+Without a limit, a reminder button becomes a way to spam someone.
+
+**Decision:** `POST /groups/{id}/members/{userId}/remind` sends an
+in-app notification of the new type `PAYMENT_REMINDER` ("Ana reminded
+you that you owe 1234.50 ETB in \"Trip\"."). Rules:
+
+- Only an **active admin** can send one, and only to an **active**
+  member whose net in the group is **negative** (they owe). Never to
+  yourself.
+- **One reminder per member per group every 24 hours**, whoever sends
+  it. Too soon → `429 REMINDER_TOO_SOON` with `details.nextAllowedAt`.
+- Each reminder is a row in the new `payment_reminders` table (group,
+  sender, recipient, created_at; migration 0014). That's the audit
+  trail and what the 24-hour check reads. **No amount is stored**: the
+  amount in the message is the member's net at that moment, derived
+  from expenses like every other balance.
+- `PAYMENT_REMINDER` can be turned off in notification settings. The
+  admin gets the same success either way, and the reminder still
+  counts toward the 24 hours, so a reminder never reveals that setting.
+- `GET /groups/{id}/reminders` (admins) lists the latest reminder per
+  member, so the dashboard can show "Reminded 3h ago" after a reload.
+
+**Alternatives considered:** checking the notifications table for a
+recent reminder instead of a new table (a notification doesn't record
+its group or sender, and isn't written at all for someone who opted
+out, which would let the limit be bypassed); letting any member remind
+(the dashboard is an admin tool, and members can already see who owes);
+a lock to make the limit exact under concurrent taps (two admins
+reminding at the same instant can both get through — the cost is one
+extra notification, not worth a lock).
+
+**Consequences:**
+
+- Reminders are in-app only, like every notification (no push or email
+  yet, PRD "Later").
+- The table grows by at most one row per member per group per day.
+
+---
+
+## ADR-017: Profile and group photos, served through the API at versioned URLs
+
+**Status:** Accepted (roadmap Phase 4, 2026-10-06).
+
+**Context:** People wanted a profile photo (at sign-up and in their
+profile) and group photos. Photos show next to names all over the app,
+so they must load fast and cache well, but the storage bucket is private
+(receipts, PRD §36) and the free-tier deploy has no CDN.
+
+**Decision:** Store photos in the existing private bucket under
+`avatars/<user>/` and `group-photos/<group>/`, with a random file name
+per upload, and serve them **through the API**:
+`GET /users/{id}/avatar/{version}` and `GET /groups/{id}/photo/{version}`,
+where the version is that file name. A new photo means a new URL, so
+responses carry `Cache-Control: private, max-age=31536000, immutable`.
+Any signed-in user may load a profile photo; a group photo needs active
+membership. Uploads (`POST /users/me/avatar`, `POST /groups/{id}/photo`,
+admins only) are typed by their bytes (JPG/PNG/WebP, as in #60) and
+capped at 2 MB; the app shrinks photos before uploading. The profile's
+displayed photo stays in `profiles.avatar_url` (the versioned path, or a
+Google picture URL), and the stored key goes in the new
+`profiles.avatar_path` / `groups.photo_path` (migration 0013). Code:
+`internal/photos`, added onto the `/users` and `/groups` routers.
+
+**Alternatives considered:** presigned bucket URLs in every response
+(they expire after minutes and change on every request, so browsers
+could never cache a photo); a public bucket (every photo world-readable
+by URL); a new column per response shape (`avatar_url` already flows
+through every profile embedded in friends, members and participants).
+
+**Consequences:**
+
+- Photos appear everywhere a profile is embedded with no other API
+  change, and each one downloads once per device.
+- Photo bytes pass through the API server. They're small (resized
+  client-side), but a CDN in front of the API would help at scale.
+- Replacing or removing a photo deletes the old object, and its old URL
+  stops working (404).
+
+---
+
+## ADR-016: Light theme by default, with a Light / Dark / Match-phone switch
+
+**Status:** Accepted (user decision, 2026-10-06).
+
+**Context:** The app followed the phone's theme, so on a dark phone people
+saw dark mode first, and its secondary text (`--t-dim`, about 2.6:1) was
+hard to read. Several component overrides only matched an explicit
+`data-theme="dark"` stamp that nothing ever set, so on a dark phone some
+buttons and badges kept their light styling. The user likes the soft 3D
+(neo-morphic) look and asked to keep it; the complaint was the dark
+default and the contrast.
+
+**Decision:** Keep the neo-morphic style. Light is the default whatever
+the phone's setting: a near-white background with a faint lavender tint,
+so the brand purple belongs to the page. Dark mode keeps its look with
+brighter text tokens (`--t-dim` about 4.6:1) and a stronger card
+highlight. People choose Light, Dark or Match phone in Settings ->
+Appearance (a per-device choice in localStorage). An inline script in the
+root layout's `<head>` (`THEME_SCRIPT`, `lib/theme.ts`) always stamps
+`data-theme` before the first paint, so there's no flash and the dark
+component overrides now always apply.
+
+**Alternatives considered:** a flat "bank app" redesign (rejected by the
+user); keeping "follow the phone" as the default (the original problem).
+
+**Consequences:**
+
+- Everyone sees the same light look first; dark is one tap away.
+- The choice is per device, not per account (no API change needed).
+- The offline page (`public/offline.html`) reads the same choice.
+
+---
+
+## ADR-015: The app is an installable web app (PWA), not a store app
+
+**Status:** Accepted (user decision, 2026-10-06).
+
+**Context:** ABRO should be usable as a phone app. The web app already
+had a manifest and install icons (#52) but no service worker, so Chrome
+on Android wouldn't offer a proper install, and the installed app opened
+on the marketing splash.
+
+**Decision:** Finish it as a Progressive Web App. A hand-written
+`apps/web/public/sw.js` caches only Next's content-hashed build files and
+the icons (cache-first), sends every page navigation to the network
+first with a cached, self-contained `offline.html` as the fallback, and leaves the API
+(`/api/*`) and other origins alone, so balances are never cached. The
+manifest opens on `/home` and adds an "Add expense" shortcut. An
+"Install ABRO" button (Home banner, Settings → App) uses Chrome's install
+prompt, or shows Safari's "Add to Home Screen" steps on iPhone.
+
+**Alternatives considered:** Play Store listing via a Trusted Web
+Activity (needs a $25 Google Play account and review; can be added later
+on top of this PWA); a React Native rewrite (two codebases, App Store
+also needs $99/year and a Mac); `next-pwa`/Serwist (a build plugin and
+dependency for what is about 80 lines of worker code).
+
+**Consequences:**
+
+- Free, no store account, works on Android and iPhone, and updates ship
+  with every web deploy.
+- Not listed in app stores; people install from the site.
+- No offline use beyond the "you're offline" page: every screen needs
+  the API, by design.
+- `sw.js` is served with `Cache-Control: no-cache` (next.config.mjs) so a
+  fixed worker reaches installed apps on their next open. Bump `VERSION`
+  in it to drop old caches.
+
+---
+
+## ADR-014: Self-hosted fonts via next/font/local
+
+**Status:** Accepted (2026-10-06).
+
+**Context:** `next/font/google` downloads Outfit, DM Sans and JetBrains
+Mono from Google during every web build (CI, the Docker image build and
+Vercel). Google sometimes returns a response the loader can't parse
+(`TypeError: Cannot read properties of null (reading '1')`), which
+failed the `images` CI job until it was rerun.
+
+**Decision:** Commit each font's variable-weight latin woff2 to
+`apps/web/src/app/fonts/` (with its OFL licence) and load it with
+`next/font/local` in `layout.tsx`. The CSS variables (`--font-display`,
+`--font-body`, `--font-mono`) and weight ranges are unchanged.
+
+**Alternatives considered:** Retrying the build in CI (hides the flake
+but keeps the network dependency, and Vercel builds can still fail);
+`@fontsource` packages imported as CSS (no build fetch, but loses
+next/font's preload and fallback-metric adjustment).
+
+**Consequences:**
+
+- Builds no longer need to reach Google, so the font flake is gone.
+- About 100 KB of font files are committed. Upgrading a font means
+  replacing its file by hand.
+- Only the latin subset is shipped, the same as before
+  (`subsets: ['latin']`).
+
+---
+
 ## ADR-013: OTP email without a domain — Brevo, alongside Resend
 
 **Status:** Accepted (user decision, 2026-10-05).
@@ -69,7 +344,8 @@ would not send the cookie on credentialed cross-site fetches to the API.
   ADR-011's "schema comes from the same image" rule. The compose stack
   leaves the flag unset and keeps its `migrate` service.
 - **No S3 for now.** The API already runs without it (receipt endpoints
-  report "not configured"), and there's no receipt UI. This avoids adding
+  report "not configured"), and there's no receipt UI (shipped later, on
+  2026-10-06; it shows a "not available" note until S3 is set). This avoids adding
   a storage vendor (e.g. Supabase Storage, which ADR-001 steered away
   from) before it's needed.
 
@@ -144,13 +420,14 @@ since the images work there too.
   documented in docs/DEPLOY.md.
 - Two known gaps, now tied to this deployment:
   - Receipt downloads use presigned URLs pointing at the internal
-    `http://s3:9000`. There's no receipt UI yet, but when there is, S3
+    `http://s3:9000`. There's no receipt UI yet (added 2026-10-06), but when there is, S3
     needs a public hostname via Caddy.
   - Recurring expenses still have no scheduler (ADR-005). A cron on the
     server can call the generate endpoint once that endpoint is
     protected.
 - `next/font/google` fetches fonts during the web build, so a build
-  needs internet access (the CI font flake can also hit it).
+  needs internet access (the CI font flake can also hit it). Resolved
+  by ADR-014: fonts are now self-hosted.
 
 ---
 

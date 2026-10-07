@@ -2,6 +2,8 @@ package groups
 
 import (
 	"net/http"
+	"path"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -34,6 +36,9 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/{id}/invite/accept", httpx.Wrap(h.acceptInvite))
 	r.Patch("/{id}/members/{userId}", httpx.Wrap(h.updateMemberRole))
 	r.Delete("/{id}/members/{userId}", httpx.Wrap(h.removeMember))
+	r.Post("/{id}/members/{userId}/remind", httpx.Wrap(h.remindMember))
+	r.Get("/{id}/reminders", httpx.Wrap(h.listReminders))
+	r.Post("/{id}/members/{userId}/resend-invite", httpx.Wrap(h.resendInvite))
 }
 
 func parseIDParam(r *http.Request, name string) (pgtype.UUID, error) {
@@ -242,6 +247,10 @@ func toMembershipResult(m db.GroupMember) apitypes.GroupMembershipResult {
 	}
 }
 
+// ToAuthGroupRow is toAuthGroupRow for other packages (internal/photos
+// answers photo uploads with the updated group).
+func ToAuthGroupRow(g db.Group) apitypes.AuthGroup { return toAuthGroupRow(g) }
+
 func toAuthGroupRow(g db.Group) apitypes.AuthGroup {
 	out := apitypes.AuthGroup{
 		ID: idutil.String(g.ID), Name: g.Name, Type: string(g.Type), Currency: g.Currency,
@@ -251,7 +260,23 @@ func toAuthGroupRow(g db.Group) apitypes.AuthGroup {
 	if g.Description.Valid {
 		out.Description = &g.Description.String
 	}
+	if url, ok := PhotoURL(g.ID, g.PhotoPath); ok {
+		out.PhotoURL = &url
+	}
 	return out
+}
+
+// PhotoURL is the versioned API path a group photo is served at
+// (internal/photos, ADR-017): /groups/{id}/photo/{version}, where the
+// version is the stored object's file name without its extension, so a
+// new photo gets a new URL and clients can cache each one forever.
+func PhotoURL(groupID pgtype.UUID, photoPath pgtype.Text) (string, bool) {
+	if !photoPath.Valid {
+		return "", false
+	}
+	version := path.Base(photoPath.String)
+	version = strings.TrimSuffix(version, path.Ext(version))
+	return "/groups/" + idutil.String(groupID) + "/photo/" + version, true
 }
 
 func toAuthGroup(g Group) apitypes.AuthGroup {
@@ -268,10 +293,79 @@ func toAuthGroup(g Group) apitypes.AuthGroup {
 		if m.Email.Valid {
 			user.Email = &m.Email.String
 		}
+		if m.Username.Valid {
+			user.Username = &m.Username.String
+		}
 		out.Members[i] = apitypes.GroupMember{
 			ID: idutil.String(m.ID), UserID: idutil.String(m.UserID), Role: string(m.Role),
 			Status: string(m.Status), JoinedAt: m.JoinedAt.Time, User: user,
 		}
 	}
 	return out
+}
+
+func (h *Handler) remindMember(w http.ResponseWriter, r *http.Request) error {
+	groupID, err := parseIDParam(r, "id")
+	if err != nil {
+		return err
+	}
+	targetUserID, err := idutil.Parse(chi.URLParam(r, "userId"))
+	if err != nil {
+		return httpx.NotFound("MEMBERSHIP_NOT_FOUND", "No membership record found.")
+	}
+
+	user := authpkg.CurrentUser(r.Context())
+	reminder, err := h.svc.RemindMember(r.Context(), user.ID, groupID, targetUserID)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusCreated, toPaymentReminder(reminder))
+	return nil
+}
+
+func (h *Handler) listReminders(w http.ResponseWriter, r *http.Request) error {
+	groupID, err := parseIDParam(r, "id")
+	if err != nil {
+		return err
+	}
+	user := authpkg.CurrentUser(r.Context())
+	reminders, err := h.svc.LatestReminders(r.Context(), user.ID, groupID)
+	if err != nil {
+		return err
+	}
+	out := make([]apitypes.PaymentReminder, len(reminders))
+	for i, rem := range reminders {
+		out[i] = toPaymentReminder(rem)
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+func toPaymentReminder(rem db.PaymentReminder) apitypes.PaymentReminder {
+	return apitypes.PaymentReminder{
+		GroupID:       idutil.String(rem.GroupID),
+		RecipientID:   idutil.String(rem.RecipientID),
+		SenderID:      idutil.String(rem.SenderID),
+		RemindedAt:    rem.CreatedAt.Time,
+		NextAllowedAt: rem.CreatedAt.Time.Add(ReminderCooldown),
+	}
+}
+
+func (h *Handler) resendInvite(w http.ResponseWriter, r *http.Request) error {
+	groupID, err := parseIDParam(r, "id")
+	if err != nil {
+		return err
+	}
+	targetUserID, err := idutil.Parse(chi.URLParam(r, "userId"))
+	if err != nil {
+		return httpx.NotFound("MEMBERSHIP_NOT_FOUND", "No membership record found.")
+	}
+
+	user := authpkg.CurrentUser(r.Context())
+	membership, err := h.svc.ResendInvite(r.Context(), user.ID, groupID, targetUserID)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, toMembershipResult(membership))
+	return nil
 }

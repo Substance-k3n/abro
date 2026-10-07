@@ -14,21 +14,24 @@ import { Plus } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-import { NAV_ITEMS } from './nav-items';
+import { BOTTOM_NAV_ITEMS } from './nav-items';
 
 export function BottomNav() {
   const pathname = usePathname();
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-20 flex shrink-0 items-center justify-around px-1.5 pb-[22px] pt-2.5 md:hidden"
+      className="fixed inset-x-0 bottom-0 z-20 flex shrink-0 items-center justify-around px-1.5 pt-2.5 md:hidden"
       style={{
+        // Clears the iPhone home indicator (safe-area inset) and never
+        // drops below the original 22px on phones without one.
+        paddingBottom: 'max(22px, calc(8px + env(safe-area-inset-bottom)))',
         background: 'var(--neo-bg)',
         boxShadow: 'var(--nav-shadow)',
         borderRadius: '28px 28px 0 0',
       }}
     >
-      {NAV_ITEMS.map((item) => {
+      {BOTTOM_NAV_ITEMS.map((item) => {
         const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
         const Icon = item.icon;
 
@@ -65,7 +68,7 @@ export function BottomNav() {
                 boxShadow: isActive
                   ? 'inset 4px 4px 9px var(--neo-dark), inset -4px -4px 9px var(--neo-light)'
                   : 'none',
-                color: isActive ? 'var(--accent)' : '#a0a8b8',
+                color: isActive ? 'var(--accent)' : 'var(--t-nav-inactive)',
               }}
             >
               <Icon size={20} strokeWidth={isActive ? 2 : 1.6} />

@@ -51,7 +51,6 @@ import {
   AmountBadge,
   BalanceCard,
   EmptyState,
-  GroupIcon,
   MoneyDisplay,
   PersonRow,
   SectionLabel,
@@ -72,6 +71,7 @@ import {
 } from '~/lib/balances-api';
 import { type FriendListItem, listFriends } from '~/lib/friends-api';
 import { type AuthGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
+import { GroupPicture } from '~/components/GroupPicture';
 
 type FilterKey = 'all' | 'friends' | 'groups';
 
@@ -158,7 +158,13 @@ export default function BalancesPage() {
 
       {/* Total Balance Card */}
       <div className="mb-6">
-        <BalanceCard net={net} owedTotal={owedTotal} oweTotal={oweTotal} />
+        <BalanceCard
+          net={net}
+          owedTotal={owedTotal}
+          oweTotal={oweTotal}
+          onOwedClick={() => router.push('/balances/owed')}
+          onOweClick={() => router.push('/balances/owe')}
+        />
       </div>
 
       {/* Currency Breakdown: not applicable -- see header comment (ETB-only
@@ -187,6 +193,7 @@ export default function BalancesPage() {
                       <PersonRow
                         key={f.id}
                         initials={f.initials}
+                        photo={f.photo}
                         color={f.color}
                         name={f.name}
                         right={<AmountBadge amount={f.owes} dir="receive" />}
@@ -205,6 +212,7 @@ export default function BalancesPage() {
                         <div className="flex-1">
                           <PersonRow
                             initials={f.initials}
+                            photo={f.photo}
                             color={f.color}
                             name={f.name}
                             right={<AmountBadge amount={f.iOwe} dir="owe" />}
@@ -236,10 +244,10 @@ export default function BalancesPage() {
                       className="neo-raised-sm flex flex-1 items-center gap-3 rounded-2xl px-3.5 py-3"
                     >
                       <div
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px]"
+                        className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[13px]"
                         style={{ background: g.groupType.tint, color: g.groupType.color }}
                       >
-                        <GroupIcon icon={g.groupType.icon} size={19} />
+                        <GroupPicture photo={g.photo} icon={g.groupType.icon} size={19} />
                       </div>
                       <span
                         className="flex-1 text-[0.88rem] font-semibold"

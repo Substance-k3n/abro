@@ -109,6 +109,7 @@ type AuthGroup struct {
 	Type          string        `json:"type"`
 	Currency      string        `json:"currency"`
 	Description   *string       `json:"description"`
+	PhotoURL      *string       `json:"photoUrl"`
 	SimplifyDebts bool          `json:"simplifyDebts"`
 	CreatedByID   string        `json:"createdById"`
 	CreatedAt     time.Time     `json:"createdAt"`
@@ -137,4 +138,16 @@ type GroupMembershipResult struct {
 	UserID  string `json:"userId"`
 	Role    string `json:"role"`
 	Status  string `json:"status"`
+}
+
+// PaymentReminder is one payment reminder a group admin sent (roadmap
+// P6): POST /groups/{id}/members/{userId}/remind returns the new one,
+// GET /groups/{id}/reminders the latest per member. NextAllowedAt is
+// when that member can be reminded in this group again.
+type PaymentReminder struct {
+	GroupID       string    `json:"groupId"`
+	RecipientID   string    `json:"recipientId"`
+	SenderID      string    `json:"senderId"`
+	RemindedAt    time.Time `json:"remindedAt"`
+	NextAllowedAt time.Time `json:"nextAllowedAt"`
 }
