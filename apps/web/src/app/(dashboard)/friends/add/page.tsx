@@ -8,7 +8,8 @@
 // ("ali" -> @alice_test); an email or phone is an exact lookup. Display
 // names are never searched. Only an exact email match returns the email,
 // so most results show @username instead.
-// Searches wait SEARCH_DELAY_MS after the last keystroke, and only the
+// Searching starts at the first letter and narrows with each one (trial
+// feedback 2026-10-07). Searches wait SEARCH_DELAY_MS after the last keystroke, and only the
 // newest search's answer is shown. People you're already connected to show
 // "Friends" instead of an Add button.
 // The other person accepts from their own Friends list's "Friend
@@ -32,8 +33,8 @@ import { photoSrc } from '~/lib/photos';
 
 type SendState = 'idle' | 'sending' | 'sent';
 
-const SEARCH_DELAY_MS = 300;
-const MIN_QUERY = 2;
+const SEARCH_DELAY_MS = 150;
+const MIN_QUERY = 1;
 
 export default function AddFriendPage() {
   const router = useRouter();

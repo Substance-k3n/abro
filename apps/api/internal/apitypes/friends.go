@@ -31,10 +31,11 @@ type SearchFriendInput struct {
 
 func (in *SearchFriendInput) Validate() error {
 	in.Query = strings.TrimSpace(in.Query)
-	// Two characters is enough for search-as-you-type on usernames
-	// ("al" -> @alice_test); results are capped server-side.
-	if len(strings.TrimPrefix(in.Query, "@")) < 2 {
-		return httpx.BadRequest("VALIDATION_ERROR", "query must be at least 2 characters")
+	// Search-as-you-type on usernames starts at the first letter ("n"
+	// lists handles starting with n, "na" narrows it); results are
+	// capped server-side, so one letter can't list the directory.
+	if len(strings.TrimPrefix(in.Query, "@")) < 1 {
+		return httpx.BadRequest("VALIDATION_ERROR", "query must be at least 1 character")
 	}
 	return nil
 }

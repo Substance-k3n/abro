@@ -47,7 +47,7 @@ func TestPaymentReminders(t *testing.T) {
 
 		got := reminderNotifications(t, e, member)
 		require.Len(t, got, 1)
-		assert.Equal(t, `Test Owner reminded you that you owe 1234.50 ETB in "Trip".`, got[0].Body)
+		assert.Equal(t, `Test Owner reminded you that you owe 1,234.50 ETB in "Trip".`, got[0].Body)
 		assert.Empty(t, reminderNotifications(t, e, owner))
 	})
 
