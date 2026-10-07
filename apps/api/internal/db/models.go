@@ -433,6 +433,14 @@ type OtpCode struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
+type PaymentReminder struct {
+	ID          pgtype.UUID        `json:"id"`
+	GroupID     pgtype.UUID        `json:"group_id"`
+	SenderID    pgtype.UUID        `json:"sender_id"`
+	RecipientID pgtype.UUID        `json:"recipient_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type Profile struct {
 	ID                pgtype.UUID        `json:"id"`
 	DisplayName       string             `json:"display_name"`

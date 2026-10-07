@@ -438,6 +438,31 @@ func (q *Queries) ReinviteGroupMember(ctx context.Context, id pgtype.UUID) (Grou
 	return i, err
 }
 
+const resendGroupInvite = `-- name: ResendGroupInvite :one
+UPDATE group_members
+SET joined_at = now()
+WHERE id = $1 AND status = 'INVITED' AND joined_at <= now() - interval '24 hours'
+RETURNING id, group_id, user_id, role, status, joined_at
+`
+
+// Roadmap P6: an admin resends a pending invite, at most once every 24
+// hours (joined_at is the invite time while INVITED). No row back means
+// it isn't a pending invite, or was sent too recently. Bumping joined_at
+// also moves it to the top of the invitee's invites list.
+func (q *Queries) ResendGroupInvite(ctx context.Context, id pgtype.UUID) (GroupMember, error) {
+	row := q.db.QueryRow(ctx, resendGroupInvite, id)
+	var i GroupMember
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.UserID,
+		&i.Role,
+		&i.Status,
+		&i.JoinedAt,
+	)
+	return i, err
+}
+
 const softDeleteGroup = `-- name: SoftDeleteGroup :exec
 UPDATE groups SET deleted_at = now(), deleted_by_id = $2, updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
