@@ -102,3 +102,13 @@ SELECT EXISTS (SELECT 1 FROM expenses WHERE group_id = $1 AND deleted_at IS NULL
 -- name: SoftDeleteGroup :exec
 UPDATE groups SET deleted_at = now(), deleted_by_id = $2, updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: ResendGroupInvite :one
+-- Roadmap P6: an admin resends a pending invite, at most once every 24
+-- hours (joined_at is the invite time while INVITED). No row back means
+-- it isn't a pending invite, or was sent too recently. Bumping joined_at
+-- also moves it to the top of the invitee's invites list.
+UPDATE group_members
+SET joined_at = now()
+WHERE id = $1 AND status = 'INVITED' AND joined_at <= now() - interval '24 hours'
+RETURNING *;
