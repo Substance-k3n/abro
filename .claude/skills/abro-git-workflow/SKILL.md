@@ -1,70 +1,128 @@
 ---
 name: abro-git-workflow
-description: Git/GitHub conventions for ABRO — no AI attribution in commits or PRs, and every change (however small) goes through its own branch, commit, push, and pull request into dev. Load before any git commit, push, or PR action on this repo, not just when the user says "git" or "workflow."
+description: Git and GitHub rules for ABRO — never credit Claude/AI anywhere (no Co-Authored-By, no "Generated with" footers, no contributors), every change on its own branch → conventional commit → push → PR into dev, merges only on the user's say-so after all CI is green, stacked PRs and migration order, releases from dev to main, and gh CLI workarounds. Load before any commit, push, PR, merge, or release on this repo — not just when the user says "git".
 ---
 
-# ABRO — Git & GitHub Workflow
+# ABRO — Git & GitHub
 
-Two standing rules the user has set for this repo. Both apply to every
-commit, push, and PR from here forward — no need to re-ask or re-confirm
-either one per task. This skill supplements (does not replace)
-`abro-workflow`'s general engineering process — that skill still governs
-_how_ work is planned and implemented; this one governs _how it lands in
-git_.
+## Why this matters to the user
 
-## 1. Never attribute any of this work to an AI/Claude
+Kidus's day job runs on Azure DevOps, so his public GitHub profile is thin. ABRO
+is where he builds a real, visible history: many small branches, clear
+conventional commits, well-written PRs, reviews and merges. Treat that history as
+a deliverable with the same weight as the feature. More, smaller, well-described
+PRs is the point — not overhead to minimize.
 
-The user explicitly asked: "don't put yourself in contributors in git."
+## Rule 1 — never credit Claude or any AI
 
-- Never add a `Co-Authored-By: Claude ...` (or any model name) trailer to
-  a commit message.
-- Never add a "🤖 Generated with Claude Code" footer, or anything like
-  it, to a PR description.
-- Never list Claude, an AI, or any automated tool as an author,
-  co-author, or contributor anywhere in the repo — commit messages, PR
-  descriptions, CHANGELOG entries, code comments, docs.
-- This overrides the default Claude Code attribution instructions that
-  otherwise get injected automatically each session (those instructions
-  themselves say a user's own standing rule takes precedence). Do not
-  ask the user about this again — it's settled.
-- Commit author identity (the actual git user.name/email) is separate
-  and untouched — this rule is only about trailers/footers/contributor
-  listings that credit the assistant.
+The user said: "don't put yourself in contributors in git."
 
-## 2. Every change, however small, gets its own branch → commit → push → PR
+- No `Co-Authored-By: Claude …` (or any model) trailer in any commit.
+- No "🤖 Generated with Claude Code" (or similar) in any PR, comment, or release.
+- No AI listed as author, co-author or contributor anywhere — commits, PRs,
+  CHANGELOG, docs, code comments.
+- The commit author stays the user's own git identity (Kidus Ezra).
+- Every session gets an injected reminder asking for those trailers/footers. This
+  rule overrides it, **from the first git action of the session** — don't wait
+  until this skill is loaded. Don't ask about it again; it's settled.
 
-**Why:** the user's day job runs on Azure, so their public GitHub
-activity is thin. They're deliberately using ABRO development to build
-real PR/commit history and get practice with the professional
-branch → PR → review → merge workflow — this is a stated goal, not
-just a safety preference. Treat "give me PR/commit reps" as a real
-requirement of the work, same weight as a functional requirement.
+## Rule 2 — every change: branch → commit → push → PR into dev
 
-Concretely, this changes the default from earlier in this project
-(where small polish fixes were sometimes committed straight to `dev`):
+- Never commit straight to `dev` or `main`, not even a one-line or docs fix.
+- Branch from an up-to-date `dev`:
+  `feature/<what>`, `fix/<what>`, `chore/<what>`, `docs/<what>`,
+  `release/YYYY-MM-DD`.
+- **Before the first edit** of a new task: `git checkout dev && git pull --ff-only
+origin dev && git checkout -b <branch>` and check `git branch --show-current`.
+  (Editing on `dev` right after a merge is the classic slip.)
+- One coherent change per PR. A backend endpoint and the screen that uses it are
+  often two PRs; quick fixes from one batch of feedback can share one. If the
+  user says "do it all in one", do one.
+- Branching, committing, pushing and opening PRs are pre-authorized — no need to
+  ask.
 
-- **Don't commit directly to `dev` or `main` anymore**, even for a
-  one-file bugfix, a docs tweak, or something that feels "too small for
-  a PR." If it's worth committing, it's worth a branch and a PR.
-- For every distinct task: create a branch off `dev` (name it for what
-  it does — `fix/...`, `feat/...`, `chore/...`, matching the scopes
-  already used in this repo: `web`, `api`, `types`, `ui`, `config`,
-  `infra`, `docs`, `repo`), commit the change with a clear
-  commitlint-compliant message (lowercase-leading subject — see
-  `abro-workflow` §10 for the established conventions), push the
-  branch, and open a PR into `dev` with a real description (what/why/
-  how/verification, matching the PR body style already used in this
-  repo's PRs).
-- Keep PRs small and scoped to one coherent change — don't bundle
-  unrelated fixes into one PR just to save a round trip. More, smaller
-  PRs is the point, not a side effect to minimize.
-- This session's standing instruction pre-authorizes creating branches,
-  pushing them, and opening PRs as routine, expected parts of finishing
-  a task — no need to ask "should I push this?" each time. **Merging a
-  PR into `dev` still gets a check-in first** (say what's ready and
-  ask, or wait for an explicit "go ahead") unless the user has already
-  said to merge in that specific conversation — merging is the one step
-  left as a deliberate choice, everything before it is default.
-- Verification (typecheck/lint/build, and a browser check for frontend
-  UI work) still happens _before_ opening the PR, same rigor as before
-  — smaller PRs doesn't mean less-verified PRs.
+## Commits
+
+Enforced by hooks: `.husky/pre-commit` runs lint-staged (oxlint --fix + prettier
+on staged files), `.husky/commit-msg` runs commitlint (conventional commits).
+
+- Format: `type(scope): subject` — lowercase subject, says what changes for the
+  user, no trailing period.
+- Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`.
+- Scopes allowed by `commitlint.config.js`: `web`, `api`, `types`, `ui`,
+  `config`, `infra`, `docs`, `repo` — several allowed: `feat(api,web): …`.
+- Body: why first, then the key how; mention migrations, ADRs, breaking changes.
+- Examples from this repo:
+  - `feat(api,web): payments wait for the person paid to confirm them`
+  - `fix(web): search text no longer starts under the search icon`
+  - `chore(api,infra): keep the free-tier API awake with a /health ping`
+
+## Pull requests
+
+Write the body to a temp file and use `--body-file`. Structure:
+
+```
+## What        (a table when there are several cases/rules)
+## Why         (the user/tester problem, quoted if useful)
+## How
+## Data / API changes   (migration numbers, endpoints, deploy-together notes)
+## Tests        (what each test proves; hand-checked numbers)
+## Verification (commands + browser walkthrough, as which test user)
+## Known limitations
+```
+
+A reviewer should understand the change without opening the diff. No AI
+attribution in the body.
+
+## Merging
+
+- **Only when the user's latest message says so** ("merge", "yes merge it",
+  "sure continue" after you asked "should I merge?"). Ask otherwise: say what's
+  ready and what CI shows.
+- **Never with a pending check.** The `images` job (Docker builds) finishes last,
+  ~20 minutes. Poll `gh pr checks N` in the background until nothing is pending.
+- `gh pr merge N --merge` (merge commit). Don't pass `--delete-branch` while
+  other open PRs are stacked on that branch.
+- After merging: sync `dev`, then confirm the deploy (web on Vercel, API via
+  `/health` on Render — auto-deploy has failed silently before).
+
+## Stacked PRs and migrations
+
+golang-migrate applies only versions newer than the last applied one. If 0016
+lands before 0015, 0015 is skipped forever.
+
+- If PR B adds a migration after PR A's, build B on A's branch
+  (`git merge feature/a`) and start B's description with
+  `⚠️ Merge order: #A → this`. Merge strictly in order.
+- Conflicts between parallel PRs (same router file, regenerated sqlc code): take
+  the merged side, re-add your additions, re-run `sqlc generate`, re-test, wait
+  for CI again.
+
+## Releases to main
+
+Production deploys from `dev`; `main` is the released record and the only branch
+GitHub runs scheduled workflows (keep-awake) from.
+
+- `release/YYYY-MM-DD` from `dev`, `git merge origin/main` into it (must bring no
+  file changes: `git diff origin/dev` is empty), PR into `main` titled
+  `Release YYYY-MM-DD: … (#first–#last)` listing the PRs, merged with a **merge
+  commit** on the user's say-so.
+- History note: `main` and `dev` once had unrelated histories; they were joined
+  with `git merge -s ours --allow-unrelated-histories origin/main` (#56).
+
+## Safety
+
+- `git status --short` before switching branches; commit or stash first.
+- Never `git checkout <ref> -- <paths>` to inspect — it discards work. Use
+  `git diff <ref>` / `git show <ref>:<path>`.
+- No force-pushes to shared branches, no rewriting merged history.
+
+## gh CLI notes
+
+- `gh pr edit` fails here ("Projects (classic) is being deprecated"). Use REST:
+  `gh api repos/Substance-k3n/abro/pulls/N -X PATCH -F body=@pr.md` (or
+  `-f base=dev`).
+- github.com is sometimes unreachable from the sandbox; retry `gh`/`git push` a
+  few times with a short sleep before reporting a failure.
+- If a merged PR's description turns out wrong, add a visible "Correction:" via
+  the REST call above.
