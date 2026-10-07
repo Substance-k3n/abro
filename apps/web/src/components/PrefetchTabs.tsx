@@ -19,6 +19,7 @@ import { ACTIVITY_PAGE_SIZE, listExpenses } from '~/lib/expenses-api';
 import { listFriends, listIncomingRequests } from '~/lib/friends-api';
 import { listGroupInvites, listGroups } from '~/lib/groups-api';
 import { listNotifications } from '~/lib/notifications-api';
+import { listSettlementRequests } from '~/lib/settlements-api';
 
 function warm(): void {
   const reads: Promise<unknown>[] = [
@@ -32,6 +33,7 @@ function warm(): void {
     listExpenses({ limit: ACTIVITY_PAGE_SIZE }),
     listNotifications({ unreadOnly: true, limit: 100 }),
     listNotifications({ limit: 50 }),
+    listSettlementRequests(),
   ];
   for (const read of reads) {
     read.catch(() => {});

@@ -38,6 +38,7 @@ type Querier interface {
 	CreatePaymentReminderIfDue(ctx context.Context, arg CreatePaymentReminderIfDueParams) (PaymentReminder, error)
 	CreateRecurringExpense(ctx context.Context, arg CreateRecurringExpenseParams) (RecurringExpense, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	CreateSettlementRequest(ctx context.Context, arg CreateSettlementRequestParams) (SettlementRequest, error)
 	DeleteExpenseParticipants(ctx context.Context, expenseID pgtype.UUID) error
 	DeleteFriendship(ctx context.Context, id pgtype.UUID) error
 	DeleteIdempotencyKey(ctx context.Context, id pgtype.UUID) error
@@ -90,6 +91,7 @@ type Querier interface {
 	GetRecentOtpCode(ctx context.Context, arg GetRecentOtpCodeParams) (OtpCode, error)
 	GetRecurringExpenseByID(ctx context.Context, id pgtype.UUID) (RecurringExpense, error)
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (Session, error)
+	GetSettlementRequest(ctx context.Context, id pgtype.UUID) (SettlementRequest, error)
 	// direction "paid": settlements the user initiated (paid_by_id = user).
 	GetSettlementsPaid(ctx context.Context, arg GetSettlementsPaidParams) (int64, error)
 	// direction "received": settlements where the user is the recipient
@@ -108,6 +110,7 @@ type Querier interface {
 	GroupHasExpenses(ctx context.Context, groupID pgtype.UUID) (bool, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	IsNotificationOptedOut(ctx context.Context, arg IsNotificationOptedOutParams) (bool, error)
+	LinkSettlementRequest(ctx context.Context, arg LinkSettlementRequestParams) (SettlementRequest, error)
 	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
 	// Skips templates in a deleted group: generating one would fail with
 	// GROUP_NOT_FOUND, and GenerateDue stops at its first error.
@@ -155,6 +158,9 @@ type Querier interface {
 	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
 	// true, and a no-op (all rows) when false, in one query.
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
+	// Pending requests where the user is the payer or the recipient, plus
+	// those resolved in the last 30 days, newest first.
+	ListSettlementRequestsForUser(ctx context.Context, payerID pgtype.UUID) ([]SettlementRequest, error)
 	MarkAllNotificationsRead(ctx context.Context, userID pgtype.UUID) error
 	// Preserves the original read_at if already read, rather than bumping it to
 	// now() on every call -- matches the "no-op if already read" behavior.
@@ -164,11 +170,18 @@ type Querier interface {
 	// timestamp/ordering from the original membership.
 	ReinviteGroupMember(ctx context.Context, id pgtype.UUID) (GroupMember, error)
 	RemoveNotificationOptOut(ctx context.Context, arg RemoveNotificationOptOutParams) error
+	// Undoes a confirm claim when writing the settlement failed.
+	ReopenSettlementRequest(ctx context.Context, id pgtype.UUID) error
 	// Roadmap P6: an admin resends a pending invite, at most once every 24
 	// hours (joined_at is the invite time while INVITED). No row back means
 	// it isn't a pending invite, or was sent too recently. Bumping joined_at
 	// also moves it to the top of the invitee's invites list.
 	ResendGroupInvite(ctx context.Context, id pgtype.UUID) (GroupMember, error)
+	// Only a PENDING request can be resolved, in one atomic step: no row back
+	// means someone got there first (it was already confirmed, rejected or
+	// cancelled). Confirming claims the request this way before the
+	// SETTLEMENT expense is written, so it can never be confirmed twice.
+	ResolveSettlementRequest(ctx context.Context, arg ResolveSettlementRequestParams) (SettlementRequest, error)
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
 	// Exact match on email or phone (an address or number someone already
 	// knows) -- never a fuzzy search. Emails are stored lowercased, so the
@@ -187,6 +200,10 @@ type Querier interface {
 	SetProfileAvatar(ctx context.Context, arg SetProfileAvatarParams) (Profile, error)
 	SoftDeleteExpense(ctx context.Context, arg SoftDeleteExpenseParams) error
 	SoftDeleteGroup(ctx context.Context, arg SoftDeleteGroupParams) error
+	// What the payer has already claimed to have paid this recipient in the
+	// same scope (personal = group_id NULL) and is still waiting on, so a
+	// new claim can't add up past what they owe.
+	SumPendingSettlementRequests(ctx context.Context, arg SumPendingSettlementRequestsParams) (int64, error)
 	TouchSessionLastUsed(ctx context.Context, id pgtype.UUID) error
 	// Editing an expense resubmits the whole thing -- a full overwrite, not a
 	// partial COALESCE update (see updateExpenseSchema == createExpenseSchema).
@@ -198,6 +215,7 @@ type Querier interface {
 	UpdateProfile(ctx context.Context, arg UpdateProfileParams) (Profile, error)
 	UpdateRecurringExpenseEnabled(ctx context.Context, arg UpdateRecurringExpenseEnabledParams) (RecurringExpense, error)
 	UpdateRecurringExpenseNextRunAt(ctx context.Context, arg UpdateRecurringExpenseNextRunAtParams) error
+	UpdateSettlementRequestReceiptPath(ctx context.Context, arg UpdateSettlementRequestReceiptPathParams) (SettlementRequest, error)
 	// Mirrors Prisma's `upsert({ where: { email }, update: {}, create: {...} })`
 	// -- a genuine no-op on conflict (the "id = profiles.id" self-assignment),
 	// so an existing profile's fields are never touched by a repeat OTP sign-in.

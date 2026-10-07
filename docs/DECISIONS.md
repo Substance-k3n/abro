@@ -7,6 +7,56 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-019: Payments are confirmed by the person paid
+
+**Status:** Accepted (phone-trial feedback, 2026-10-07).
+
+**Context:** Until now, when the person who owed recorded "I paid X", it
+settled the debt immediately (ADR-003). Trial users found that too
+trusting: the person paid should be the one to agree it happened, see
+proof if there is any, and be able to say "I didn't get this".
+
+**Decision:**
+
+- **The payer records it → a request.** `POST /settlements` now creates
+  a row in the new `settlement_requests` table (migration 0016) with
+  status `PENDING`. A request is a _claim_, not a fact: no balance query
+  reads this table, so it moves nothing. It's capped by what the payer
+  owes **minus what they already have pending** with that person.
+- **The person paid confirms or rejects.** Confirming re-checks the live
+  debt, then writes the `SETTLEMENT` expense exactly as ADR-003 always
+  has, and links it to the request. Only then do balances change. A
+  part-payment takes off only what was paid. Rejecting changes nothing
+  and tells the payer.
+- **The payer can cancel** while it's pending, and attach a **proof
+  photo** (same rules as expense receipts) that the other person sees
+  before confirming; on confirm it carries over to the settlement.
+- **The person paid can record it themselves** (`POST
+/settlements/received`, "They paid me"). That counts at once: they're
+  the one who'd lose out if it were wrong.
+- Confirming **claims the request first** with one atomic `UPDATE …
+WHERE status = 'PENDING'`, then writes the settlement, so two taps (or
+  two devices) can never settle twice. If writing fails, the request
+  goes back to pending.
+- Existing settlements are untouched: they're already expenses.
+
+**Alternatives considered:** a `status` column on `expenses` for
+SETTLEMENT rows (every balance, analytics and group-integrity query
+would need a new filter, and missing one would silently count unconfirmed
+money); confirming by editing the expense in place (same problem).
+
+**Consequences:**
+
+- ADR-003 still holds: a settlement is still an expense, and still the
+  only thing that moves a balance.
+- Debts stay on the books until the other person confirms, so someone
+  who never opens the app delays settling. They get a notification and
+  a Home banner; the payer can see it's waiting on Payments.
+- `POST /settlements` returns a request, not an expense, so the web app
+  ships with this change in the same deploy.
+
+---
+
 ## ADR-018: Payment reminders — admin-only, owes-only, once per 24 hours
 
 **Status:** Accepted (roadmap Phase 6, 2026-10-07).

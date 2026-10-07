@@ -35,8 +35,9 @@ export interface SettleDraft {
    * parseAmount when needed. */
   amountInput: string;
   idempotencyKey: string;
-  /** Set by STL-03 once apps/api has recorded the settlement. */
-  recorded: { personName: string; amount: bigint } | null;
+  /** Set by STL-03 once apps/api has the payment (waiting for the
+   * other person to confirm it, ADR-019). */
+  recorded: { personName: string; amount: bigint; receiptFailed?: boolean } | null;
 }
 
 export const emptySettleDraft = (): SettleDraft => ({

@@ -54,7 +54,7 @@ const ICONS: Record<string, LucideIcon> = {
 };
 
 const DESTINATIONS: Record<string, string> = {
-  SETTLEMENT: '/balances',
+  SETTLEMENT: '/payments',
   PAYMENT_REMINDER: '/balances/owe',
   GROUP_INVITATION: '/groups',
   FRIEND_REQUEST: '/friends',
