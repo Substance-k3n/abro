@@ -97,7 +97,7 @@ func (s *Service) Create(ctx context.Context, actorID pgtype.UUID, in apitypes.C
 	}
 
 	if err := s.notifyParties(ctx, actorID, full, notifications.TypeExpenseAdded, "New expense", func(actor string) string {
-		return fmt.Sprintf("%s added an expense: %q (%d %s).", actor, full.Name, full.Amount, full.Currency)
+		return fmt.Sprintf("%s added an expense: %q (%s).", actor, full.Name, money.Format(full.Amount, full.Currency))
 	}); err != nil {
 		return Expense{}, err
 	}
@@ -149,7 +149,7 @@ func (s *Service) Update(ctx context.Context, actorID, expenseID pgtype.UUID, in
 	}
 
 	if err := s.notifyParties(ctx, actorID, full, notifications.TypeExpenseEdited, "Expense updated", func(actor string) string {
-		return fmt.Sprintf("%s edited an expense: %q (%d %s).", actor, full.Name, full.Amount, full.Currency)
+		return fmt.Sprintf("%s edited an expense: %q (%s).", actor, full.Name, money.Format(full.Amount, full.Currency))
 	}); err != nil {
 		return Expense{}, err
 	}
@@ -177,7 +177,7 @@ func (s *Service) SoftDelete(ctx context.Context, actorID, expenseID pgtype.UUID
 		return err
 	}
 	return s.notifyParties(ctx, actorID, full, notifications.TypeExpenseDeleted, "Expense deleted", func(actor string) string {
-		return fmt.Sprintf("%s deleted an expense: %q (%d %s).", actor, full.Name, full.Amount, full.Currency)
+		return fmt.Sprintf("%s deleted an expense: %q (%s).", actor, full.Name, money.Format(full.Amount, full.Currency))
 	})
 }
 

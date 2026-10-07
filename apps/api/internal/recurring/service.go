@@ -26,6 +26,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/expenses"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
+	"github.com/Substance-k3n/abro/apps/api/internal/money"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 )
 
@@ -154,7 +155,7 @@ func (s *Service) GenerateDue(ctx context.Context, now time.Time) (int, error) {
 		}
 
 		if err := s.notifications.NotifyMany(ctx, recipientIDs, notifications.TypeRecurringExpense,
-			"Recurring expense generated", fmt.Sprintf("A recurring expense was generated: %q (%d %s).", created.Name, created.Amount, created.Currency)); err != nil {
+			"Recurring expense generated", fmt.Sprintf("A recurring expense was generated: %q (%s).", created.Name, money.Format(created.Amount, created.Currency))); err != nil {
 			return generated, err
 		}
 

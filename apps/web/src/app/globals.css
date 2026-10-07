@@ -136,6 +136,9 @@ body {
   color: var(--t-secondary);
   /* No rubber-band bounce pulling the whole app past its edges (iOS). */
   overscroll-behavior: none;
+  /* Pan and scroll, but no double-tap zoom (app/layout.tsx turns off
+     pinch zoom). */
+  touch-action: manipulation;
   /* Stop iOS enlarging text on rotation. */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
@@ -598,5 +601,5 @@ body {
 }
 
 .fade-in {
-  animation: fadeIn 0.25s ease forwards;
+  animation: fadeIn 0.15s ease forwards;
 }

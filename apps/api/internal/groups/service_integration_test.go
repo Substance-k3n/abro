@@ -46,8 +46,8 @@ func setup(t *testing.T) env {
 	t.Cleanup(pool.Close)
 
 	queries := db.New(pool)
-	friendsSvc := friends.NewService(queries)
 	notifySvc := notifications.NewService(queries)
+	friendsSvc := friends.NewService(queries, notifySvc)
 	svc := groups.NewService(queries, friendsSvc, notifySvc)
 
 	var createdProfiles []pgtype.UUID

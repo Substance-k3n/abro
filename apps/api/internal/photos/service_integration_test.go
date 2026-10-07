@@ -57,7 +57,7 @@ func setup(t *testing.T) env {
 	t.Cleanup(pool.Close)
 
 	queries := db.New(pool)
-	groupsSvc := groups.NewService(queries, friends.NewService(queries), notifications.NewService(queries))
+	groupsSvc := groups.NewService(queries, friends.NewService(queries, notifications.NewService(queries)), notifications.NewService(queries))
 	store, err := storage.NewReceiptStorage(
 		getenv("S3_ENDPOINT", "http://localhost:9460"), getenv("S3_REGION", "us-east-1"),
 		getenv("S3_ACCESS_KEY_ID", "abro-minio"), getenv("S3_SECRET_ACCESS_KEY", "password123"),

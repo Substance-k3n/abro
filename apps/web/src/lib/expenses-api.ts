@@ -36,6 +36,10 @@ export interface AuthExpense {
   participants: ExpenseParticipant[];
 }
 
+/** Rows per page on Activity (DASH-08); also what ~/components/
+ * PrefetchTabs warms, so the two must ask for the same page. */
+export const ACTIVITY_PAGE_SIZE = 30;
+
 export function listExpenses(opts?: {
   groupId?: string;
   friendId?: string;

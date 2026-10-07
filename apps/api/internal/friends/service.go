@@ -15,14 +15,16 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
+	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 )
 
 type Service struct {
-	q db.Querier
+	q             db.Querier
+	notifications *notifications.Service
 }
 
-func NewService(q db.Querier) *Service {
-	return &Service{q: q}
+func NewService(q db.Querier, notificationsSvc *notifications.Service) *Service {
+	return &Service{q: q, notifications: notificationsSvc}
 }
 
 // Search finds a Profile by exact email or phone match only -- never a
@@ -136,7 +138,15 @@ func (s *Service) SendRequest(ctx context.Context, userID pgtype.UUID, friendIDR
 		return db.Friendship{}, err
 	}
 
-	return s.q.CreateFriendship(ctx, db.CreateFriendshipParams{UserID: userID, FriendID: friendID})
+	friendship, err := s.q.CreateFriendship(ctx, db.CreateFriendshipParams{UserID: userID, FriendID: friendID})
+	if err != nil {
+		return db.Friendship{}, err
+	}
+	if _, err := s.notifications.Notify(ctx, friendID, notifications.TypeFriendRequest,
+		"Friend request", fmt.Sprintf("%s wants to be friends.", s.nameOf(ctx, userID))); err != nil {
+		return db.Friendship{}, err
+	}
+	return friendship, nil
 }
 
 func (s *Service) AcceptRequest(ctx context.Context, userID pgtype.UUID, friendshipIDRaw string) (db.Friendship, error) {
@@ -152,7 +162,29 @@ func (s *Service) AcceptRequest(ctx context.Context, userID pgtype.UUID, friends
 		return db.Friendship{}, httpx.Conflict("NOT_PENDING", "This request is no longer pending.")
 	}
 
-	return s.q.AcceptFriendship(ctx, friendship.ID)
+	accepted, err := s.q.AcceptFriendship(ctx, friendship.ID)
+	if err != nil {
+		return db.Friendship{}, err
+	}
+	// Tell whoever sent the request; the accepter already knows.
+	if _, err := s.notifications.Notify(ctx, friendship.UserID, notifications.TypeFriendAccepted,
+		"Friend request accepted", fmt.Sprintf("%s accepted your friend request.", s.nameOf(ctx, userID))); err != nil {
+		return db.Friendship{}, err
+	}
+	return accepted, nil
+}
+
+// nameOf is how a notification names someone: their display name, plus
+// @username when they have one (two people can share a display name).
+func (s *Service) nameOf(ctx context.Context, userID pgtype.UUID) string {
+	p, err := s.q.GetProfileByID(ctx, userID)
+	if err != nil {
+		return "Someone"
+	}
+	if p.Username.Valid {
+		return fmt.Sprintf("%s (@%s)", p.DisplayName, p.Username.String)
+	}
+	return p.DisplayName
 }
 
 func (s *Service) DeclineRequest(ctx context.Context, userID pgtype.UUID, friendshipIDRaw string) error {

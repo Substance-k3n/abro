@@ -94,3 +94,10 @@ func TestSplitByWeights(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestFormat(t *testing.T) {
+	assert.Equal(t, "1234.50 ETB", Format(123450, "ETB"))
+	assert.Equal(t, "0.60 ETB", Format(60, "ETB"))
+	assert.Equal(t, "0.00 ETB", Format(0, "ETB"))
+	assert.Equal(t, "12.05 USD", Format(1205, "USD"))
+}

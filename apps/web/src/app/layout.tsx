@@ -60,6 +60,13 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // Edge to edge on notched phones; globals.css adds the safe-area insets.
   viewportFit: 'cover',
+  // An app, not a web page: no pinch or double-tap zoom (trial feedback
+  // 2026-10-07). Text follows the phone's own text-size setting instead.
+  // iOS Safari ignores this; ~/components/PwaSetup.tsx covers it there.
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
