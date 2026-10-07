@@ -58,6 +58,9 @@ interface AdminData {
 export default function GroupAdminPage() {
   const params = useParams<{ id: string }>();
   const [data, setData] = useState<AdminData>({ stats: null, payments: [], reminders: [] });
+  // Lives here, not in Dashboard: an action reloads the group, which
+  // remounts Dashboard, and its "Reminder sent" line must survive that.
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Reminders are admins-only (403 otherwise); a member still gets the
   // page shell and the "admins only" note rather than "Group not found".
@@ -79,7 +82,13 @@ export default function GroupAdminPage() {
     <GroupViewLoader groupId={params.id} extra={load}>
       {(view, reload) =>
         view.myMembership.role === 'ADMIN' && data.stats ? (
-          <Dashboard view={view} data={{ ...data, stats: data.stats }} reload={reload} />
+          <Dashboard
+            view={view}
+            data={{ ...data, stats: data.stats }}
+            reload={reload}
+            notice={notice}
+            setNotice={setNotice}
+          />
         ) : (
           <NotAdmin view={view} />
         )
@@ -144,16 +153,19 @@ function Dashboard({
   view,
   data,
   reload,
+  notice,
+  setNotice,
 }: {
   view: GroupView;
   data: { stats: GroupStats; payments: SimplifiedPayment[]; reminders: PaymentReminder[] };
   reload: () => void;
+  notice: string | null;
+  setNotice: (notice: string | null) => void;
 }) {
   const { stats, payments, reminders } = data;
   const { group, nets } = view;
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<GroupMember | null>(null);
   const now = Date.now();
 
