@@ -1,5 +1,6 @@
 import { BottomNav } from './BottomNav';
 import { PrefetchTabs } from './PrefetchTabs';
+import { PullToRefresh } from './PullToRefresh';
 import { Sidebar } from './Sidebar';
 
 /** Wraps every route under the `(dashboard)` route group: sidebar nav on
@@ -18,7 +19,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen md:flex-row">
       <Sidebar />
       <main className="min-h-screen min-w-0 flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-0">
-        {children}
+        <PullToRefresh>{children}</PullToRefresh>
       </main>
       <BottomNav />
       <PrefetchTabs />

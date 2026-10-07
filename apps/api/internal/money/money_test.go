@@ -96,8 +96,14 @@ func TestSplitByWeights(t *testing.T) {
 }
 
 func TestFormat(t *testing.T) {
-	assert.Equal(t, "1234.50 ETB", Format(123450, "ETB"))
+	assert.Equal(t, "1,234.50 ETB", Format(123450, "ETB"))
+	assert.Equal(t, "360,000.00 ETB", Format(36000000, "ETB"))
+	assert.Equal(t, "1,000,000.01 ETB", Format(100000001, "ETB"))
+	assert.Equal(t, "999.99 ETB", Format(99999, "ETB"))
 	assert.Equal(t, "0.60 ETB", Format(60, "ETB"))
+	assert.Equal(t, "0.05 ETB", Format(5, "ETB"))
 	assert.Equal(t, "0.00 ETB", Format(0, "ETB"))
+	assert.Equal(t, "-1,500.00 ETB", Format(-150000, "ETB"))
 	assert.Equal(t, "12.05 USD", Format(1205, "USD"))
+	assert.Equal(t, "1,500 JPY", FormatMoney(1500, CurrencyMeta{Code: "JPY"}))
 }
