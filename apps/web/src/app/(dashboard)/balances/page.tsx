@@ -158,7 +158,13 @@ export default function BalancesPage() {
 
       {/* Total Balance Card */}
       <div className="mb-6">
-        <BalanceCard net={net} owedTotal={owedTotal} oweTotal={oweTotal} />
+        <BalanceCard
+          net={net}
+          owedTotal={owedTotal}
+          oweTotal={oweTotal}
+          onOwedClick={() => router.push('/balances/owed')}
+          onOweClick={() => router.push('/balances/owe')}
+        />
       </div>
 
       {/* Currency Breakdown: not applicable -- see header comment (ETB-only
