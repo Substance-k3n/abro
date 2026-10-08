@@ -63,9 +63,9 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 }
 
 const createNotificationsBulk = `-- name: CreateNotificationsBulk :many
-INSERT INTO notifications (user_id, type, title, body)
-SELECT r.user_id, $1, $2, $3
-FROM unnest($4::uuid[]) AS r(user_id)
+INSERT INTO notifications (user_id, type, title, body, link)
+SELECT r.user_id, $1, $2, $3, $4
+FROM unnest($5::uuid[]) AS r(user_id)
 WHERE NOT EXISTS (
     SELECT 1 FROM notification_opt_outs o
     WHERE o.user_id = r.user_id AND o.type = $1
@@ -77,6 +77,7 @@ type CreateNotificationsBulkParams struct {
 	Type    string        `json:"type"`
 	Title   string        `json:"title"`
 	Body    string        `json:"body"`
+	Link    pgtype.Text   `json:"link"`
 	UserIds []pgtype.UUID `json:"user_ids"`
 }
 
@@ -87,6 +88,7 @@ func (q *Queries) CreateNotificationsBulk(ctx context.Context, arg CreateNotific
 		arg.Type,
 		arg.Title,
 		arg.Body,
+		arg.Link,
 		arg.UserIds,
 	)
 	if err != nil {

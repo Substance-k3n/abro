@@ -52,8 +52,10 @@ Telegram account; still possible later); Firebase Cloud Messaging SDK
   life of an environment: new keys silently orphan every device until
   people switch it on again. Without them the API answers 501 on
   `/push/public-key` and the app hides the switch.
-- Group-wide notifications (`NotifyMany`) carry no link, so their push
-  opens the notifications list.
+- `NotifyMany` gained a link too (`NotifyManyLink`): new/edited and
+  recurring expenses open the expense, group changes open the group.
+  Deleted expenses, deleted groups and invitations have no screen of
+  their own and open the notifications list.
 
 ---
 

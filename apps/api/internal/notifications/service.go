@@ -127,12 +127,19 @@ func (s *Service) NotifyLink(ctx context.Context, userID pgtype.UUID, t Type, ti
 // skips anyone who opted out of this type (in the insert itself), and
 // no-ops on an empty list.
 func (s *Service) NotifyMany(ctx context.Context, userIDs []pgtype.UUID, t Type, title, body string) error {
+	return s.NotifyManyLink(ctx, userIDs, t, title, body, "")
+}
+
+// NotifyManyLink is NotifyMany with an in-app link, like NotifyLink --
+// so a pushed "New expense" opens that expense (ADR-021).
+func (s *Service) NotifyManyLink(ctx context.Context, userIDs []pgtype.UUID, t Type, title, body, link string) error {
 	recipients := dedupe(userIDs)
 	if len(recipients) == 0 {
 		return nil
 	}
 	rows, err := s.q.CreateNotificationsBulk(ctx, db.CreateNotificationsBulkParams{
 		UserIds: recipients, Type: string(t), Title: title, Body: body,
+		Link: pgtype.Text{String: link, Valid: link != ""},
 	})
 	if err != nil {
 		return err

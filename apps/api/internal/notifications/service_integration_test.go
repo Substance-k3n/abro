@@ -268,6 +268,27 @@ func TestPush(t *testing.T) {
 		assert.Equal(t, "Paid", pusher.sent[0].Title)
 	})
 
+	t.Run("NotifyManyLink stores and pushes the link for every recipient", func(t *testing.T) {
+		svc, makeProfile := testEnv(t)
+		pusher := &fakePusher{}
+		svc.SetPusher(pusher)
+		a := makeProfile(t, "A")
+		b := makeProfile(t, "B")
+		ctx := context.Background()
+
+		require.NoError(t, svc.NotifyManyLink(ctx, []pgtype.UUID{a.ID, b.ID}, notifications.TypeExpenseAdded, "New expense", "Body", "/expenses/e1"))
+
+		for _, user := range []db.Profile{a, b} {
+			list, err := svc.List(ctx, user.ID, false, 50, 0)
+			require.NoError(t, err)
+			require.Len(t, list, 1)
+			assert.Equal(t, "/expenses/e1", list[0].Link.String)
+		}
+		require.Len(t, pusher.sent, 2)
+		assert.Equal(t, "/expenses/e1", pusher.sent[0].Link)
+		assert.Equal(t, "/expenses/e1", pusher.sent[1].Link)
+	})
+
 	t.Run("an opted-out type isn't pushed either", func(t *testing.T) {
 		svc, makeProfile := testEnv(t)
 		pusher := &fakePusher{}
