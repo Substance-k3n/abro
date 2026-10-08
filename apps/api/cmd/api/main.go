@@ -24,6 +24,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/idempotency"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 	"github.com/Substance-k3n/abro/apps/api/internal/photos"
+	"github.com/Substance-k3n/abro/apps/api/internal/push"
 	"github.com/Substance-k3n/abro/apps/api/internal/recurring"
 	"github.com/Substance-k3n/abro/apps/api/internal/settlements"
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
@@ -75,6 +76,17 @@ func main() {
 	notificationsSvc := notifications.NewService(queries)
 	notificationsHandler := notifications.NewHandler(notificationsSvc, queries)
 
+	// Phone/browser push (ADR-021): every stored notification is also
+	// pushed to the recipient's devices, when VAPID keys are set.
+	pushSvc := push.NewService(queries, cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
+	pushHandler := push.NewHandler(pushSvc, queries)
+	if pushSvc.IsConfigured() {
+		notificationsSvc.SetPusher(pushSvc)
+		log.Println("Push notifications: on")
+	} else {
+		log.Println("No VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY -- notifications stay in-app only")
+	}
+
 	friendsSvc := friends.NewService(queries, notificationsSvc)
 	friendsHandler := friends.NewHandler(friendsSvc, queries)
 
@@ -124,6 +136,7 @@ func main() {
 	})
 	r.Route("/friends", friendsHandler.Mount)
 	r.Route("/notifications", notificationsHandler.Mount)
+	r.Route("/push", pushHandler.Mount)
 	r.Route("/groups", func(r chi.Router) {
 		groupsHandler.Mount(r)
 		photosHandler.MountGroups(r)
@@ -153,4 +166,6 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("listen: %v", err)
 	}
+	// Let pushes for the last requests go out before exiting.
+	pushSvc.Wait()
 }

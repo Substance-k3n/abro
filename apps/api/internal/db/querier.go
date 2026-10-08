@@ -42,6 +42,9 @@ type Querier interface {
 	DeleteExpenseParticipants(ctx context.Context, expenseID pgtype.UUID) error
 	DeleteFriendship(ctx context.Context, id pgtype.UUID) error
 	DeleteIdempotencyKey(ctx context.Context, id pgtype.UUID) error
+	DeletePushSubscription(ctx context.Context, arg DeletePushSubscriptionParams) error
+	// The push service said this endpoint is gone, whoever it belonged to.
+	DeletePushSubscriptionByEndpoint(ctx context.Context, endpoint string) error
 	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
 	GetCategoryBreakdown(ctx context.Context, arg GetCategoryBreakdownParams) ([]GetCategoryBreakdownRow, error)
 	GetExpenseByID(ctx context.Context, id pgtype.UUID) (Expense, error)
@@ -158,6 +161,7 @@ type Querier interface {
 	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
 	// true, and a no-op (all rows) when false, in one query.
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
+	ListPushSubscriptionsForUsers(ctx context.Context, userIds []pgtype.UUID) ([]PushSubscription, error)
 	// Pending requests where the user is the payer or the recipient, plus
 	// those resolved in the last 30 days, newest first.
 	ListSettlementRequestsForUser(ctx context.Context, payerID pgtype.UUID) ([]SettlementRequest, error)
@@ -225,6 +229,13 @@ type Querier interface {
 	// Same no-op-on-conflict semantics as UpsertProfileByEmail, but also seeds
 	// avatar_url on first insert (Google sign-in path).
 	UpsertProfileByEmailWithNameAvatar(ctx context.Context, arg UpsertProfileByEmailWithNameAvatarParams) (Profile, error)
+	// Phone/browser push (ADR-021). push_subscriptions has existed since
+	// 0007 (ported from the Prisma schema) but nothing used it until now.
+	// keys is the browser's {"p256dh": ..., "auth": ...} as-is.
+	// An endpoint belongs to one browser profile: the same endpoint
+	// re-subscribing (keys rotated, or another account signed in on that
+	// device) replaces the row rather than adding a second one.
+	UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error)
 }
 
 var _ Querier = (*Queries)(nil)

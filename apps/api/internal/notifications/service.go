@@ -1,5 +1,6 @@
-// Package notifications implements ABRO_PRD.md §34's in-app notifications.
-// No push/email/Telegram (PRD: "Later"). Called from the modules that own
+// Package notifications implements ABRO_PRD.md §34's in-app notifications,
+// each also pushed to the recipient's phones/browsers when they turned
+// that on (ADR-021, internal/push). No email/Telegram. Called from the modules that own
 // each event (expenses, groups, settlements, recurring) rather than
 // emitting anything itself -- this service only knows how to store and
 // read rows.
@@ -14,6 +15,8 @@ import (
 
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
+	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
+	"github.com/Substance-k3n/abro/apps/api/internal/push"
 )
 
 // Type is one of ABRO_PRD.md §34's event types.
@@ -60,12 +63,37 @@ func isKnownType(t string) bool {
 	return false
 }
 
+// Pusher is push.Service's Send: delivery to phones, in the background.
+type Pusher interface {
+	Send(userIDs []pgtype.UUID, msg push.Message)
+}
+
 type Service struct {
-	q db.Querier
+	q      db.Querier
+	pusher Pusher
 }
 
 func NewService(q db.Querier) *Service {
 	return &Service{q: q}
+}
+
+// SetPusher turns on phone/browser push for every notification created
+// from now on. Without it (tests, push not configured) they're in-app only.
+func (s *Service) SetPusher(p Pusher) {
+	s.pusher = p
+}
+
+// pushStored sends notifications that were just stored. Opt-outs were
+// already applied: a row only exists if the user wants this type.
+func (s *Service) pushStored(rows ...db.Notification) {
+	if s.pusher == nil {
+		return
+	}
+	for _, n := range rows {
+		s.pusher.Send([]pgtype.UUID{n.UserID}, push.Message{
+			ID: idutil.String(n.ID), Type: n.Type, Title: n.Title, Body: n.Body, Link: n.Link.String,
+		})
+	}
 }
 
 // Notify creates one in-app notification, unless the user opted out of
@@ -84,10 +112,15 @@ func (s *Service) NotifyLink(ctx context.Context, userID pgtype.UUID, t Type, ti
 	if optedOut {
 		return db.Notification{}, nil
 	}
-	return s.q.CreateNotification(ctx, db.CreateNotificationParams{
+	notification, err := s.q.CreateNotification(ctx, db.CreateNotificationParams{
 		UserID: userID, Type: string(t), Title: title, Body: body,
 		Link: pgtype.Text{String: link, Valid: link != ""},
 	})
+	if err != nil {
+		return db.Notification{}, err
+	}
+	s.pushStored(notification)
+	return notification, nil
 }
 
 // NotifyMany fans the same event out to several recipients; de-dupes,
@@ -98,10 +131,14 @@ func (s *Service) NotifyMany(ctx context.Context, userIDs []pgtype.UUID, t Type,
 	if len(recipients) == 0 {
 		return nil
 	}
-	_, err := s.q.CreateNotificationsBulk(ctx, db.CreateNotificationsBulkParams{
+	rows, err := s.q.CreateNotificationsBulk(ctx, db.CreateNotificationsBulkParams{
 		UserIds: recipients, Type: string(t), Title: title, Body: body,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	s.pushStored(rows...)
+	return nil
 }
 
 func (s *Service) List(ctx context.Context, userID pgtype.UUID, unreadOnly bool, limit, offset int32) ([]db.Notification, error) {

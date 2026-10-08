@@ -7,6 +7,56 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-021: Phone notifications are Web Push of the in-app ones
+
+**Status:** Accepted (user request, 2026-10-08).
+
+**Context:** People only learned about a new expense, a payment to
+confirm or a friend request by opening ABRO. ABRO_PRD.md lists web push
+as Phase 2; the trial made it the next thing people wanted.
+
+**Decision (chosen with the user):** Standard **Web Push** with VAPID
+keys, sent by the API itself (`internal/push`, `webpush-go`) -- no
+Firebase project or other paid service. Every notification the API
+stores is also pushed to the recipient's devices, after the row is
+written, in the background; a failed push never fails the action and the
+notification is still in the app. **Which types arrive is the same list
+as in-app** (the Settings switches); push is one extra on/off switch per
+device, not a second switch per type. Permission is only asked after a
+tap -- the switch in Settings -> Notifications, or a one-time, dismissible
+card on Home -- never as an automatic popup. Tapping a push marks it read
+and opens its `link` (or the notifications list).
+
+Devices live in `push_subscriptions` (already in migration 0007, unused
+until now). An endpoint belongs to one browser profile: subscribing it
+again moves it to whoever is signed in, and signing out switches push off
+on that device first, so the next person never gets someone else's
+notifications. Endpoints the push service reports gone (404/410) are
+deleted. The API only accepts endpoints on the browsers' push services
+(FCM, Mozilla, Apple, Windows), so it can't be told to post elsewhere.
+
+**Alternatives considered:** a separate push switch per type (more
+control, a busier screen); asking for permission right after sign-in
+(more reach, but many people tap Block and browsers penalise it);
+Telegram bot messages (popular here, but needs everyone to link a
+Telegram account; still possible later); Firebase Cloud Messaging SDK
+(a Google project and SDK for what the browser already does).
+
+**Consequences:**
+
+- iPhone only gets push in the installed app (iOS 16.4+); Safari itself
+  can't. The switch says so and points to Install.
+- The service worker only runs in production builds, so push can't be
+  tried under `pnpm dev`; use `pnpm build && pnpm start`.
+- `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` must stay the same for the
+  life of an environment: new keys silently orphan every device until
+  people switch it on again. Without them the API answers 501 on
+  `/push/public-key` and the app hides the switch.
+- Group-wide notifications (`NotifyMany`) carry no link, so their push
+  opens the notifications list.
+
+---
+
 ## ADR-020: Expense disputes flag a share; only the payer changes it
 
 **Status:** Accepted (phone-trial feedback, 2026-10-07).
