@@ -72,6 +72,7 @@ import {
 import { type FriendListItem, listFriends } from '~/lib/friends-api';
 import { type AuthGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { GroupPicture } from '~/components/GroupPicture';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 type FilterKey = 'all' | 'friends' | 'groups';
 
@@ -95,7 +96,6 @@ export default function BalancesPage() {
 
   const load = () => {
     setError(null);
-    setData(null);
     Promise.all([listFriends(), listGroups(), getBalancesSummary()])
       .then(([friends, groups, balances]) => setData({ friends, groups, balances }))
       .catch((err) => {
@@ -104,6 +104,8 @@ export default function BalancesPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   if (error) {
     return <ErrorState message={error} onRetry={load} />;

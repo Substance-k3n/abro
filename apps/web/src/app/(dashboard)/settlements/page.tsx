@@ -41,6 +41,7 @@ import { me } from '~/lib/auth-api';
 import { type AuthExpense, listExpenses } from '~/lib/expenses-api';
 import { formatShortDate } from '~/lib/format';
 import { listGroups } from '~/lib/groups-api';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 type FilterKey = 'all' | 'paid' | 'received';
 
@@ -76,7 +77,6 @@ export default function SettlementsPage() {
 
   const load = () => {
     setError(null);
-    setData(null);
     Promise.all([me(), listGroups(), fetchPage(0)])
       .then(([profile, groups, rows]) =>
         setData({
@@ -92,6 +92,8 @@ export default function SettlementsPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   if (error) {
     return <ErrorState message={error} onRetry={load} />;

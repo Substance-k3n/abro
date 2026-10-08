@@ -108,6 +108,7 @@ import {
 } from '~/lib/expenses-api';
 import { listFriends } from '~/lib/friends-api';
 import { type GroupListItem, groupTypeFor, listGroups } from '~/lib/groups-api';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 type TabKey = 'all' | 'expenses' | 'people' | 'groups';
 
@@ -244,7 +245,6 @@ export default function SearchPage() {
 
   const load = () => {
     setError(null);
-    setBase(null);
     Promise.all([me(), listFriends(), listGroups(), getBalancesSummary()])
       .then(([profile, friends, groups, balances]) => {
         setBase({
@@ -260,6 +260,8 @@ export default function SearchPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   useEffect(() => {
     setRecent(loadRecent());

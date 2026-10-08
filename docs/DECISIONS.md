@@ -7,6 +7,55 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-022: Screens show saved data at once and refresh quietly
+
+**Status:** Accepted (user request, 2026-10-08).
+
+**Context:** "Make it smoother, like a Flutter app": every open started
+empty and waited for the network, the 30 s read cache was thrown away on
+every return to the app, and a tab older than 30 s blanked to a skeleton
+while it refetched. With no connection the app showed only the offline
+page.
+
+**Decision (chosen with the user):** The read cache in
+`apps/web/src/lib/api-client.ts` is **stale-while-revalidate and saved
+on the device** (localStorage). Viewing screens (`useApiRefresh`) are
+answered at once from the last data seen -- across restarts and offline
+-- and anything older than 30 s is fetched again in the background; when
+the answer differs, the screen re-runs its load and swaps it in without
+a skeleton. Coming back to the app, pull-to-refresh and reconnecting all
+mark the cache old the same way. **Offline is view-only:** an "Offline.
+Showing your saved data." bar shows, and changing anything fails with
+"You're offline".
+
+Guards, because this is money and the device may be shared:
+
+- Any write that reaches the server wipes the cache (memory and device),
+  so no screen shows a pre-change balance after you add, edit or settle.
+  A write that fails offline wipes nothing.
+- Money flows (settle up, edit expense, record a payment) don't use
+  `useApiRefresh`, so they never pre-fill from old data; they wait for
+  the server as before.
+- Signing out, or any 401 for an expired session, wipes the saved data,
+  so the next person on that device sees nothing.
+
+**Alternatives considered:** memory-only with a longer TTL (no device
+storage, but no instant open and no offline); queueing new expenses
+offline (nicer, but duplicates and conflicts in a money app need more
+care -- later, if wanted); a Flutter/native rewrite (the smoothness is
+the caching, not the toolkit).
+
+**Consequences:**
+
+- Saved data lives only in that browser on that device; it costs no
+  server or database storage and means fewer requests.
+- A screen can show data that is a few seconds (or, offline, days) old
+  until the refresh lands; it is replaced as soon as the server answers.
+- New screens should use `useApiRefresh(load)` and must not reset their
+  data to null at the start of `load`.
+
+---
+
 ## ADR-021: Phone notifications are Web Push of the in-app ones
 
 **Status:** Accepted (user request, 2026-10-08).

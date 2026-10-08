@@ -96,7 +96,7 @@ export async function getPushState(): Promise<PushState> {
   if (sub && Notification.permission === 'granted') {
     // Re-send it: harmless if the server has it, and it re-links the
     // device if the server forgot it (e.g. it expired once).
-    await api.post('/push/subscriptions', sub.toJSON()).catch(() => {});
+    await api.postKeepingCache('/push/subscriptions', sub.toJSON()).catch(() => {});
     return 'on';
   }
   return 'off';

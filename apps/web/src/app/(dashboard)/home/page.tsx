@@ -83,6 +83,7 @@ import { listNotifications } from '~/lib/notifications-api';
 import { photoSrc } from '~/lib/photos';
 import { type SettlementRequest, listSettlementRequests } from '~/lib/settlements-api';
 import { GroupPicture } from '~/components/GroupPicture';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 const QUICK_ACTIONS = [
   { label: 'Add Expense', href: '/expenses/new', icon: Plus, accent: true },
@@ -109,7 +110,6 @@ export default function HomePage() {
 
   const load = () => {
     setError(null);
-    setData(null);
     Promise.all([
       me(),
       listFriends(),
@@ -142,6 +142,8 @@ export default function HomePage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   if (error) {
     return <ErrorState message={error} onRetry={load} minHeight="60vh" />;

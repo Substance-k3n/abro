@@ -1,4 +1,5 @@
 import { BottomNav } from './BottomNav';
+import { OfflineBar } from './OfflineBar';
 import { PrefetchTabs } from './PrefetchTabs';
 import { PullToRefresh } from './PullToRefresh';
 import { Sidebar } from './Sidebar';
@@ -19,6 +20,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-screen md:flex-row">
       <Sidebar />
       <main className="min-h-screen min-w-0 flex-1 pb-[calc(7rem+env(safe-area-inset-bottom))] md:pb-0">
+        <OfflineBar />
         <PullToRefresh>{children}</PullToRefresh>
       </main>
       <BottomNav />
