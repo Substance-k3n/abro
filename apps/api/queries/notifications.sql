@@ -6,8 +6,8 @@ RETURNING *;
 -- name: CreateNotificationsBulk :many
 -- Fans the same event out to several recipients in one statement,
 -- skipping anyone who opted out of this type (notification_opt_outs).
-INSERT INTO notifications (user_id, type, title, body)
-SELECT r.user_id, sqlc.arg(type), sqlc.arg(title), sqlc.arg(body)
+INSERT INTO notifications (user_id, type, title, body, link)
+SELECT r.user_id, sqlc.arg(type), sqlc.arg(title), sqlc.arg(body), sqlc.narg(link)
 FROM unnest(sqlc.arg(user_ids)::uuid[]) AS r(user_id)
 WHERE NOT EXISTS (
     SELECT 1 FROM notification_opt_outs o

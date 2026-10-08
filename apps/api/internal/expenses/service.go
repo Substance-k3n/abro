@@ -604,7 +604,12 @@ func (s *Service) notifyParties(ctx context.Context, actorID pgtype.UUID, expens
 		actorName = actor.DisplayName
 	}
 
-	return s.notifications.NotifyMany(ctx, ids, t, title, body(actorName))
+	// A deleted expense has no screen to open; the list does instead.
+	link := ""
+	if t != notifications.TypeExpenseDeleted {
+		link = "/expenses/" + idutil.String(expense.ID)
+	}
+	return s.notifications.NotifyManyLink(ctx, ids, t, title, body(actorName), link)
 }
 
 func (s *Service) requireVisible(ctx context.Context, actorID, expenseID pgtype.UUID) (db.Expense, error) {

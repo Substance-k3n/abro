@@ -225,5 +225,17 @@ a Vercel redeploy.
   Vercel's `/api` proxy accepts uploads near the 10 MB receipt limit;
   check with a large photo after the first deploy.
 
+- **Phone notifications** (Web Push, ADR-021): generate a key pair once
+  with `go -C apps/api run ./cmd/vapidkeys` and set on Render (declared
+  `sync: false` in `render.yaml`):
+  - `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` -- the two printed values.
+    **Never change them** once people have switched push on: new keys
+    silently stop every device until they switch it on again.
+  - `VAPID_SUBJECT` (optional) -- a `mailto:` address or `https://` URL
+    push services can contact; defaults to `WEB_ORIGIN`.
+
+  Unset, the API logs "notifications stay in-app only", answers 501 on
+  `/push/public-key`, and Settings shows no switch.
+
 - **Client IPs** in session metadata are whatever Vercel forwards in
   `X-Forwarded-For` (chi's `RealIP`). They're informational only.

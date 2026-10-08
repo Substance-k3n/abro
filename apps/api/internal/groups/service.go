@@ -200,8 +200,9 @@ func (s *Service) Update(ctx context.Context, userID, groupID pgtype.UUID, in ap
 		if updated.SimplifyDebts {
 			state = "on"
 		}
-		if err := s.notifications.NotifyMany(ctx, others, notifications.TypeDebtSimplificationChange,
-			"Debt simplification setting changed", fmt.Sprintf("Debt simplification is now %s for %q.", state, updated.Name)); err != nil {
+		if err := s.notifications.NotifyManyLink(ctx, others, notifications.TypeDebtSimplificationChange,
+			"Debt simplification setting changed", fmt.Sprintf("Debt simplification is now %s for %q.", state, updated.Name),
+			"/groups/"+idutil.String(groupID)); err != nil {
 			return db.Group{}, err
 		}
 	}
@@ -528,8 +529,9 @@ func (s *Service) notifyOtherActiveMembers(ctx context.Context, groupID, subject
 		return err
 	}
 
-	return s.notifications.NotifyMany(ctx, others, notifications.TypeGroupMembershipChange,
-		"Group membership changed", fmt.Sprintf("%s %s in %q.", subject.DisplayName, verb, group.Name))
+	return s.notifications.NotifyManyLink(ctx, others, notifications.TypeGroupMembershipChange,
+		"Group membership changed", fmt.Sprintf("%s %s in %q.", subject.DisplayName, verb, group.Name),
+		"/groups/"+idutil.String(groupID))
 }
 
 func (s *Service) loadGroup(ctx context.Context, group db.Group) (Group, error) {

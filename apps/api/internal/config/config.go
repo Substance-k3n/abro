@@ -41,6 +41,13 @@ type Config struct {
 	S3AccessKeyID     string
 	S3SecretAccessKey string
 	ReceiptsBucket    string
+
+	// ADR-021 -- phone/browser push. Both keys empty means no push: the
+	// app hides the switch and notifications stay in-app only.
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	// Contact push services see on our requests; defaults to WebOrigin.
+	VAPIDSubject string
 }
 
 // Load reads .env into the process environment if present (dev
@@ -74,6 +81,10 @@ func Load() Config {
 		S3AccessKeyID:     os.Getenv("S3_ACCESS_KEY_ID"),
 		S3SecretAccessKey: os.Getenv("S3_SECRET_ACCESS_KEY"),
 		ReceiptsBucket:    os.Getenv("RECEIPTS_BUCKET"),
+
+		VAPIDPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
+		VAPIDPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
+		VAPIDSubject:    getEnv("VAPID_SUBJECT", getEnv("WEB_ORIGIN", "http://localhost:3200")),
 	}
 }
 
