@@ -51,6 +51,7 @@ import { me } from '~/lib/auth-api';
 import { type FriendRow, deriveFriendRows, getBalancesSummary } from '~/lib/balances-api';
 import { type ActivityDisplay, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
 import { listFriends } from '~/lib/friends-api';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 /** apps/api's GET /expenses max `limit` -- see header comment. */
 const HISTORY_LIMIT = 100;
@@ -75,7 +76,6 @@ export default function FriendDetailPage() {
 
   const load = () => {
     setError(null);
-    setData(null);
     Promise.all([
       me(),
       listFriends(),
@@ -100,6 +100,8 @@ export default function FriendDetailPage() {
   };
 
   useEffect(load, [params.friendId]);
+
+  useApiRefresh(load);
 
   if (error) {
     return <ErrorState message={error} onRetry={load} />;

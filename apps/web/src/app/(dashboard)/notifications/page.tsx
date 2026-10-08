@@ -38,6 +38,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '~/lib/notifications-api';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 const ICONS: Record<string, LucideIcon> = {
   EXPENSE_ADDED: Utensils,
@@ -69,7 +70,6 @@ export default function NotificationsPage() {
 
   const load = () => {
     setError(null);
-    setNotifications(null);
     listNotifications({ limit: 50 })
       .then(setNotifications)
       .catch((err) => {
@@ -78,6 +78,8 @@ export default function NotificationsPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   const markAllRead = () => {
     if (!notifications) {

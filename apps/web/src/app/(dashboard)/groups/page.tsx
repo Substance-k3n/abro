@@ -53,6 +53,7 @@ import {
   listGroups,
 } from '~/lib/groups-api';
 import { GroupPicture } from '~/components/GroupPicture';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 interface GroupCardData {
   id: string;
@@ -149,7 +150,6 @@ export default function GroupsPage() {
 
   const load = () => {
     setError(null);
-    setCards(null);
     Promise.all([listGroups(), getBalancesSummary(), listGroupInvites(), me()])
       .then(([groups, balances, pending, profile]) => {
         setCards(toCards(groups, balances));
@@ -162,6 +162,8 @@ export default function GroupsPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   const respond = async (invite: GroupInvite, accept: boolean) => {
     setBusyInvite(invite.group.id);

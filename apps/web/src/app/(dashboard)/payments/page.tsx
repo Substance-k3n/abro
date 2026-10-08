@@ -35,6 +35,7 @@ import {
   rejectSettlementRequest,
   uploadSettlementReceipt,
 } from '~/lib/settlements-api';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 interface Data {
   myId: string;
@@ -67,6 +68,8 @@ export default function PaymentsPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   if (loadError) {
     return <ErrorState message={loadError} onRetry={load} />;

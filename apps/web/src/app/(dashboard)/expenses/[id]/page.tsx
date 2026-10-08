@@ -48,6 +48,7 @@ import { type GroupListItem, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { CATEGORIES } from '~/lib/reference-data';
 import { photoSrc } from '~/lib/photos';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 const METHOD_LABEL: Record<string, string> = {
   EQUAL: 'Equal',
@@ -88,7 +89,8 @@ export default function ExpenseDetailPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = () => {
-    setState({ status: 'loading' });
+    // Keep showing what's there while it refreshes (ADR-022).
+    setState((current) => (current.status === 'ready' ? current : { status: 'loading' }));
     Promise.all([me(), getExpense(params.id), listGroups(), listFriends()])
       .then(([profile, expense, groups, friends]) => {
         setState({
@@ -115,6 +117,7 @@ export default function ExpenseDetailPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [params.id]);
+  useApiRefresh(load);
 
   if (state.status === 'loading') {
     return <LoadingState minHeight="60vh" />;

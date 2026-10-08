@@ -30,12 +30,19 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+  { keepCache = false }: { keepCache?: boolean } = {},
+): Promise<T> {
   const isRead = (init?.method ?? 'GET') === 'GET';
-  if (!isRead) {
+  const changesData = !isRead && !keepCache;
+  if (changesData) {
     // Anything that changes data can change balances anywhere, so nothing
-    // read before it may be reused after it.
-    clearApiCache();
+    // read before it may be reused after it -- but the saved copy is only
+    // dropped once the server answered: a write that fails offline must
+    // not wipe what the app can still show.
+    forgetInFlightReads();
   }
 
   const res = await fetch(`${API_URL}${path}`, {
@@ -46,6 +53,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       init?.body instanceof FormData
         ? init.headers
         : { 'Content-Type': 'application/json', ...init?.headers },
+  }).catch(() => {
+    // No connection (or the server unreachable): say so plainly rather
+    // than a generic failure.
+    throw new ApiError(0, 'OFFLINE', "You're offline. Check your connection and try again.");
   });
 
   if (res.status === 204) {
@@ -54,12 +65,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   const body = await res.json().catch(() => null);
 
-  if (!isRead) {
+  if (changesData) {
     // Again on completion: a read that started during the change could
     // otherwise cache what the server had before it.
     clearApiCache();
   }
 
+  if (res.status === 401 && (body?.code === 'NO_SESSION' || body?.code === 'INVALID_SESSION')) {
+    // Signed out elsewhere or expired: nothing saved may outlive it.
+    clearApiCache();
+  }
   if (res.status === 401 && redirectToSignIn(body?.code as string | undefined)) {
     // Never settles: the page keeps its loading state while the browser
     // leaves, instead of flashing its error card first.
@@ -94,45 +109,150 @@ function redirectToSignIn(code: string | undefined): boolean {
   return true;
 }
 
-// ---- Read cache (roadmap Phase 2b) ----------------------------------------
+// ---- Read cache (roadmap Phase 2b; saved on the device since ADR-022) ----
 // Every screen builds itself from the same few reads (profile, friends,
-// groups, balances, expenses, notifications), and used to refetch all of
-// them on every tap. A read made in the last CACHE_TTL_MS is now answered
-// from memory, and identical reads in flight are shared, so moving between
-// screens is instant. Correctness rules:
-//  - Any POST/PATCH/DELETE clears it (before and after), so after you add,
-//    edit, settle or delete, every screen reads fresh balances.
+// groups, balances, expenses, notifications). They are answered
+// stale-while-revalidate, the way a native app shows its last data at
+// once and refreshes quietly:
+//  - A read seen before is answered at once from the cache, whatever its
+//    age, so screens open with content instead of a skeleton -- even
+//    right after the app starts, or with no connection.
+//  - If that answer is older than CACHE_TTL_MS, it is fetched again in the
+//    background; when the server's answer differs, `onApiUpdate`
+//    listeners (useApiRefresh) re-run their screen's load to show it.
 //  - Coming back to the app (tab or installed app becomes visible again)
-//    clears it, so a friend's new expense shows up when you return.
-//  - `generation` stops a read that was in flight across a clear from
-//    writing its older answer back into the fresh cache.
-//  - Memory only, per tab: nothing is stored on the device, and a reload,
-//    sign-out (a POST) or the sign-in redirect starts empty.
+//    marks everything old, so the screen refreshes a friend's new expense
+//    without blanking first.
+//  - Any POST/PATCH/DELETE clears it all (before and after), so after you
+//    add, edit, settle or delete, no screen shows a balance from before.
+//  - `generation` stops a read in flight across a clear from writing its
+//    older answer back into the fresh cache.
+//  - Only viewing screens (those using useApiRefresh) get old answers.
+//    Money flows -- settle up, edit an expense, record a payment -- don't
+//    use it, so they always wait for the server instead of pre-filling
+//    an amount from yesterday's balances.
+//  - Saved in this browser's localStorage (best effort), so it survives
+//    closing the app. Signing out (a POST) and an expired session (401)
+//    wipe it, so the next person on this device sees nothing of yours.
 
 const CACHE_TTL_MS = 30_000;
+const STORAGE_KEY = 'abro.readCache.v1';
 const readCache = new Map<string, { at: number; data: unknown }>();
 const inFlight = new Map<string, Promise<unknown>>();
+const updateListeners = new Set<() => void>();
 let generation = 0;
+let staleReaders = 0;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
+function loadSaved(): void {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}') as Record<
+      string,
+      { at: number; data: unknown }
+    >;
+    for (const [path, entry] of Object.entries(saved)) {
+      // Never "fresh" after a restart: shown at once, then re-checked.
+      readCache.set(path, { at: 0, data: entry.data });
+    }
+  } catch {
+    // Private mode, blocked storage or a garbled value: start empty.
+  }
+}
+
+function saveSoon(): void {
+  if (typeof window === 'undefined' || saveTimer) {
+    return;
+  }
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(Object.fromEntries(readCache)));
+    } catch {
+      // Full or blocked: the in-memory cache still works for this visit.
+    }
+  }, 500);
+}
+
+let updateQueued = false;
+function announceUpdate(): void {
+  // Several reads landing together re-run each screen once, not per read.
+  if (updateQueued) {
+    return;
+  }
+  updateQueued = true;
+  queueMicrotask(() => {
+    updateQueued = false;
+    updateListeners.forEach((listener) => listener());
+  });
+}
+
+/** Makes reads already in flight unable to cache their answer, and every
+ * cached read old, without dropping anything. */
+function forgetInFlightReads(): void {
+  generation += 1;
+  inFlight.clear();
+  for (const entry of readCache.values()) {
+    entry.at = 0;
+  }
+}
+
+/** Drops every cached read, here and on the device. */
 export function clearApiCache(): void {
   generation += 1;
   readCache.clear();
   inFlight.clear();
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Nothing saved to remove.
+  }
+}
+
+/** Calls `listener` when a background refresh brought newer data, or the
+ * app became visible again. Returns the unsubscribe function. */
+export function onApiUpdate(listener: () => void): () => void {
+  updateListeners.add(listener);
+  return () => {
+    updateListeners.delete(listener);
+  };
+}
+
+/** Lets reads answer from old cache entries while the returned function
+ * hasn't been called (useApiRefresh, for a mounted viewing screen). */
+export function allowStaleReads(): () => void {
+  staleReaders += 1;
+  let released = false;
+  return () => {
+    if (!released) {
+      released = true;
+      staleReaders -= 1;
+    }
+  };
+}
+
+/** Keeps every cached read but treats it as old, so screens re-check
+ * the server without blanking (coming back to the app, pull to refresh). */
+export function markApiCacheStale(): void {
+  for (const entry of readCache.values()) {
+    entry.at = 0;
+  }
+  announceUpdate();
 }
 
 if (typeof document !== 'undefined') {
+  loadSaved();
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
-      clearApiCache();
+      markApiCacheStale();
     }
   });
 }
 
-function cachedGet<T>(path: string): Promise<T> {
-  const hit = readCache.get(path);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
-    return Promise.resolve(hit.data as T);
-  }
+function fetchAndCache<T>(path: string): Promise<T> {
   const pending = inFlight.get(path);
   if (pending) {
     return pending as Promise<T>;
@@ -141,7 +261,12 @@ function cachedGet<T>(path: string): Promise<T> {
   const promise = request<T>(path)
     .then((data) => {
       if (startedIn === generation) {
+        const before = readCache.get(path);
         readCache.set(path, { at: Date.now(), data });
+        saveSoon();
+        if (before && JSON.stringify(before.data) !== JSON.stringify(data)) {
+          announceUpdate();
+        }
       }
       return data;
     })
@@ -154,6 +279,22 @@ function cachedGet<T>(path: string): Promise<T> {
   return promise;
 }
 
+function cachedGet<T>(path: string): Promise<T> {
+  const hit = readCache.get(path);
+  if (!hit) {
+    return fetchAndCache<T>(path);
+  }
+  if (Date.now() - hit.at >= CACHE_TTL_MS) {
+    if (staleReaders === 0) {
+      return fetchAndCache<T>(path);
+    }
+    // Offline or failing: keep showing what we have; the screen already
+    // has it, and the next visit tries again.
+    fetchAndCache<T>(path).catch(() => {});
+  }
+  return Promise.resolve(hit.data as T);
+}
+
 export const api = {
   get: <T>(path: string) => cachedGet<T>(path),
   post: <T>(path: string, data?: unknown, headers?: Record<string, string>) =>
@@ -162,6 +303,10 @@ export const api = {
       body: data === undefined ? undefined : JSON.stringify(data),
       headers,
     }),
+  /** A POST that can't change any balance or list (re-registering this
+   * device for push), so it leaves the read cache alone. */
+  postKeepingCache: <T>(path: string, data: unknown) =>
+    request<T>(path, { method: 'POST', body: JSON.stringify(data) }, { keepCache: true }),
   postForm: <T>(path: string, form: FormData) => request<T>(path, { method: 'POST', body: form }),
   patch: <T>(path: string, data?: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(data) }),

@@ -26,6 +26,7 @@ import {
   type Direction,
   loadBreakdown,
 } from '~/lib/balance-breakdown';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 const COPY: Record<Direction, { title: string; lead: string; empty: string }> = {
   owed: {
@@ -53,7 +54,6 @@ export default function BalanceBreakdownPage() {
       return;
     }
     setError(null);
-    setData(null);
     loadBreakdown(direction)
       .then(setData)
       .catch((err) => {
@@ -63,6 +63,7 @@ export default function BalanceBreakdownPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [direction]);
+  useApiRefresh(load);
 
   if (!direction) {
     router.replace('/balances');

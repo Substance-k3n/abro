@@ -6,7 +6,7 @@
 // contract is defined on the frontend, matching AuthProfile's own "one
 // place this shape is defined" rationale on the Go side.
 
-import { api } from './api-client';
+import { api, clearApiCache } from './api-client';
 import { pendingInvite } from './invite';
 import { disablePush } from './push';
 
@@ -37,10 +37,15 @@ export function me(): Promise<AuthProfile> {
 
 /** Signs out of this device. Push is switched off first (while the
  * session still exists), so the next person to sign in here doesn't get
- * this account's notifications (ADR-021). */
+ * this account's notifications (ADR-021); the data saved for instant
+ * screens is wiped whatever happens (ADR-022). */
 export async function logout(): Promise<void> {
   await disablePush().catch(() => {});
-  return api.post('/auth/logout');
+  try {
+    await api.post('/auth/logout');
+  } finally {
+    clearApiCache();
+  }
 }
 
 export function checkUsernameAvailable(username: string): Promise<{ available: boolean }> {
