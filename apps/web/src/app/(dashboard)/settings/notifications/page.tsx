@@ -6,10 +6,13 @@
 // apps/api sends, backed by GET/PATCH /notifications/preferences (10a).
 // A type switched off is never created for you (in-app).
 //
+// Phone/browser push (ADR-021, user decision 2026-10-08) is one switch
+// per device above the list, not a second switch per type: what's
+// switched on here is what arrives, in-app and on the phone.
+//
 // Deviations (Confirmed, user decision 2026-09-29):
-//  - In-app only: no push/email channel toggles -- apps/api has neither
-//    channel.
-//  - Quiet hours dropped (nothing to delay without a push channel).
+//  - No email channel -- apps/api has none.
+//  - Quiet hours dropped (the phone's own Do Not Disturb covers it).
 //  - The spec's "Balance reminder" / "Payment due" are dropped: apps/api
 //    sends no such notifications. The list is exactly what it sends.
 //  - Each switch saves immediately (like DASH-07's mark-as-read); on
@@ -20,6 +23,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { PushNotifications } from '~/components/PushNotifications';
 import { ApiError } from '~/lib/api-client';
 import {
   type NotificationPreferences,
@@ -122,9 +126,11 @@ export default function NotificationSettingsPage() {
       </div>
 
       <p className="px-1 text-[0.78rem]" style={{ color: 'var(--t-muted)' }}>
-        Choose what shows up in your in-app notifications. Turning a type off stops new ones; your
-        balances and activity are unaffected.
+        Choose what you&apos;re notified about, in the app and on your phone. Turning a type off
+        stops new ones; your balances and activity are unaffected.
       </p>
+
+      <PushNotifications variant="section" />
 
       {saveError && (
         <p

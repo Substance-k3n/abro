@@ -59,6 +59,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { InstallApp } from '~/components/InstallApp';
+import { PushNotifications } from '~/components/PushNotifications';
 import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
@@ -221,6 +222,7 @@ export default function HomePage() {
       </div>
 
       <InstallApp variant="banner" />
+      <PushNotifications variant="banner" />
 
       {toConfirm.length > 0 && (
         <Link
