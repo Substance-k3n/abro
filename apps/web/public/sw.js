@@ -1,6 +1,6 @@
 // ABRO service worker -- what makes the web app installable as a phone
-// app (docs/DECISIONS.md ADR-015). Hand-written on purpose: it does three
-// small things and nothing else.
+// app (docs/DECISIONS.md ADR-015) and shows push notifications (ADR-021).
+// Hand-written on purpose: it does four small things and nothing else.
 //
 //  1. Next's content-hashed build files (/_next/static/*) and the app
 //     icons are cached on first use, so the installed app opens fast.
@@ -15,6 +15,8 @@
 //     origin -- is left to the browser untouched. Balances and expenses
 //     are never cached: they must always be current, and they belong to
 //     whoever is signed in.
+//  4. A push from apps/api (internal/push) is shown as a notification;
+//     tapping it marks it read and opens what it's about in the app.
 //
 // Bump VERSION to drop every cache this worker created.
 
@@ -90,4 +92,49 @@ self.addEventListener('fetch', (event) => {
       ),
     );
   }
+});
+
+self.addEventListener('push', (event) => {
+  let message = {};
+  try {
+    message = event.data ? event.data.json() : {};
+  } catch {
+    // Not ours or garbled: still show something, as browsers require.
+  }
+  event.waitUntil(
+    self.registration.showNotification(message.title || 'ABRO', {
+      body: message.body || '',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/badge-96.png',
+      // Same notification id twice (a retry) replaces rather than stacks.
+      tag: message.id || undefined,
+      data: { id: message.id, link: message.link },
+    }),
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const { id, link } = event.notification.data || {};
+  // Notifications without a link open the list, which knows where each
+  // type goes.
+  const target = new URL(link || '/notifications', self.location.origin).href;
+
+  event.waitUntil(
+    Promise.all([
+      id
+        ? fetch(`/api/notifications/${id}/read`, {
+            method: 'PATCH',
+            credentials: 'same-origin',
+          }).catch(() => {})
+        : null,
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windows) => {
+        const open = windows.find((w) => new URL(w.url).origin === self.location.origin);
+        if (open) {
+          return open.focus().then((w) => w.navigate(target));
+        }
+        return self.clients.openWindow(target);
+      }),
+    ]),
+  );
 });

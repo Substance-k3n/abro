@@ -8,6 +8,7 @@
 
 import { api } from './api-client';
 import { pendingInvite } from './invite';
+import { disablePush } from './push';
 
 export interface AuthProfile {
   id: string;
@@ -34,7 +35,11 @@ export function me(): Promise<AuthProfile> {
   return api.get('/auth/me');
 }
 
-export function logout(): Promise<void> {
+/** Signs out of this device. Push is switched off first (while the
+ * session still exists), so the next person to sign in here doesn't get
+ * this account's notifications (ADR-021). */
+export async function logout(): Promise<void> {
+  await disablePush().catch(() => {});
   return api.post('/auth/logout');
 }
 

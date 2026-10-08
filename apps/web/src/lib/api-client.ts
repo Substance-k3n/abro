@@ -165,7 +165,11 @@ export const api = {
   postForm: <T>(path: string, form: FormData) => request<T>(path, { method: 'POST', body: form }),
   patch: <T>(path: string, data?: unknown) =>
     request<T>(path, { method: 'PATCH', body: JSON.stringify(data) }),
-  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, data?: unknown) =>
+    request<T>(path, {
+      method: 'DELETE',
+      body: data === undefined ? undefined : JSON.stringify(data),
+    }),
 };
 
 /** An API-relative path (e.g. a photo's `/users/{id}/avatar/{version}`,
