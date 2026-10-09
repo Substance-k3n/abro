@@ -182,6 +182,9 @@ func (s *Service) Update(ctx context.Context, userID, groupID pgtype.UUID, in ap
 	if in.SimplifyDebts != nil {
 		params.SimplifyDebts = pgtype.Bool{Bool: *in.SimplifyDebts, Valid: true}
 	}
+	if in.AutoRemind != nil {
+		params.AutoRemind = pgtype.Bool{Bool: *in.AutoRemind, Valid: true}
+	}
 
 	updated, err := s.q.UpdateGroup(ctx, params)
 	if err != nil {

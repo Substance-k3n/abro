@@ -50,6 +50,7 @@ type UpdateGroupInput struct {
 	Currency      *string `json:"currency"`
 	Description   *string `json:"description"`
 	SimplifyDebts *bool   `json:"simplifyDebts"`
+	AutoRemind    *bool   `json:"autoRemind"`
 }
 
 func (in *UpdateGroupInput) Validate() error {
@@ -104,17 +105,20 @@ type GroupMember struct {
 }
 
 type AuthGroup struct {
-	ID            string        `json:"id"`
-	Name          string        `json:"name"`
-	Type          string        `json:"type"`
-	Currency      string        `json:"currency"`
-	Description   *string       `json:"description"`
-	PhotoURL      *string       `json:"photoUrl"`
-	SimplifyDebts bool          `json:"simplifyDebts"`
-	CreatedByID   string        `json:"createdById"`
-	CreatedAt     time.Time     `json:"createdAt"`
-	UpdatedAt     time.Time     `json:"updatedAt"`
-	Members       []GroupMember `json:"members"`
+	ID            string  `json:"id"`
+	Name          string  `json:"name"`
+	Type          string  `json:"type"`
+	Currency      string  `json:"currency"`
+	Description   *string `json:"description"`
+	PhotoURL      *string `json:"photoUrl"`
+	SimplifyDebts bool    `json:"simplifyDebts"`
+	// AutoRemind: the daily job reminds members whose debt to the group
+	// is overdue (ADR-023). Admins switch it.
+	AutoRemind  bool          `json:"autoRemind"`
+	CreatedByID string        `json:"createdById"`
+	CreatedAt   time.Time     `json:"createdAt"`
+	UpdatedAt   time.Time     `json:"updatedAt"`
+	Members     []GroupMember `json:"members"`
 }
 
 // GroupListItem is GET /groups/'s element shape: an AuthGroup (members
@@ -140,14 +144,32 @@ type GroupMembershipResult struct {
 	Status  string `json:"status"`
 }
 
-// PaymentReminder is one payment reminder a group admin sent (roadmap
+// PaymentReminder is one payment reminder a group member got (roadmap
 // P6): POST /groups/{id}/members/{userId}/remind returns the new one,
 // GET /groups/{id}/reminders the latest per member. NextAllowedAt is
-// when that member can be reminded in this group again.
+// when that member can be reminded in this group again. An automatic
+// reminder from the daily job (ADR-023) has no sender.
 type PaymentReminder struct {
 	GroupID       string    `json:"groupId"`
 	RecipientID   string    `json:"recipientId"`
-	SenderID      string    `json:"senderId"`
+	SenderID      *string   `json:"senderId"`
+	Automatic     bool      `json:"automatic"`
 	RemindedAt    time.Time `json:"remindedAt"`
 	NextAllowedAt time.Time `json:"nextAllowedAt"`
+}
+
+// FriendReminder is the latest reminder a friend got for what they owe
+// you (ADR-023): POST /friends/{id}/remind returns the new one, GET
+// /friends/{id}/reminder the latest (or null). NextAllowedAt is when you
+// can remind them again.
+type FriendReminder struct {
+	FriendID      string    `json:"friendId"`
+	Automatic     bool      `json:"automatic"`
+	RemindedAt    time.Time `json:"remindedAt"`
+	NextAllowedAt time.Time `json:"nextAllowedAt"`
+}
+
+// ReminderSettings is GET/PATCH /reminders/settings (ADR-023).
+type ReminderSettings struct {
+	AutoRemindFriends bool `json:"autoRemindFriends"`
 }

@@ -15,9 +15,19 @@ type Querier interface {
 	AddNotificationOptOut(ctx context.Context, arg AddNotificationOptOutParams) error
 	ConsumeOtpCode(ctx context.Context, id pgtype.UUID) error
 	CountActiveAdminsExcept(ctx context.Context, arg CountActiveAdminsExceptParams) (int64, error)
+	// CreateAutoGroupReminderIfDue for a friend debt.
+	CreateAutoFriendReminderIfDue(ctx context.Context, arg CreateAutoFriendReminderIfDueParams) (PaymentReminder, error)
+	// The daily job's reminder for a group debt (ADR-023). Skipped when the
+	// member had any reminder in this group after not_since (14 days back),
+	// so a recent manual nudge counts too.
+	CreateAutoGroupReminderIfDue(ctx context.Context, arg CreateAutoGroupReminderIfDueParams) (PaymentReminder, error)
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
 	CreateExpenseNote(ctx context.Context, arg CreateExpenseNoteParams) (ExpenseNote, error)
 	CreateExpenseParticipant(ctx context.Context, arg CreateExpenseParticipantParams) (ExpenseParticipant, error)
+	// A friend's nudge to a friend who owes them (ADR-023): like
+	// CreatePaymentReminderIfDue, at most once per 24 hours per pair, counting
+	// automatic reminders too.
+	CreateFriendReminderIfDue(ctx context.Context, arg CreateFriendReminderIfDueParams) (PaymentReminder, error)
 	CreateFriendship(ctx context.Context, arg CreateFriendshipParams) (Friendship, error)
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreateGroupMember(ctx context.Context, arg CreateGroupMemberParams) (GroupMember, error)
@@ -46,6 +56,7 @@ type Querier interface {
 	// The push service said this endpoint is gone, whoever it belonged to.
 	DeletePushSubscriptionByEndpoint(ctx context.Context, endpoint string) error
 	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
+	GetAutoRemindFriends(ctx context.Context, id pgtype.UUID) (bool, error)
 	GetCategoryBreakdown(ctx context.Context, arg GetCategoryBreakdownParams) ([]GetCategoryBreakdownRow, error)
 	GetExpenseByID(ctx context.Context, id pgtype.UUID) (Expense, error)
 	GetExpenseParticipant(ctx context.Context, arg GetExpenseParticipantParams) (ExpenseParticipant, error)
@@ -76,6 +87,7 @@ type Querier interface {
 	// rows are reported only as settled_total, never as spending.
 	GetGroupStatsTotals(ctx context.Context, groupID pgtype.UUID) (GetGroupStatsTotalsRow, error)
 	GetIdempotencyKeyByUserKeyEndpoint(ctx context.Context, arg GetIdempotencyKeyByUserKeyEndpointParams) (IdempotencyKey, error)
+	GetLatestFriendReminder(ctx context.Context, arg GetLatestFriendReminderParams) (PaymentReminder, error)
 	GetLatestPaymentReminder(ctx context.Context, arg GetLatestPaymentReminderParams) (PaymentReminder, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
 	// Only months with matching spending are returned; the caller fills the
@@ -114,7 +126,12 @@ type Querier interface {
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	IsNotificationOptedOut(ctx context.Context, arg IsNotificationOptedOutParams) (bool, error)
 	LinkSettlementRequest(ctx context.Context, arg LinkSettlementRequestParams) (SettlementRequest, error)
+	// Every friendship, with whether each side wants the friends who owe
+	// them reminded automatically.
+	ListAcceptedFriendPairs(ctx context.Context) ([]ListAcceptedFriendPairsRow, error)
+	ListActiveMemberIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
 	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
+	ListAutoRemindGroups(ctx context.Context) ([]ListAutoRemindGroupsRow, error)
 	// Skips templates in a deleted group: generating one would fail with
 	// GROUP_NOT_FOUND, and GenerateDue stops at its first error.
 	ListDueRecurringExpenses(ctx context.Context, nextRunAt pgtype.Timestamptz) ([]RecurringExpense, error)
@@ -126,6 +143,9 @@ type Querier interface {
 	ListExpensesWithFriend(ctx context.Context, arg ListExpensesWithFriendParams) ([]Expense, error)
 	ListFriendships(ctx context.Context, userID pgtype.UUID) ([]ListFriendshipsRow, error)
 	ListGroupMembersWithProfiles(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersWithProfilesRow, error)
+	// Every share of every live expense in a group, in the order the
+	// expenses were added -- each member's movements in the group (ADR-023).
+	ListGroupShareRows(ctx context.Context, groupID pgtype.UUID) ([]ListGroupShareRowsRow, error)
 	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
 	// The most recent reminder per recipient in a group.
 	ListLatestPaymentReminders(ctx context.Context, groupID pgtype.UUID) ([]PaymentReminder, error)
@@ -161,6 +181,10 @@ type Querier interface {
 	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
 	// true, and a no-op (all rows) when false, in one query.
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
+	// GetPairwiseParticipantsPersonal in the order the expenses were added,
+	// for how long a debt has been open (ADR-023). Added, not dated: an
+	// expense back-dated today is new debt today.
+	ListPairwiseMovementsPersonal(ctx context.Context, arg ListPairwiseMovementsPersonalParams) ([]ListPairwiseMovementsPersonalRow, error)
 	ListPushSubscriptionsForUsers(ctx context.Context, userIds []pgtype.UUID) ([]PushSubscription, error)
 	// Pending requests where the user is the payer or the recipient, plus
 	// those resolved in the last 30 days, newest first.
@@ -197,6 +221,7 @@ type Querier interface {
 	// LIKE's wildcards ('_' is a legal username character). An exact match
 	// sorts first.
 	SearchProfilesByUsernamePrefix(ctx context.Context, arg SearchProfilesByUsernamePrefixParams) ([]Profile, error)
+	SetAutoRemindFriends(ctx context.Context, arg SetAutoRemindFriendsParams) (bool, error)
 	SetGroupPhoto(ctx context.Context, arg SetGroupPhotoParams) (Group, error)
 	SetIdempotencyKeyResponse(ctx context.Context, arg SetIdempotencyKeyResponseParams) error
 	// disputed_at = NULL clears it (withdrawn, or the payer kept the expense).

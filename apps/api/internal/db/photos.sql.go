@@ -15,7 +15,7 @@ const setGroupPhoto = `-- name: SetGroupPhoto :one
 UPDATE groups
 SET photo_path = $1, updated_at = now()
 WHERE id = $2
-RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path
+RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind
 `
 
 type SetGroupPhotoParams struct {
@@ -39,6 +39,7 @@ func (q *Queries) SetGroupPhoto(ctx context.Context, arg SetGroupPhotoParams) (G
 		&i.DeletedAt,
 		&i.DeletedByID,
 		&i.PhotoPath,
+		&i.AutoRemind,
 	)
 	return i, err
 }
@@ -47,7 +48,7 @@ const setProfileAvatar = `-- name: SetProfileAvatar :one
 UPDATE profiles
 SET avatar_url = $1, avatar_path = $2, updated_at = now()
 WHERE id = $3
-RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path
+RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends
 `
 
 type SetProfileAvatarParams struct {
@@ -73,6 +74,7 @@ func (q *Queries) SetProfileAvatar(ctx context.Context, arg SetProfileAvatarPara
 		&i.UpdatedAt,
 		&i.Username,
 		&i.AvatarPath,
+		&i.AutoRemindFriends,
 	)
 	return i, err
 }
