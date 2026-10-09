@@ -67,6 +67,7 @@ SET name = COALESCE(sqlc.narg('name'), name),
     currency = COALESCE(sqlc.narg('currency'), currency),
     description = COALESCE(sqlc.narg('description'), description),
     simplify_debts = COALESCE(sqlc.narg('simplify_debts'), simplify_debts),
+    auto_remind = COALESCE(sqlc.narg('auto_remind'), auto_remind),
     updated_at = now()
 WHERE id = sqlc.arg('id')
 RETURNING *;

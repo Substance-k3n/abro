@@ -7,6 +7,66 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-023: Overdue debts — debt age, friend reminders, daily automatic reminders
+
+**Status:** Accepted (user request, 2026-10-09).
+
+**Context:** Trial users asked what happens to "people who don't pay
+after a month". Only a group admin could remind, by hand (ADR-018); a
+friend owed money had no way to, nobody could see how old a debt was,
+and nothing in the API ran on a schedule (recurring expenses still
+don't generate on their own, ADR-005).
+
+**Decision (chosen with the user):**
+
+- **Debt age, derived.** `money.OwingSince` is when the oldest unpaid
+  part of a balance was added: payments pay off the oldest debt first
+  (FIFO), so someone who keeps paying part of it never looks overdue for
+  debt they've covered. Movements are ordered by when expenses were
+  **added** (`created_at`), not their date, so back-dating an expense
+  doesn't make it overdue at once. `GET /balances/friends/{id}` and
+  `GET /balances/groups/{id}` return `owingSince`; nothing is stored.
+- **Overdue after 30 days** (`balances.OverdueAfter`, mirrored by the
+  web). In a group, **every member sees** who is overdue (the user's
+  choice) -- the group balances already show who owes.
+- **Friend reminders:** `POST /friends/{id}/remind`, by the person owed,
+  once per 24 hours per pair (as in groups); `GET /friends/{id}/reminder`
+  is the latest, for the button.
+- **Automatic reminders:** once a day from 10:00 Addis Ababa time the
+  API reminds each active member whose group debt, and each friend whose
+  personal debt, is overdue -- then again every **14 days** while it
+  stays open. Any reminder, manual too, restarts the 14 days. Private
+  to the debtor (a `PAYMENT_REMINDER` notification, which they can turn
+  off, ADR-018); admins see "automatic" on the dashboard.
+- **On by default, switchable by the side owed:** a group admin per
+  group (`groups.auto_remind`, `PATCH /groups/{id}`), and each person
+  for the friends who owe them (`profiles.auto_remind_friends`,
+  `GET/PATCH /reminders/settings`).
+- **Storage:** `payment_reminders` (migration 0018) now also holds
+  friend reminders (`group_id` NULL, `creditor_id` = the person owed)
+  and automatic ones (`kind` AUTO, no sender). Still no amounts.
+- **Scheduler: in-process** (`reminders.RunDaily`): every 15 minutes it
+  checks the clock (no database), and runs the sweep once a day. The
+  API is kept awake (keep-awake), so this needs no new service; a
+  restart re-runs that day's sweep, which sends nothing twice.
+
+**Alternatives considered:** a cron service calling a secret endpoint
+(another secret and service to keep working, for the same result);
+dating debts from the balance last being zero (someone who never quite
+pays off looks overdue forever); showing overdue only to admins (the
+user wanted the group to see it).
+
+**Consequences:**
+
+- Tiny leftovers count too: 0.33 ETB 30 days old gets a reminder.
+- The daily job is where recurring-expense generation (ADR-005) can run
+  once that's decided.
+- With several API instances each would sweep at the same time and
+  could send a reminder twice (the insert has no lock, as in ADR-018);
+  only one instance runs today.
+
+---
+
 ## ADR-022: Screens show saved data at once and refresh quietly
 
 **Status:** Accepted (user request, 2026-10-08).

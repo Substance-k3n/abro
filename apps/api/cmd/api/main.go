@@ -26,6 +26,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/photos"
 	"github.com/Substance-k3n/abro/apps/api/internal/push"
 	"github.com/Substance-k3n/abro/apps/api/internal/recurring"
+	"github.com/Substance-k3n/abro/apps/api/internal/reminders"
 	"github.com/Substance-k3n/abro/apps/api/internal/settlements"
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
 	"github.com/Substance-k3n/abro/apps/api/internal/users"
@@ -112,6 +113,12 @@ func main() {
 	analyticsSvc := analytics.NewService(queries)
 	analyticsHandler := analytics.NewHandler(analyticsSvc, groupsSvc, queries)
 
+	// Overdue reminders (ADR-023): the friend Remind button, and the
+	// daily automatic reminders, sent from this process.
+	remindersSvc := reminders.NewService(queries, friendsSvc, balancesSvc, notificationsSvc)
+	remindersHandler := reminders.NewHandler(remindersSvc, queries)
+	go remindersSvc.RunDaily(ctx)
+
 	recurringSvc := recurring.NewService(queries, expensesSvc, notificationsSvc)
 	recurringHandler := recurring.NewHandler(recurringSvc, queries)
 
@@ -134,7 +141,11 @@ func main() {
 		usersHandler.Mount(r)
 		photosHandler.MountUsers(r)
 	})
-	r.Route("/friends", friendsHandler.Mount)
+	r.Route("/friends", func(r chi.Router) {
+		friendsHandler.Mount(r)
+		remindersHandler.MountFriends(r)
+	})
+	r.Route("/reminders", remindersHandler.Mount)
 	r.Route("/notifications", notificationsHandler.Mount)
 	r.Route("/push", pushHandler.Mount)
 	r.Route("/groups", func(r chi.Router) {

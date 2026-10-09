@@ -72,7 +72,17 @@ func (h *Handler) friendBalance(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	httpx.WriteJSON(w, http.StatusOK, apitypes.FriendBalance{FriendID: friendIDRaw, NetBalance: strconv.FormatInt(balance, 10)})
+	out := apitypes.FriendBalance{FriendID: friendIDRaw, NetBalance: strconv.FormatInt(balance, 10)}
+	if balance != 0 {
+		since, ok, err := h.svc.PairwiseOwingSince(r.Context(), user.ID, friendID)
+		if err != nil {
+			return err
+		}
+		if ok {
+			out.OwingSince = &since
+		}
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
 }
 
@@ -90,9 +100,16 @@ func (h *Handler) groupSummary(w http.ResponseWriter, r *http.Request) error {
 	if err != nil {
 		return err
 	}
+	owingSince, err := h.svc.GroupOwingSince(r.Context(), groupID)
+	if err != nil {
+		return err
+	}
 	out := make([]apitypes.GroupBalanceEntry, len(summary))
 	for i, s := range summary {
 		out[i] = apitypes.GroupBalanceEntry{UserID: s.UserID, NetBalance: strconv.FormatInt(s.NetBalance, 10)}
+		if since, ok := owingSince[s.UserID]; ok && s.NetBalance < 0 {
+			out[i].OwingSince = &since
+		}
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil

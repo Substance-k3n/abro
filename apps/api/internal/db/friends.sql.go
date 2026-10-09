@@ -241,7 +241,7 @@ func (q *Queries) ListIncomingFriendRequests(ctx context.Context, friendID pgtyp
 }
 
 const searchFriendExact = `-- name: SearchFriendExact :one
-SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path FROM profiles
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends FROM profiles
 WHERE id != $1
   AND (email = $2 OR phone = $3)
 LIMIT 1
@@ -271,12 +271,13 @@ func (q *Queries) SearchFriendExact(ctx context.Context, arg SearchFriendExactPa
 		&i.UpdatedAt,
 		&i.Username,
 		&i.AvatarPath,
+		&i.AutoRemindFriends,
 	)
 	return i, err
 }
 
 const searchProfilesByUsernamePrefix = `-- name: SearchProfilesByUsernamePrefix :many
-SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path FROM profiles
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends FROM profiles
 WHERE id != $1
   AND username LIKE $2::text ESCAPE '\'
 ORDER BY (username = $3::text) DESC, username
@@ -321,6 +322,7 @@ func (q *Queries) SearchProfilesByUsernamePrefix(ctx context.Context, arg Search
 			&i.UpdatedAt,
 			&i.Username,
 			&i.AvatarPath,
+			&i.AutoRemindFriends,
 		); err != nil {
 			return nil, err
 		}

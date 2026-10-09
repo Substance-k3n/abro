@@ -424,6 +424,7 @@ type Group struct {
 	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
 	DeletedByID   pgtype.UUID        `json:"deleted_by_id"`
 	PhotoPath     pgtype.Text        `json:"photo_path"`
+	AutoRemind    bool               `json:"auto_remind"`
 }
 
 type GroupMember struct {
@@ -485,6 +486,8 @@ type PaymentReminder struct {
 	SenderID    pgtype.UUID        `json:"sender_id"`
 	RecipientID pgtype.UUID        `json:"recipient_id"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	CreditorID  pgtype.UUID        `json:"creditor_id"`
+	Kind        string             `json:"kind"`
 }
 
 type Profile struct {
@@ -499,6 +502,7 @@ type Profile struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	Username          pgtype.Text        `json:"username"`
 	AvatarPath        pgtype.Text        `json:"avatar_path"`
+	AutoRemindFriends bool               `json:"auto_remind_friends"`
 }
 
 type PushSubscription struct {

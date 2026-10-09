@@ -153,3 +153,94 @@ func (q *Queries) GetPairwiseParticipantsPersonal(ctx context.Context, arg GetPa
 	}
 	return items, nil
 }
+
+const listGroupShareRows = `-- name: ListGroupShareRows :many
+SELECT e.id AS expense_id, e.paid_by_id, e.amount AS expense_amount, e.created_at,
+       ep.user_id, ep.amount AS share
+FROM expenses e
+JOIN expense_participants ep ON ep.expense_id = e.id
+WHERE e.group_id = $1 AND e.deleted_at IS NULL
+ORDER BY e.created_at, e.id
+`
+
+type ListGroupShareRowsRow struct {
+	ExpenseID     pgtype.UUID        `json:"expense_id"`
+	PaidByID      pgtype.UUID        `json:"paid_by_id"`
+	ExpenseAmount int64              `json:"expense_amount"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Share         int64              `json:"share"`
+}
+
+// Every share of every live expense in a group, in the order the
+// expenses were added -- each member's movements in the group (ADR-023).
+func (q *Queries) ListGroupShareRows(ctx context.Context, groupID pgtype.UUID) ([]ListGroupShareRowsRow, error) {
+	rows, err := q.db.Query(ctx, listGroupShareRows, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListGroupShareRowsRow
+	for rows.Next() {
+		var i ListGroupShareRowsRow
+		if err := rows.Scan(
+			&i.ExpenseID,
+			&i.PaidByID,
+			&i.ExpenseAmount,
+			&i.CreatedAt,
+			&i.UserID,
+			&i.Share,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPairwiseMovementsPersonal = `-- name: ListPairwiseMovementsPersonal :many
+SELECT ep.user_id, ep.amount, e.created_at FROM expense_participants ep
+JOIN expenses e ON e.id = ep.expense_id
+WHERE e.deleted_at IS NULL AND e.group_id IS NULL AND (
+    (ep.user_id = $1 AND e.paid_by_id = $2)
+    OR (ep.user_id = $2 AND e.paid_by_id = $1)
+)
+ORDER BY e.created_at, e.id
+`
+
+type ListPairwiseMovementsPersonalParams struct {
+	UserB pgtype.UUID `json:"user_b"`
+	UserA pgtype.UUID `json:"user_a"`
+}
+
+type ListPairwiseMovementsPersonalRow struct {
+	UserID    pgtype.UUID        `json:"user_id"`
+	Amount    int64              `json:"amount"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// GetPairwiseParticipantsPersonal in the order the expenses were added,
+// for how long a debt has been open (ADR-023). Added, not dated: an
+// expense back-dated today is new debt today.
+func (q *Queries) ListPairwiseMovementsPersonal(ctx context.Context, arg ListPairwiseMovementsPersonalParams) ([]ListPairwiseMovementsPersonalRow, error) {
+	rows, err := q.db.Query(ctx, listPairwiseMovementsPersonal, arg.UserB, arg.UserA)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListPairwiseMovementsPersonalRow
+	for rows.Next() {
+		var i ListPairwiseMovementsPersonalRow
+		if err := rows.Scan(&i.UserID, &i.Amount, &i.CreatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
