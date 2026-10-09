@@ -30,6 +30,8 @@ export interface AuthGroup {
    * through ~/lib/photos.ts's photoSrc(). */
   photoUrl: string | null;
   simplifyDebts: boolean;
+  /** Overdue members get automatic reminders (ADR-023). Admins switch it. */
+  autoRemind: boolean;
   createdById: string;
   createdAt: string;
   updatedAt: string;
@@ -106,6 +108,7 @@ export function updateGroup(
     currency?: string;
     description?: string;
     simplifyDebts?: boolean;
+    autoRemind?: boolean;
   },
 ): Promise<AuthGroup> {
   return api.patch(`/groups/${id}`, patch);

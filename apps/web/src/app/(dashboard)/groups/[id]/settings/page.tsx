@@ -25,6 +25,8 @@
 //  - Group photo (roadmap Phase 4c, ADR-017): admins add, change or
 //    remove it at the top; it saves straight away, separately from the
 //    form's Save. Everyone sees it on the group's pages.
+//  - "Automatic reminders" (ADR-023): admins switch the daily job's
+//    reminders to overdue members, saved with the form.
 
 import { ETB, abs, formatMoney } from '@abro/types';
 import { ArrowLeft, LogOut, Trash2 } from 'lucide-react';
@@ -78,6 +80,7 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
   const [type, setType] = useState(groupTypeFor(group.type).id);
   const [currency, setCurrency] = useState(group.currency);
   const [simplify, setSimplify] = useState(group.simplifyDebts);
+  const [autoRemind, setAutoRemind] = useState(group.autoRemind);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -91,7 +94,8 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
     description.trim() !== (group.description ?? '') ||
     type.toUpperCase() !== group.type ||
     currency !== group.currency ||
-    simplify !== group.simplifyDebts;
+    simplify !== group.simplifyDebts ||
+    autoRemind !== group.autoRemind;
 
   const save = async () => {
     setSaving(true);
@@ -103,6 +107,7 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
         type: type.toUpperCase(),
         ...(currency !== group.currency ? { currency } : {}),
         simplifyDebts: simplify,
+        autoRemind,
       });
       setGroup({ ...updated, members: group.members }); // PATCH returns members: []
       setSaved(true);
@@ -273,6 +278,26 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
               className={`neo-toggle ${simplify ? 'on' : ''}`}
               aria-pressed={simplify}
               aria-label="Simplify debts"
+            >
+              <span className="neo-toggle-thumb" />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[0.85rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
+                Automatic reminders
+              </p>
+              <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+                Privately remind members who owe for 30 days, then every 2 weeks.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAutoRemind((v) => !v)}
+              className={`neo-toggle shrink-0 ${autoRemind ? 'on' : ''}`}
+              aria-pressed={autoRemind}
+              aria-label="Automatic reminders"
             >
               <span className="neo-toggle-thumb" />
             </button>

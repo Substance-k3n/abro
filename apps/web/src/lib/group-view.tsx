@@ -39,6 +39,8 @@ export interface GroupView {
   myMembership: GroupMember;
   activeMembers: GroupMember[];
   nets: Map<string, bigint>;
+  /** For each member who owes the group, when they started (ADR-023). */
+  owingSince: Map<string, string>;
   people: Map<string, AuthProfile>;
 }
 
@@ -54,6 +56,9 @@ async function loadGroupView(id: string): Promise<GroupView> {
     myMembership,
     activeMembers: group.members.filter((m) => m.status === 'ACTIVE'),
     nets: new Map(entries.map((e) => [e.userId, BigInt(e.netBalance)])),
+    owingSince: new Map(
+      entries.flatMap((e) => (e.owingSince ? [[e.userId, e.owingSince] as const] : [])),
+    ),
     people: new Map(group.members.map((m) => [m.userId, m.user])),
   };
 }

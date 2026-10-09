@@ -13,7 +13,7 @@ import (
 
 // OverdueAfter is how long a debt can stay open before it counts as
 // overdue and the daily job starts reminding (ADR-023). The web's
-// OVERDUE_AFTER_DAYS (packages/types) must match.
+// OVERDUE_AFTER_DAYS (apps/web/src/lib/balances-api.ts) must match.
 const OverdueAfter = 30 * 24 * time.Hour
 
 // PairwiseOwingSince is how long the personal balance between two users

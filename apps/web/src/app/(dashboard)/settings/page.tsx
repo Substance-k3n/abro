@@ -12,6 +12,8 @@
 //    values -- rather than a second copy of the same form.
 //  - Date/number format are dropped: nothing formats by a configurable
 //    format, and apps/api stores neither.
+//  - Reminders (ADR-023): whether friends who owe you get automatic
+//    reminders. Saves straight away, like the theme.
 //  - Notifications: a link to SET-02 (per-type in-app notifications).
 //    The push/email channel toggles are dropped: apps/api has no push or
 //    email notifications to switch.
@@ -31,6 +33,7 @@ import { InstallApp } from '~/components/InstallApp';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, logout, me } from '~/lib/auth-api';
 import { useInstallState } from '~/lib/pwa';
+import { getReminderSettings, updateReminderSettings } from '~/lib/reminders-api';
 import { type ThemeChoice, useThemeChoice } from '~/lib/theme';
 
 const APP_VERSION = '0.1.0';
@@ -117,6 +120,10 @@ export default function SettingsPage() {
         </div>
       </Section>
 
+      <Section title="Reminders">
+        <AutoRemindFriends />
+      </Section>
+
       <Section title="Notifications">
         <NavRow label="Notification types" href="/settings/notifications" />
       </Section>
@@ -191,5 +198,64 @@ function NavRow({ label, href, sub }: { label: string; href: string; sub?: strin
         <ChevronRight size={16} strokeWidth={2} />
       </span>
     </Link>
+  );
+}
+
+/** The "remind friends who owe me" switch. Hidden until loaded, so it
+ * never shows a wrong state; a failed save puts it back. */
+function AutoRemindFriends() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getReminderSettings()
+      .then((s) => setOn(s.autoRemindFriends))
+      .catch(() => setError('Could not load this setting.'));
+  }, []);
+
+  const toggle = async () => {
+    if (on === null) {
+      return;
+    }
+    const next = !on;
+    setOn(next);
+    setError(null);
+    try {
+      setOn((await updateReminderSettings({ autoRemindFriends: next })).autoRemindFriends);
+    } catch (err) {
+      setOn(!next);
+      setError(err instanceof ApiError ? err.message : 'Could not save. Please try again.');
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[0.85rem] font-medium" style={{ color: 'var(--t-secondary)' }}>
+            Remind friends who owe me
+          </p>
+          <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+            After 30 days, then every 2 weeks, privately.
+          </p>
+        </div>
+        {on !== null && (
+          <button
+            type="button"
+            onClick={toggle}
+            className={`neo-toggle shrink-0 ${on ? 'on' : ''}`}
+            aria-pressed={on}
+            aria-label="Remind friends who owe me"
+          >
+            <span className="neo-toggle-thumb" />
+          </button>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="text-[0.75rem]" style={{ color: 'var(--c-red)' }}>
+          {error}
+        </p>
+      )}
+    </div>
   );
 }

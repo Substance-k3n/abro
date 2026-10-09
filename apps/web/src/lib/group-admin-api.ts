@@ -70,7 +70,9 @@ export async function getGroupStats(groupId: string): Promise<GroupStats> {
 export interface PaymentReminder {
   groupId: string;
   recipientId: string;
-  senderId: string;
+  /** Null for an automatic reminder from the daily job (ADR-023). */
+  senderId: string | null;
+  automatic: boolean;
   remindedAt: string;
   /** When this member can be reminded in this group again. */
   nextAllowedAt: string;

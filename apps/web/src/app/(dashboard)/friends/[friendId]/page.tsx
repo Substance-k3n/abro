@@ -33,6 +33,12 @@
 // avatar + name + direction + big amount card maps onto the spec's "large
 // balance display, direction, amount" more directly.
 //
+// Overdue debts (ADR-023): under the amount, how long it's been owed
+// (GET /balances/friends/{id}'s owingSince) and an "Overdue" tag past
+// 30 days. When they owe you, a Remind button next to "They paid me"
+// (POST /friends/{id}/remind, once per 24 hours -- the daily job's
+// automatic reminders count too, so it shows "Reminded · again in 5h").
+//
 // Header "•••" more menu: deferred -- the spec doesn't define what it
 // contains beyond actions already covered below (settle up, add expense,
 // remove friend), so a menu with no unique content isn't worth building
@@ -40,17 +46,26 @@
 
 import type { MinorUnits } from '@abro/types';
 import { ActivityItem, Avatar, BackButton, EmptyState, MoneyDisplay } from '@abro/ui';
-import { Plus, Receipt, UserX, Wallet } from 'lucide-react';
+import { BellRing, Clock, Plus, Receipt, UserX, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { OverdueTag, formatSince } from '~/components/OverdueTag';
 import { ApiError } from '~/lib/api-client';
 import { me } from '~/lib/auth-api';
-import { type FriendRow, deriveFriendRows, getBalancesSummary } from '~/lib/balances-api';
+import {
+  type FriendRow,
+  debtAge,
+  deriveFriendRows,
+  getBalancesSummary,
+  getFriendBalance,
+} from '~/lib/balances-api';
 import { type ActivityDisplay, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
 import { listFriends } from '~/lib/friends-api';
+import { shortDuration } from '~/lib/group-admin-api';
+import { type FriendReminder, getFriendReminder, remindFriend } from '~/lib/reminders-api';
 import { useApiRefresh } from '~/lib/use-api-refresh';
 
 /** apps/api's GET /expenses max `limit` -- see header comment. */
@@ -62,6 +77,10 @@ interface FriendDetailData {
   /** Null when this id isn't one of your friends. */
   friend: FriendRow | null;
   history: HistoryRow[];
+  /** When the debt either way started (ADR-023); undefined when settled. */
+  owingSince: string | undefined;
+  /** The latest reminder they got for what they owe you. */
+  reminder: FriendReminder | null;
 }
 
 type Tab = 'expenses' | 'settlements';
@@ -73,6 +92,8 @@ export default function FriendDetailPage() {
 
   const [data, setData] = useState<FriendDetailData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reminding, setReminding] = useState(false);
+  const [remindResult, setRemindResult] = useState<{ ok: boolean; text: string } | null>(null);
 
   const load = () => {
     setError(null);
@@ -81,11 +102,16 @@ export default function FriendDetailPage() {
       listFriends(),
       getBalancesSummary(),
       listExpenses({ friendId: params.friendId, limit: HISTORY_LIMIT }),
+      // Extras: the page still works without them.
+      getFriendBalance(params.friendId).catch(() => null),
+      getFriendReminder(params.friendId).catch(() => null),
     ])
-      .then(([profile, friends, balances, expenses]) => {
+      .then(([profile, friends, balances, expenses, balance, reminder]) => {
         const friend = deriveFriendRows(friends, balances).find((f) => f.id === params.friendId);
         setData({
           friend: friend ?? null,
+          owingSince: balance?.owingSince,
+          reminder,
           history: expenses.map((e) => ({
             id: e.id,
             isSettlement: e.splitType === 'SETTLEMENT',
@@ -128,6 +154,25 @@ export default function FriendDetailPage() {
   // Positive: they owe you. Negative: you owe them. Zero: settled up.
   const balance: MinorUnits = friend.owes - friend.iOwe;
   const absBalance = balance < 0n ? -balance : balance;
+  const age = balance !== 0n && data.owingSince ? debtAge(data.owingSince) : null;
+  const now = Date.now();
+  const remindAllowedAt = data.reminder ? Date.parse(data.reminder.nextAllowedAt) : 0;
+
+  const remind = async () => {
+    setReminding(true);
+    setRemindResult(null);
+    try {
+      const reminder = await remindFriend(friend.id);
+      setData({ ...data, reminder });
+      setRemindResult({ ok: true, text: `Reminder sent to ${friend.name.split(' ')[0]}.` });
+    } catch (err) {
+      setRemindResult({
+        ok: false,
+        text: err instanceof ApiError ? err.message : 'Could not send the reminder.',
+      });
+    }
+    setReminding(false);
+  };
 
   const expenses = data.history.filter((a) => !a.isSettlement);
   const settlements = data.history.filter((a) => a.isSettlement);
@@ -158,9 +203,19 @@ export default function FriendDetailPage() {
           </p>
           <MoneyDisplay
             amount={absBalance}
-            className="font-display mb-4 block text-[2rem] font-extrabold tracking-tighter"
+            className={`font-display block text-[2rem] font-extrabold tracking-tighter ${age ? 'mb-1.5' : 'mb-4'}`}
             style={{ color: balance < 0n ? 'var(--c-red)' : 'var(--c-green)' }}
           />
+          {age && data.owingSince && (
+            <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+              <span className="text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
+                since {formatSince(data.owingSince)}
+                {/* The Overdue tag carries the count once it's overdue. */}
+                {age.days > 0 && !age.overdue && ` · ${age.days} day${age.days === 1 ? '' : 's'}`}
+              </span>
+              <OverdueTag owingSince={data.owingSince} />
+            </div>
+          )}
           {/* You owe them: settle up (they confirm it, ADR-019). */}
           {balance < 0n && (
             <Link
@@ -170,14 +225,48 @@ export default function FriendDetailPage() {
               Settle Up
             </Link>
           )}
-          {/* They owe you: record a payment you received (ADR-019). */}
+          {/* They owe you: record a payment you received (ADR-019), or
+              remind them (ADR-023). */}
           {balance > 0n && (
-            <Link
-              href={`/payments/received?fromUserId=${friend.id}`}
-              className="neo-btn-green font-display inline-block rounded-2xl px-7 py-3 text-[0.9rem] font-semibold"
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
+              <Link
+                href={`/payments/received?fromUserId=${friend.id}`}
+                className="neo-btn-green font-display inline-block rounded-2xl px-7 py-3 text-[0.9rem] font-semibold"
+              >
+                They paid me
+              </Link>
+              {remindAllowedAt > now ? (
+                <span
+                  className="flex items-center gap-1 px-2 text-[0.75rem] font-medium"
+                  style={{ color: 'var(--t-dim)' }}
+                  title={`You can remind them again in ${shortDuration(remindAllowedAt - now)}.`}
+                >
+                  <Clock size={13} strokeWidth={2} />
+                  {data.reminder?.automatic ? 'Auto-reminded' : 'Reminded'} · again in{' '}
+                  {shortDuration(remindAllowedAt - now)}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={remind}
+                  disabled={reminding}
+                  className="neo-btn font-display flex items-center gap-1.5 rounded-2xl px-5 py-3 text-[0.9rem] font-semibold disabled:opacity-50"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  <BellRing size={16} strokeWidth={2} />
+                  {reminding ? 'Sending…' : 'Remind'}
+                </button>
+              )}
+            </div>
+          )}
+          {remindResult && (
+            <p
+              role={remindResult.ok ? 'status' : 'alert'}
+              className="mt-3 text-[0.78rem] font-medium"
+              style={{ color: remindResult.ok ? 'var(--c-green-text)' : 'var(--c-red)' }}
             >
-              They paid me
-            </Link>
+              {remindResult.text}
+            </p>
           )}
         </div>
 

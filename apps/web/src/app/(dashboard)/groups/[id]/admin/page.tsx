@@ -3,8 +3,9 @@
 // Group admin dashboard (roadmap P6; no ABRO_FRONTEND_SPEC.md screen).
 // One page for a group's admins:
 //  - Health: who owes the group (most first) with a Remind button
-//    (ADR-018: once per member per group every 24 hours), who is owed,
-//    and the suggested payments.
+//    (ADR-018: once per member per group every 24 hours) and an
+//    "Overdue" tag past 30 days, whose automatic reminders show as
+//    "Auto-reminded" (ADR-023); who is owed; the suggested payments.
 //  - Pending invites: resend (once every 24 hours) or cancel.
 //  - Spending: totals, what each person paid vs. their share, spending
 //    by category, and the last six months.
@@ -33,6 +34,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
 
+import { OverdueTag } from '~/components/OverdueTag';
 import { PaymentRow } from '~/components/PaymentRow';
 import { ApiError } from '~/lib/api-client';
 import { type SimplifiedPayment, getSimplifiedPayments } from '~/lib/balances-api';
@@ -177,7 +179,7 @@ function Dashboard({
     .sort(([, a], [, b]) => (a > b ? -1 : 1));
   const outstanding = owing.reduce((sum, [, n]) => sum + abs(n), 0n);
   const invited = group.members.filter((m) => m.status === 'INVITED');
-  const nextReminder = new Map(reminders.map((r) => [r.recipientId, Date.parse(r.nextAllowedAt)]));
+  const latestReminder = new Map(reminders.map((r) => [r.recipientId, r]));
 
   const run = async (
     key: string,
@@ -255,7 +257,8 @@ function Dashboard({
           ) : (
             <div className="flex flex-col gap-2">
               {owing.map(([userId, net]) => {
-                const allowedAt = nextReminder.get(userId) ?? 0;
+                const latest = latestReminder.get(userId);
+                const allowedAt = latest ? Date.parse(latest.nextAllowedAt) : 0;
                 const waiting = allowedAt > now;
                 const key = `remind:${userId}`;
                 return (
@@ -271,12 +274,15 @@ function Dashboard({
                       >
                         {nameIn(view, userId)}
                       </p>
-                      <p
-                        className="font-mono text-[0.75rem] font-semibold"
-                        style={{ color: 'var(--c-red-text)' }}
-                      >
-                        owes {formatMoney(abs(net), ETB)}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p
+                          className="font-mono text-[0.75rem] font-semibold"
+                          style={{ color: 'var(--c-red-text)' }}
+                        >
+                          owes {formatMoney(abs(net), ETB)}
+                        </p>
+                        <OverdueTag owingSince={view.owingSince.get(userId)} />
+                      </div>
                     </div>
                     {userId === view.profile.id ? (
                       <span className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
@@ -288,7 +294,8 @@ function Dashboard({
                         style={{ color: 'var(--t-dim)' }}
                         title={`Reminded. You can remind again in ${shortDuration(allowedAt - now)}.`}
                       >
-                        <Clock size={13} strokeWidth={2} /> Reminded · again in{' '}
+                        <Clock size={13} strokeWidth={2} />{' '}
+                        {latest?.automatic ? 'Auto-reminded' : 'Reminded'} · again in{' '}
                         {shortDuration(allowedAt - now)}
                       </span>
                     ) : (
