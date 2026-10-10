@@ -93,3 +93,34 @@ export function turns(detail: EkubDetail): EkubMember[][] {
     r.memberIds.map((id) => byId.get(id)).filter((m): m is EkubMember => !!m),
   );
 }
+
+/** Key for one payment, payer then recipient. */
+export const paymentKey = (payer: string, recipient: string) => `${payer}>${recipient}`;
+
+/** What happens to a missed payment from before the ekub was entered
+ * (the API decides the same way): if the payer's own turn is still to
+ * come the two skip each other; if they already took the pot, it stays
+ * owed. */
+export function missedKind(o: EkubObligation, detail: EkubDetail): 'skip' | 'owed' {
+  const payer = memberById(detail).get(o.payerMemberId);
+  return payer && payer.slotPosition > o.round ? 'skip' : 'owed';
+}
+
+/** The payments of the rounds already over (1..`over`), for marking who
+ * didn't pay when entering a running ekub. A payment drops out once the
+ * other way round was marked missed in an earlier round: the two skip
+ * each other, so it was never due. */
+export function pastPayments(
+  detail: EkubDetail,
+  over: number,
+  missed: ReadonlySet<string>,
+): EkubObligation[] {
+  const byId = memberById(detail);
+  return detail.obligations.filter((o) => {
+    if (o.round > over) {
+      return false;
+    }
+    const payerTurn = byId.get(o.payerMemberId)?.slotPosition ?? 0;
+    return !(payerTurn < o.round && missed.has(paymentKey(o.recipientMemberId, o.payerMemberId)));
+  });
+}

@@ -3,7 +3,9 @@
 // One ekub (ADR-024). What shows depends on where it stands:
 // - invited: your turn and amount, with Join / Decline;
 // - not started: the turns; the admin invites friends, rearranges and
-//   starts it once everyone has joined;
+//   starts it once everyone has joined. Starting with a past date enters
+//   an ekub that was already running: the rounds already over list every
+//   payment, and the admin taps anyone who didn't pay;
 // - running: your turn and what you take, what you still have to pay
 //   (with "I paid"), payments into your pot to confirm, and every round
 //   with how much of its pot is confirmed. The admin can move turns that
@@ -27,7 +29,10 @@ import {
   formatDay,
   isOverdue,
   memberById,
+  missedKind,
   myPosition,
+  pastPayments,
+  paymentKey,
   roundsOver,
   todayISO,
   turns as turnsOf,
@@ -68,6 +73,105 @@ function OverdueTag() {
   );
 }
 
+/** Entering a running ekub: every payment of the rounds already over,
+ * by round, each tapped to say it wasn't paid. */
+function PastRounds({
+  detail,
+  over,
+  missed,
+  onToggle,
+  nameOf,
+  money,
+}: {
+  detail: EkubDetail;
+  over: number;
+  missed: ReadonlySet<string>;
+  onToggle: (key: string) => void;
+  nameOf: (memberId: string) => string;
+  money: (amount: bigint) => string;
+}) {
+  const shown = pastPayments(detail, over, missed);
+  const rounds = detail.rounds.filter((r) => r.round <= over);
+  return (
+    <div className="mt-3 flex flex-col gap-2.5">
+      <p className="text-[0.8rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
+        {rounds.length === 1 ? 'Round 1 is' : `Rounds 1–${rounds.length} are`} already over. Tap
+        anyone who didn&apos;t pay.
+      </p>
+      {rounds.map((r) => {
+        const payments = shown.filter((o) => o.round === r.round);
+        return (
+          <div key={r.round} className="neo-inset-sm rounded-2xl p-3">
+            <p
+              className="mb-1.5 text-[0.78rem] font-semibold"
+              style={{ color: 'var(--t-primary)' }}
+            >
+              Round {r.round} · {r.memberIds.map(nameOf).join(' & ')} took it
+            </p>
+            {payments.length === 0 ? (
+              <p className="text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
+                Nobody paid into this one.
+              </p>
+            ) : (
+              <ul className="flex flex-col">
+                {payments.map((o) => {
+                  const key = paymentKey(o.payerMemberId, o.recipientMemberId);
+                  const didntPay = missed.has(key);
+                  const recipient =
+                    r.memberIds.length > 1 ? ` → ${nameOf(o.recipientMemberId)}` : '';
+                  return (
+                    <li key={key}>
+                      <button
+                        type="button"
+                        onClick={() => onToggle(key)}
+                        aria-pressed={!didntPay}
+                        className="flex w-full items-center gap-2 py-1.5 text-left"
+                      >
+                        {didntPay ? (
+                          <X size={15} style={{ color: 'var(--c-red)' }} />
+                        ) : (
+                          <Check size={15} style={{ color: 'var(--c-green)' }} />
+                        )}
+                        <span className="min-w-0 flex-1">
+                          <span
+                            className="block truncate text-[0.82rem]"
+                            style={{ color: 'var(--t-secondary)' }}
+                          >
+                            {nameOf(o.payerMemberId)}
+                            {recipient} · {money(o.amount)}
+                          </span>
+                          {didntPay && (
+                            <span className="block text-[0.7rem]" style={{ color: 'var(--c-red)' }}>
+                              {missedKind(o, detail) === 'skip'
+                                ? `Didn’t pay, so ${nameOf(o.recipientMemberId)} won’t pay them either`
+                                : 'Didn’t pay, still owes it'}
+                            </span>
+                          )}
+                        </span>
+                        <span
+                          className="text-[0.7rem] font-semibold"
+                          style={{ color: didntPay ? 'var(--c-red)' : 'var(--c-green)' }}
+                        >
+                          {didntPay ? 'Didn’t pay' : 'Paid'}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+      <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+        Paid ones are recorded as paid, and ABRO tracks from the round now collecting. Someone who
+        didn&apos;t pay before their own turn and the person they didn&apos;t pay skip each other:
+        neither pays the other. Someone who already took the pot still owes it.
+      </p>
+    </div>
+  );
+}
+
 function toTurnShares(detail: EkubDetail): TurnShare[][] {
   return turnsOf(detail).map((t) =>
     t.map((m) => ({
@@ -91,7 +195,8 @@ export default function EkubPage() {
   const [order, setOrder] = useState<TurnShare[][] | null>(null);
   const [startDate, setStartDate] = useState(todayISO());
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [pastPaid, setPastPaid] = useState(true);
+  // Payments of the rounds already over that weren't made (paymentKey).
+  const [missed, setMissed] = useState<Set<string>>(() => new Set());
 
   const show = (d: EkubDetail) => {
     setDetail(d);
@@ -119,6 +224,10 @@ export default function EkubPage() {
   useApiRefresh(load);
 
   const turnShares = useMemo(() => order ?? (detail ? toTurnShares(detail) : []), [order, detail]);
+  const turnTotals = useMemo(
+    () => turnShares.map((t) => t.reduce((sum, s) => sum + parseAmount(s.amount), 0n)),
+    [turnShares],
+  );
   const invitable = useMemo(() => {
     const inEkub = new Set(detail?.members.map((m) => m.userId));
     return friends.filter((f) => !inEkub.has(f.id));
@@ -389,6 +498,7 @@ export default function EkubPage() {
               const done = r.pot > 0n && r.confirmed === r.pot;
               const late = r.round < detail.currentRound && !done;
               const payments = detail.obligations.filter((o) => o.round === r.round);
+              const skipped = detail.missed.filter((m) => m.round === r.round);
               const pct = r.pot > 0n ? Number((r.confirmed * 100n) / r.pot) : 100;
               return (
                 <li
@@ -435,6 +545,16 @@ export default function EkubPage() {
                         />
                       </div>
                     </summary>
+                    {skipped.map((m) => (
+                      <p
+                        key={paymentKey(m.payerMemberId, m.recipientMemberId)}
+                        className="mt-2 text-[0.72rem]"
+                        style={{ color: 'var(--t-dim)' }}
+                      >
+                        {nameOf(m.payerMemberId)} didn&apos;t pay {nameOf(m.recipientMemberId)}{' '}
+                        before ABRO tracked it, so they skip each other.
+                      </p>
+                    ))}
                     <ul className="mt-3 flex flex-col gap-1">
                       {payments.map((o) => (
                         <li
@@ -544,6 +664,7 @@ export default function EkubPage() {
                 people={invitable}
                 turnCount={roundCount}
                 slotAmount={detail.slotAmount}
+                turnTotals={turnTotals}
                 allowShare={!running}
                 positionFrom={running ? detail.currentRound : undefined}
                 busy={busy}
@@ -573,8 +694,8 @@ export default function EkubPage() {
               <p className="mb-3 text-[0.78rem]" style={{ color: 'var(--t-dim)' }}>
                 Once everyone has joined and every turn adds up. The first pot is due on the day you
                 pick, then one every {detail.cadence === 'WEEKLY' ? 'week' : 'month'}. Already
-                running? Pick the day it really started, and set above which round any late joiner
-                joined in.
+                running? Pick the day it really started (set above which round any late joiner
+                joined in), then tap anyone who didn&apos;t pay in the rounds already over.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
@@ -586,35 +707,45 @@ export default function EkubPage() {
                 />
                 <button
                   disabled={busy || !startDate || orderChanged}
-                  onClick={() => act(() => startEkub(id, startDate, over > 0 && pastPaid))}
+                  onClick={() =>
+                    act(() =>
+                      startEkub(
+                        id,
+                        startDate,
+                        over > 0,
+                        pastPayments(detail, over, missed)
+                          .filter((o) =>
+                            missed.has(paymentKey(o.payerMemberId, o.recipientMemberId)),
+                          )
+                          .map(({ payerMemberId, recipientMemberId }) => ({
+                            payerMemberId,
+                            recipientMemberId,
+                          })),
+                      ),
+                    )
+                  }
                   className="neo-btn-accent flex-1 rounded-xl py-2.5 text-[0.85rem] font-semibold disabled:opacity-50"
                 >
                   Start
                 </button>
               </div>
               {over > 0 && (
-                <div className="mt-3 flex flex-col gap-1.5">
-                  <p className="text-[0.8rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
-                    {over === 1 ? 'Round 1 is' : `Rounds 1–${Math.min(over, roundCount)} are`}{' '}
-                    already over.
-                  </p>
-                  <label
-                    className="flex items-center gap-2 text-[0.8rem]"
-                    style={{ color: 'var(--t-secondary)' }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={pastPaid}
-                      onChange={(e) => setPastPaid(e.target.checked)}
-                    />
-                    Everyone paid for those rounds
-                  </label>
-                  <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
-                    {pastPaid
-                      ? 'They’re recorded as paid, and ABRO tracks from the round now collecting.'
-                      : 'Their payments stay open; people record them as usual.'}
-                  </p>
-                </div>
+                <PastRounds
+                  detail={detail}
+                  over={Math.min(over, roundCount)}
+                  missed={missed}
+                  onToggle={(key) =>
+                    setMissed((set) => {
+                      const next = new Set(set);
+                      if (!next.delete(key)) {
+                        next.add(key);
+                      }
+                      return next;
+                    })
+                  }
+                  nameOf={nameOf}
+                  money={money}
+                />
               )}
             </Card>
           )}

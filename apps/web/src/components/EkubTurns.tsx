@@ -5,7 +5,9 @@
 // to rearrange one before or after it starts. Moving a turn up or down
 // changes the round it takes the pot; the parts of a turn must add up to
 // the amount per turn (shown under each turn, and checked by the API).
-// Before the start, each person can also have the round they joined in,
+// Before the start every part can be edited: someone alone putting in
+// less than a full turn needs someone to share it with. Each person can
+// also have the round they joined in,
 // for entering an ekub that was already running when someone joined
 // mid-way; it can't be later than their own turn.
 
@@ -175,7 +177,7 @@ export function EkubTurns({
                       )
                     )}
                   </div>
-                  {editAmounts && turn.length > 1 ? (
+                  {editAmounts ? (
                     <input
                       inputMode="decimal"
                       value={share.amount}
@@ -217,6 +219,7 @@ export function EkubTurns({
             {sum !== slotAmount && (
               <p className="mt-2 text-[0.75rem]" role="alert" style={{ color: 'var(--c-red)' }}>
                 Adds up to {format(sum)}; a turn is {format(slotAmount)}.
+                {turn.length === 1 && sum < slotAmount && ' Add someone to share this turn below.'}
               </p>
             )}
           </li>
@@ -233,6 +236,7 @@ export function AddToTurn({
   people,
   turnCount,
   slotAmount,
+  turnTotals = [],
   allowShare,
   positionFrom,
   busy,
@@ -241,6 +245,8 @@ export function AddToTurn({
   people: { id: string; name: string }[];
   turnCount: number;
   slotAmount: bigint;
+  /** What each turn adds up to so far, to suggest the part left. */
+  turnTotals?: bigint[];
   /** Only before the start can someone share a turn. */
   allowShare: boolean;
   /** Running ekub: the first turn they can be put at (the round now
@@ -285,7 +291,12 @@ export function AddToTurn({
             value={turn}
             onChange={(e) => {
               setTurn(e.target.value);
-              setAmount(amountInput(e.target.value === 'new' ? slotAmount : slotAmount / 2n));
+              const left = slotAmount - (turnTotals[Number(e.target.value)] ?? slotAmount);
+              setAmount(
+                amountInput(
+                  e.target.value === 'new' ? slotAmount : left > 0n ? left : slotAmount / 2n,
+                ),
+              );
             }}
             aria-label="Turn"
             className="neo-input sm:w-44"
