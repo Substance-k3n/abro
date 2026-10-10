@@ -3,7 +3,8 @@
 // New ekub (ADR-024): name, the amount per turn, weekly or monthly, and
 // the turns in payout order. You start in turn 1 (move yourself if you
 // like); each friend added gets a turn of their own or shares one, with
-// parts that add up to the amount per turn. Friends are invited and the
+// parts that add up to the amount per turn. Anyone's part can be edited;
+// left alone it's the full amount per turn. Friends are invited and the
 // ekub starts once everyone has joined (from its own screen).
 
 import { ArrowLeft } from 'lucide-react';
@@ -50,10 +51,18 @@ export default function NewEkubPage() {
   useEffect(load, []);
 
   const slotAmount = parseAmount(amount);
-  // Someone alone in a turn always puts in the whole amount.
+  // Someone alone in a turn puts in the whole amount until their part is
+  // changed (an empty part follows the amount per turn).
   const shown = useMemo(
-    () => turns.map((t) => (t.length === 1 ? [{ ...t[0]!, amount: amountInput(slotAmount) }] : t)),
+    () =>
+      turns.map((t) =>
+        t.length === 1 && t[0]!.amount === '' ? [{ ...t[0]!, amount: amountInput(slotAmount) }] : t,
+      ),
     [turns, slotAmount],
+  );
+  const turnTotals = useMemo(
+    () => shown.map((t) => t.reduce((sum, s) => sum + parseAmount(s.amount), 0n)),
+    [shown],
   );
   const available = useMemo(() => {
     const used = new Set(turns.flat().map((s) => s.id));
@@ -67,9 +76,7 @@ export default function NewEkubPage() {
     return <LoadingState />;
   }
 
-  const allAddUp = shown.every(
-    (t) => t.reduce((sum, s) => sum + parseAmount(s.amount), 0n) === slotAmount,
-  );
+  const allAddUp = turnTotals.every((total) => total === slotAmount);
   const ready = name.trim() !== '' && slotAmount > 0n && shown.length >= 2 && allAddUp;
 
   const add = (personId: string, turn: number | null, part: string) => {
@@ -77,13 +84,14 @@ export default function NewEkubPage() {
     const share = { id: person.id, name: person.name, amount: part };
     setTurns((list) =>
       turn === null
-        ? [...list, [share]]
+        ? [...list, [{ ...share, amount: '' }]]
         : list.map((t, i) =>
             i === turn
-              ? // The person already there keeps the rest of the turn.
+              ? // Someone alone there who still had the full amount keeps
+                // the rest of the turn.
                 [
                   ...t.map((s) =>
-                    t.length === 1
+                    t.length === 1 && turnTotals[i] === slotAmount
                       ? { ...s, amount: amountInput(slotAmount - parseAmount(part)) }
                       : s,
                   ),
@@ -172,7 +180,8 @@ export default function NewEkubPage() {
               onChange={(e) => setAmount(e.target.value)}
             />
             <span className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
-              What one turn puts in each round. Two people can share a turn at half each.
+              What one turn puts in each round. Two or more people can share a turn, e.g. 20,000
+              each: add someone to a turn, or change anyone&apos;s amount below.
             </span>
           </label>
           <div className="flex flex-col gap-1.5">
@@ -201,8 +210,9 @@ export default function NewEkubPage() {
           </span>
           <span className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
             Entering an ekub that&apos;s already running? Put the turns in the order they went, and
-            for anyone who joined later set the round they joined in. You pick the real start day
-            when you start it.
+            for anyone who joined later set the round they joined in. Once everyone has joined, you
+            pick the day it really started and mark anyone who didn&apos;t pay in the rounds already
+            over.
           </span>
           <EkubTurns
             turns={shown}
@@ -219,6 +229,7 @@ export default function NewEkubPage() {
             people={available}
             turnCount={turns.length}
             slotAmount={slotAmount}
+            turnTotals={turnTotals}
             allowShare
             onAdd={add}
           />

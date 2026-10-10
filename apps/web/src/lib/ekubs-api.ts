@@ -59,6 +59,15 @@ export interface EkubObligation {
   paymentId: string | null;
 }
 
+/** A payment of a round from before the ekub was entered in ABRO that
+ * was never made, by someone whose turn was still to come: the two skip
+ * each other (ADR-024). */
+export interface EkubMissedPayment {
+  payerMemberId: string;
+  recipientMemberId: string;
+  round: number;
+}
+
 export interface EkubDetail extends Ekub {
   myMemberId: string;
   /** The round now collecting; 0 before the start. */
@@ -66,6 +75,7 @@ export interface EkubDetail extends Ekub {
   members: EkubMember[];
   rounds: EkubRound[];
   obligations: EkubObligation[];
+  missed: EkubMissedPayment[];
   canLeave: boolean;
   leaveBlockedWhy: string | null;
 }
@@ -139,13 +149,19 @@ export async function updateEkubSlots(id: string, slots: EkubShareInput[][]): Pr
 }
 
 /** A past `startDate` enters an ekub that was already running;
- * `pastPaid` records the rounds already over as paid. */
+ * `pastPaid` records the rounds already over as paid, except the
+ * `missed` payments. A missed payment by someone whose turn was still to
+ * come makes the two skip each other; by someone who already took the
+ * pot, it stays owed. */
 export async function startEkub(
   id: string,
   startDate: string,
   pastPaid: boolean,
+  missed: { payerMemberId: string; recipientMemberId: string }[] = [],
 ): Promise<EkubDetail> {
-  return toDetail(await api.post<WireDetail>(`/ekubs/${id}/start`, { startDate, pastPaid }));
+  return toDetail(
+    await api.post<WireDetail>(`/ekubs/${id}/start`, { startDate, pastPaid, missed }),
+  );
 }
 
 export async function addEkubMember(
