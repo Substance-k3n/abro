@@ -48,12 +48,14 @@ func PairAmount(payer, recipient, slotAmount int64) int64 {
 }
 
 // Obligations lists every payment the schedule expects across the whole
-// cycle, by round, then payer, then recipient.
-func Obligations(slotAmount int64, ps []Participant) []Obligation {
+// cycle, by round, then payer, then recipient. skip (may be nil) names
+// pairs who skip each other because one missed a payment to the other
+// before the ekub was entered in ABRO; it's asked both ways round.
+func Obligations(slotAmount int64, ps []Participant, skip func(a, b int) bool) []Obligation {
 	var out []Obligation
 	for r := range ps {
 		for p := range ps {
-			if p == r || !Exchange(ps[p], ps[r]) {
+			if p == r || !Exchange(ps[p], ps[r]) || (skip != nil && skip(p, r)) {
 				continue
 			}
 			amount := PairAmount(ps[p].Amount, ps[r].Amount, slotAmount)

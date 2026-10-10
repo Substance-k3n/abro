@@ -54,6 +54,7 @@ type state struct {
 	ekub     db.Ekub
 	members  []db.ListEkubMembersRow
 	payments []db.EkubPayment
+	missed   []db.EkubMissedPayment
 	me       *db.ListEkubMembersRow
 }
 
@@ -100,6 +101,9 @@ func (s *Service) load(ctx context.Context, ekubID, userID pgtype.UUID) (*state,
 	if st.payments, err = s.q.ListEkubPayments(ctx, ekubID); err != nil {
 		return nil, err
 	}
+	if st.missed, err = s.q.ListEkubMissedPayments(ctx, ekubID); err != nil {
+		return nil, err
+	}
 	return st, nil
 }
 
@@ -136,7 +140,18 @@ func (st *state) obligations() []obligation {
 			})
 		}
 	}
-	obs := Obligations(st.ekub.SlotAmount, ps)
+	// A missed payment from before the ekub was entered: the pair skip
+	// each other, whichever way round it was missed.
+	skip := func(a, b int) bool {
+		for _, m := range st.missed {
+			if (m.PayerMemberID == rows[a].ID && m.RecipientMemberID == rows[b].ID) ||
+				(m.PayerMemberID == rows[b].ID && m.RecipientMemberID == rows[a].ID) {
+				return true
+			}
+		}
+		return false
+	}
+	obs := Obligations(st.ekub.SlotAmount, ps, skip)
 	out := make([]obligation, len(obs))
 	for i, o := range obs {
 		out[i] = obligation{payer: rows[o.Payer], recipient: rows[o.Recipient], amount: o.Amount, round: o.Round}
@@ -223,6 +238,17 @@ func (s *Service) toDetail(st *state) apitypes.EkubDetail {
 		Members:      []apitypes.EkubMember{},
 		Rounds:       []apitypes.EkubRound{},
 		Obligations:  make([]apitypes.EkubObligation, len(obs)),
+		Missed:       make([]apitypes.EkubMissedPayment, 0, len(st.missed)),
+	}
+	for _, m := range st.missed {
+		round := 0
+		if r := st.member(m.RecipientMemberID); r != nil {
+			round = int(r.SlotPosition)
+		}
+		out.Missed = append(out.Missed, apitypes.EkubMissedPayment{
+			PayerMemberID: idutil.String(m.PayerMemberID), RecipientMemberID: idutil.String(m.RecipientMemberID),
+			Round: round,
+		})
 	}
 	for _, m := range st.members {
 		if m.Status == db.GroupMemberStatusLEFT && !st.takesPart(m) {
@@ -494,10 +520,24 @@ func (s *Service) Start(ctx context.Context, userID, ekubID pgtype.UUID, in apit
 				money.Format(sums[r], st.ekub.Currency), money.Format(st.ekub.SlotAmount, st.ekub.Currency)))
 		}
 	}
+	current := CurrentRound(in.ParsedStartDate, s.today(), string(st.ekub.Cadence))
+	missed, err := st.missedPayments(in.Missed, current)
+	if err != nil {
+		return apitypes.EkubDetail{}, err
+	}
 	if _, err := s.q.StartEkub(ctx, db.StartEkubParams{
 		ID: ekubID, StartDate: pgtype.Date{Time: in.ParsedStartDate, Valid: true},
 	}); err != nil {
 		return apitypes.EkubDetail{}, err
+	}
+	// Missed payments first, so recording the rest as paid leaves out
+	// the pairs who now skip each other.
+	for _, o := range missed {
+		if err := s.q.CreateEkubMissedPayment(ctx, db.CreateEkubMissedPaymentParams{
+			EkubID: ekubID, PayerMemberID: o.payer.ID, RecipientMemberID: o.recipient.ID, CreatedByID: userID,
+		}); err != nil {
+			return apitypes.EkubDetail{}, err
+		}
 	}
 	if in.PastPaid {
 		if err := s.recordPastPaid(ctx, userID, ekubID); err != nil {
@@ -506,7 +546,6 @@ func (s *Service) Start(ctx context.Context, userID, ekubID pgtype.UUID, in apit
 	}
 	// A start date in the past enters an ekub that was already running:
 	// say which round is due next, not when the first one was.
-	current := CurrentRound(in.ParsedStartDate, s.today(), string(st.ekub.Cadence))
 	due := DueDate(in.ParsedStartDate, string(st.ekub.Cadence), current)
 	body := fmt.Sprintf("%q has started. The first pot is due %s.", st.ekub.Name, due.Format("2 Jan 2006"))
 	if current > 1 {
@@ -517,6 +556,32 @@ func (s *Service) Start(ctx context.Context, userID, ekubID pgtype.UUID, in apit
 		return apitypes.EkubDetail{}, err
 	}
 	return s.Detail(ctx, userID, ekubID)
+}
+
+// missedPayments checks the missed payments given at the start: each
+// must be a payment the schedule expects in a round already over.
+func (st *state) missedPayments(refs []apitypes.EkubMissedPaymentRef, current int) ([]obligation, error) {
+	obs := st.obligations()
+	out := make([]obligation, 0, len(refs))
+	for _, ref := range refs {
+		payer, err1 := idutil.Parse(ref.PayerMemberID)
+		recipient, err2 := idutil.Parse(ref.RecipientMemberID)
+		found := false
+		if err1 == nil && err2 == nil {
+			for _, o := range obs {
+				if o.payer.ID == payer && o.recipient.ID == recipient && o.round < current {
+					out = append(out, o)
+					found = true
+					break
+				}
+			}
+		}
+		if !found {
+			return nil, httpx.BadRequest("NOT_A_PAST_PAYMENT",
+				"A missed payment must be one of the payments of a round that's already over.")
+		}
+	}
+	return out, nil
 }
 
 // recordPastPaid enters an ekub that was already running: every payment
