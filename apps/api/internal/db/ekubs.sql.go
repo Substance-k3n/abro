@@ -49,8 +49,8 @@ func (q *Queries) CreateEkub(ctx context.Context, arg CreateEkubParams) (Ekub, e
 }
 
 const createEkubMember = `-- name: CreateEkubMember :one
-INSERT INTO ekub_members (ekub_id, user_id, role, status, amount, slot_position)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO ekub_members (ekub_id, user_id, role, status, amount, slot_position, joined_round)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING id, ekub_id, user_id, role, status, amount, slot_position, joined_round, created_at
 `
 
@@ -61,6 +61,7 @@ type CreateEkubMemberParams struct {
 	Status       GroupMemberStatus `json:"status"`
 	Amount       int64             `json:"amount"`
 	SlotPosition int32             `json:"slot_position"`
+	JoinedRound  int32             `json:"joined_round"`
 }
 
 func (q *Queries) CreateEkubMember(ctx context.Context, arg CreateEkubMemberParams) (EkubMember, error) {
@@ -71,6 +72,7 @@ func (q *Queries) CreateEkubMember(ctx context.Context, arg CreateEkubMemberPara
 		arg.Status,
 		arg.Amount,
 		arg.SlotPosition,
+		arg.JoinedRound,
 	)
 	var i EkubMember
 	err := row.Scan(
@@ -490,10 +492,11 @@ func (q *Queries) SetEkubMemberStatus(ctx context.Context, arg SetEkubMemberStat
 
 const setEkubSlots = `-- name: SetEkubSlots :exec
 UPDATE ekub_members m
-SET slot_position = v.slot_position, amount = v.amount
+SET slot_position = v.slot_position, amount = v.amount, joined_round = v.joined_round
 FROM (SELECT unnest($2::uuid[]) AS id,
              unnest($3::int[]) AS slot_position,
-             unnest($4::bigint[]) AS amount) v
+             unnest($4::bigint[]) AS amount,
+             unnest($5::int[]) AS joined_round) v
 WHERE m.id = v.id AND m.ekub_id = $1
 `
 
@@ -502,6 +505,7 @@ type SetEkubSlotsParams struct {
 	MemberIds     []pgtype.UUID `json:"member_ids"`
 	SlotPositions []int32       `json:"slot_positions"`
 	Amounts       []int64       `json:"amounts"`
+	JoinedRounds  []int32       `json:"joined_rounds"`
 }
 
 // The admin's new arrangement, in one statement so it lands whole.
@@ -511,6 +515,7 @@ func (q *Queries) SetEkubSlots(ctx context.Context, arg SetEkubSlotsParams) erro
 		arg.MemberIds,
 		arg.SlotPositions,
 		arg.Amounts,
+		arg.JoinedRounds,
 	)
 	return err
 }
