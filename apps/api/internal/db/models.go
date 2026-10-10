@@ -11,6 +11,133 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type EkubCadence string
+
+const (
+	EkubCadenceWEEKLY  EkubCadence = "WEEKLY"
+	EkubCadenceMONTHLY EkubCadence = "MONTHLY"
+)
+
+func (e *EkubCadence) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EkubCadence(s)
+	case string:
+		*e = EkubCadence(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EkubCadence: %T", src)
+	}
+	return nil
+}
+
+type NullEkubCadence struct {
+	EkubCadence EkubCadence `json:"ekub_cadence"`
+	Valid       bool        `json:"valid"` // Valid is true if EkubCadence is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEkubCadence) Scan(value interface{}) error {
+	if value == nil {
+		ns.EkubCadence, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EkubCadence.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEkubCadence) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EkubCadence), nil
+}
+
+type EkubPaymentStatus string
+
+const (
+	EkubPaymentStatusPENDING   EkubPaymentStatus = "PENDING"
+	EkubPaymentStatusCONFIRMED EkubPaymentStatus = "CONFIRMED"
+	EkubPaymentStatusREJECTED  EkubPaymentStatus = "REJECTED"
+)
+
+func (e *EkubPaymentStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EkubPaymentStatus(s)
+	case string:
+		*e = EkubPaymentStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EkubPaymentStatus: %T", src)
+	}
+	return nil
+}
+
+type NullEkubPaymentStatus struct {
+	EkubPaymentStatus EkubPaymentStatus `json:"ekub_payment_status"`
+	Valid             bool              `json:"valid"` // Valid is true if EkubPaymentStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEkubPaymentStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.EkubPaymentStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EkubPaymentStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEkubPaymentStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EkubPaymentStatus), nil
+}
+
+type EkubStatus string
+
+const (
+	EkubStatusDRAFT  EkubStatus = "DRAFT"
+	EkubStatusACTIVE EkubStatus = "ACTIVE"
+)
+
+func (e *EkubStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EkubStatus(s)
+	case string:
+		*e = EkubStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EkubStatus: %T", src)
+	}
+	return nil
+}
+
+type NullEkubStatus struct {
+	EkubStatus EkubStatus `json:"ekub_status"`
+	Valid      bool       `json:"valid"` // Valid is true if EkubStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEkubStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.EkubStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EkubStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEkubStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EkubStatus), nil
+}
+
 type FriendshipStatus string
 
 const (
@@ -365,6 +492,42 @@ type CurrencyRate struct {
 	CurrencyTo   string             `json:"currency_to"`
 	Rate         pgtype.Numeric     `json:"rate"`
 	FetchedAt    pgtype.Timestamptz `json:"fetched_at"`
+}
+
+type Ekub struct {
+	ID          pgtype.UUID        `json:"id"`
+	Name        string             `json:"name"`
+	Currency    string             `json:"currency"`
+	SlotAmount  int64              `json:"slot_amount"`
+	Cadence     EkubCadence        `json:"cadence"`
+	Status      EkubStatus         `json:"status"`
+	StartDate   pgtype.Date        `json:"start_date"`
+	CreatedByID pgtype.UUID        `json:"created_by_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type EkubMember struct {
+	ID           pgtype.UUID        `json:"id"`
+	EkubID       pgtype.UUID        `json:"ekub_id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	Role         GroupMemberRole    `json:"role"`
+	Status       GroupMemberStatus  `json:"status"`
+	Amount       int64              `json:"amount"`
+	SlotPosition int32              `json:"slot_position"`
+	JoinedRound  int32              `json:"joined_round"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type EkubPayment struct {
+	ID                pgtype.UUID        `json:"id"`
+	EkubID            pgtype.UUID        `json:"ekub_id"`
+	PayerMemberID     pgtype.UUID        `json:"payer_member_id"`
+	RecipientMemberID pgtype.UUID        `json:"recipient_member_id"`
+	Amount            int64              `json:"amount"`
+	Status            EkubPaymentStatus  `json:"status"`
+	CreatedByID       pgtype.UUID        `json:"created_by_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ResolvedAt        pgtype.Timestamptz `json:"resolved_at"`
 }
 
 type Expense struct {

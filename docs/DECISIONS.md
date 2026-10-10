@@ -7,6 +7,61 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-024: Ekub — rotating savings groups, with derived pairwise payments
+
+**Status:** Accepted (user request, 2026-10-10).
+
+**Context:** The user wants ekub (an Ethiopian rotating savings group) in
+ABRO: everyone puts in every round and one turn takes the pot, in an order
+the admin sets. Turns can be shared (two people at 20k each make one 40k
+turn and take the pot together). People can join mid-way and leave once
+they've cleared what they owe.
+
+**Decision:**
+
+- Its own section and tables (`ekubs`, `ekub_members`, `ekub_payments`,
+  migration 0019), apart from groups and expenses. An ekub never changes a
+  friend or group balance. The app records payments; it never moves money.
+- A **slot** is one turn. Each member has an `amount` and a
+  `slot_position`; a slot's amounts add up to the ekub's `slot_amount`
+  (any number of people, any split; checked at create and at start).
+  Round n's pot goes to slot n. Due dates: `start_date` plus one week or
+  one calendar month per round.
+- **Who pays whom is derived, not stored.** Two members in different slots
+  pay into each other's pots if both were in by the earlier of their two
+  turns (`joined_round`). Payer P puts `amount_P × amount_R / slot_amount`
+  into R's pot (rounded half up). The formula is symmetric, so every pair
+  evens out exactly over a cycle. Example: 3 × 40k plus 20k + 20k → a full
+  turn takes 120k from the others, each half 60k (80k with their own part).
+  Someone who joins after a member's turn neither pays nor is paid by them.
+- **Payments** follow ADR-019: the payer's record is a claim the person
+  paid confirms or turns down; the person paid can record it directly. The
+  request says PAID or RECEIVED, because two members pay into each other's
+  pots and "a payment with D" would be ambiguous. One live payment per
+  pair (partial unique index). Paying ahead of the round is allowed.
+- **Lifecycle:** DRAFT (admin invites friends, arranges the turns) →
+  start (no open invitations, every turn adds up, at least two turns) →
+  ACTIVE. After the start, only turns still to come can move, and only as
+  whole turns. Amounts are fixed. Someone joining after the start takes a
+  full turn of their own, puts in from the round then collecting, and is
+  placed when they accept; later turns move back one.
+- **Leaving:** before the start, any time. After it, only once every
+  payment into and out of your pot is confirmed, so not before your turn
+  (user's choice). The admin can't leave. Leavers keep their place in the
+  record.
+
+**Alternatives:** Ekub mode inside a group (mixes pot money into shared
+expenses and balances). Storing each round's dues as rows (they would go
+stale whenever the order changes or someone joins). Letting an early
+leaver be refunded (the user chose "wait for your turn").
+
+**Consequences:** No automatic reminders for ekub dues yet. Shared turns
+for mid-way joiners, and handing over the admin role, aren't supported
+yet. Rounding can leave a pot a minor unit away from the exact share, but
+each pair still evens out.
+
+---
+
 ## ADR-023: Overdue debts — debt age, friend reminders, daily automatic reminders
 
 **Status:** Accepted (user request, 2026-10-09).
