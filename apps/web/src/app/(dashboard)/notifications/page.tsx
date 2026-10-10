@@ -53,6 +53,8 @@ const ICONS: Record<string, LucideIcon> = {
   FRIEND_REQUEST: UserPlus,
   FRIEND_ACCEPTED: UserPlus,
   EXPENSE_DISPUTED: Receipt,
+  EKUB_INVITATION: UserPlus,
+  EKUB_PAYMENT: Wallet,
 };
 
 const DESTINATIONS: Record<string, string> = {
@@ -61,6 +63,7 @@ const DESTINATIONS: Record<string, string> = {
   GROUP_INVITATION: '/groups',
   FRIEND_REQUEST: '/friends',
   FRIEND_ACCEPTED: '/friends',
+  EKUB_INVITATION: '/ekub',
 };
 
 export default function NotificationsPage() {

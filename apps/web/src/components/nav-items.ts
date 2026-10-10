@@ -1,7 +1,16 @@
-import { Clock, Home, type LucideIcon, Plus, User, UserRound, Users } from 'lucide-react';
+import {
+  Clock,
+  Home,
+  type LucideIcon,
+  PiggyBank,
+  Plus,
+  User,
+  UserRound,
+  Users,
+} from 'lucide-react';
 
 export interface NavItem {
-  id: 'home' | 'friends' | 'activity' | 'add' | 'groups' | 'profile';
+  id: 'home' | 'friends' | 'activity' | 'add' | 'groups' | 'ekub' | 'profile';
   label: string;
   href: string;
   icon: LucideIcon;
@@ -12,6 +21,7 @@ const FRIENDS: NavItem = { id: 'friends', label: 'Friends', href: '/friends', ic
 const ACTIVITY: NavItem = { id: 'activity', label: 'Activity', href: '/activity', icon: Clock };
 const ADD: NavItem = { id: 'add', label: 'Add', href: '/expenses/new', icon: Plus };
 const GROUPS: NavItem = { id: 'groups', label: 'Groups', href: '/groups', icon: Users };
+const EKUB: NavItem = { id: 'ekub', label: 'Ekub', href: '/ekub', icon: PiggyBank };
 const PROFILE: NavItem = { id: 'profile', label: 'Profile', href: '/profile', icon: User };
 
 /** Phone bottom bar: five slots with Add in the middle. Friends has a
@@ -19,5 +29,6 @@ const PROFILE: NavItem = { id: 'profile', label: 'Profile', href: '/profile', ic
  * reached from the avatar and settings icon in Home's header instead. */
 export const BOTTOM_NAV_ITEMS: NavItem[] = [HOME, FRIENDS, ADD, GROUPS, ACTIVITY];
 
-/** Desktop sidebar: room for everything, Profile included. */
-export const SIDEBAR_NAV_ITEMS: NavItem[] = [HOME, FRIENDS, GROUPS, ACTIVITY, ADD, PROFILE];
+/** Desktop sidebar: room for everything, Profile and Ekub included. On a
+ * phone, Ekub is reached from the Groups screen. */
+export const SIDEBAR_NAV_ITEMS: NavItem[] = [HOME, FRIENDS, GROUPS, EKUB, ACTIVITY, ADD, PROFILE];
