@@ -43,6 +43,10 @@ const (
 	// TypeExpenseDisputed: someone on an expense says they weren't part
 	// of it, or the payer kept it as it is (ADR-020).
 	TypeExpenseDisputed Type = "EXPENSE_DISPUTED"
+	// TypeEkubInvitation / TypeEkubPayment: ekub invitations, and ekub
+	// payments to confirm or confirmed (ADR-024).
+	TypeEkubInvitation Type = "EKUB_INVITATION"
+	TypeEkubPayment    Type = "EKUB_PAYMENT"
 )
 
 // AllTypes is every Type, in the order SET-02 lists them. A user can
@@ -52,6 +56,7 @@ var AllTypes = []Type{
 	TypeGroupInvitation, TypeGroupMembershipChange, TypeRecurringExpense,
 	TypeDebtSimplificationChange, TypePaymentReminder,
 	TypeFriendRequest, TypeFriendAccepted, TypeExpenseDisputed,
+	TypeEkubInvitation, TypeEkubPayment,
 }
 
 func isKnownType(t string) bool {

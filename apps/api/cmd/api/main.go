@@ -17,6 +17,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/config"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/dbpool"
+	"github.com/Substance-k3n/abro/apps/api/internal/ekubs"
 	"github.com/Substance-k3n/abro/apps/api/internal/expenses"
 	"github.com/Substance-k3n/abro/apps/api/internal/friends"
 	"github.com/Substance-k3n/abro/apps/api/internal/groups"
@@ -119,6 +120,9 @@ func main() {
 	remindersHandler := reminders.NewHandler(remindersSvc, queries)
 	go remindersSvc.RunDaily(ctx)
 
+	// Ekub, the rotating savings group (ADR-024).
+	ekubsHandler := ekubs.NewHandler(ekubs.NewService(queries, friendsSvc, notificationsSvc), queries)
+
 	recurringSvc := recurring.NewService(queries, expensesSvc, notificationsSvc)
 	recurringHandler := recurring.NewHandler(recurringSvc, queries)
 
@@ -157,6 +161,7 @@ func main() {
 	r.Route("/settlements", settlementsHandler.Mount)
 	r.Route("/analytics", analyticsHandler.Mount)
 	r.Route("/recurring", recurringHandler.Mount)
+	r.Route("/ekubs", ekubsHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
