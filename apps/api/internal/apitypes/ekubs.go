@@ -146,9 +146,10 @@ func (in *AddEkubMemberInput) Validate() error {
 // StartEkubInput is POST /ekubs/{id}/start: the day round 1 is due. A
 // date in the past enters an ekub that was already running; PastPaid
 // then records every payment of the rounds already over as made, except
-// the Missed ones: payments of those rounds that were never made. The
-// two members of each missed payment skip each other for the whole
-// cycle (ADR-024).
+// the Missed ones: payments of those rounds that were never made. If the
+// payer's own turn is still to come, the two skip each other for the
+// whole cycle; if the payer already took their pot, it stays owed
+// (ADR-024).
 type StartEkubInput struct {
 	StartDate string                 `json:"startDate"`
 	PastPaid  bool                   `json:"pastPaid"`
@@ -252,7 +253,8 @@ type EkubObligation struct {
 }
 
 // EkubMissedPayment is a payment of a round before the ekub was entered
-// in ABRO that was never made; the two skip each other.
+// in ABRO that was never made, by someone whose turn was still to come;
+// the two skip each other.
 type EkubMissedPayment struct {
 	PayerMemberID     string `json:"payerMemberId"`
 	RecipientMemberID string `json:"recipientMemberId"`

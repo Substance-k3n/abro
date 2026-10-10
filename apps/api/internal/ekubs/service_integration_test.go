@@ -440,8 +440,10 @@ func TestEkub_EnterRunningEkub(t *testing.T) {
 	assert.Contains(t, *d.LeaveBlockedWhy, "160,000.00 ETB")
 }
 
-// Entering a running ekub where someone missed a payment: C didn't pay B
-// in round 2, so B and C skip each other -- B doesn't pay C on C's turn.
+// Entering a running ekub where payments were missed. C didn't pay B in
+// round 2 and C's turn is still to come, so B and C skip each other: B
+// doesn't pay C on C's turn. A didn't pay B in round 2 either, but A
+// already took the pot (with B's money in it), so A still owes B.
 func TestEkub_EnterRunningEkubWithMissedPayment(t *testing.T) {
 	e := setup(t, "A", "B", "C", "D", "E")
 	in := apitypes.CreateEkubInput{
@@ -459,7 +461,7 @@ func TestEkub_EnterRunningEkubWithMissedPayment(t *testing.T) {
 		_, err := e.svc.Accept(e.ctx, e.people[name], ekubID)
 		require.NoError(t, err)
 	}
-	b, c, dd := memberID(t, d, e, "B"), memberID(t, d, e, "C"), memberID(t, d, e, "D")
+	a, b, c, dd := memberID(t, d, e, "A"), memberID(t, d, e, "B"), memberID(t, d, e, "C"), memberID(t, d, e, "D")
 
 	// Today is 2 Mar 2026; rounds were due 5 Jan and 5 Feb, round 3 is
 	// due 5 Mar. A payment of round 3 or later can't be marked missed.
@@ -473,7 +475,9 @@ func TestEkub_EnterRunningEkubWithMissedPayment(t *testing.T) {
 	assert.Equal(t, "DRAFT", d.Status)
 
 	start := apitypes.StartEkubInput{StartDate: "2026-01-05", PastPaid: true,
-		Missed: []apitypes.EkubMissedPaymentRef{{PayerMemberID: c, RecipientMemberID: b}}}
+		Missed: []apitypes.EkubMissedPaymentRef{
+			{PayerMemberID: c, RecipientMemberID: b}, {PayerMemberID: a, RecipientMemberID: b},
+		}}
 	require.NoError(t, start.Validate())
 	d, err = e.svc.Start(e.ctx, e.people["A"], ekubID, start)
 	require.NoError(t, err)
@@ -489,13 +493,16 @@ func TestEkub_EnterRunningEkubWithMissedPayment(t *testing.T) {
 	assert.Equal(t, "12000000", d.Rounds[1].Pot)
 	assert.Equal(t, "12000000", d.Rounds[2].Pot)
 	assert.Equal(t, "16000000", d.Rounds[3].Pot)
-	// Rounds 1-2 recorded as paid (without the missed one); 3 on are due.
+	// Rounds 1-2 recorded as paid, except A's 40k to B; 3 on are due.
 	for _, o := range d.Obligations {
-		if o.Round < 3 {
+		if o.Round < 3 && !(o.PayerMemberID == a && o.RecipientMemberID == b) {
 			assert.Equal(t, "CONFIRMED", o.Status, "round %d", o.Round)
 		} else {
 			assert.Equal(t, "DUE", o.Status, "round %d", o.Round)
 		}
 	}
-	assert.Equal(t, d.Rounds[1].Pot, d.Rounds[1].Confirmed)
+	assert.Equal(t, "8000000", d.Rounds[1].Confirmed)
+	// A still owes B, so is shown overdue rather than let off.
+	assert.Equal(t, "DUE", obligation(d, a, b).Status)
+	assert.Equal(t, "CONFIRMED", obligation(d, b, a).Status)
 }

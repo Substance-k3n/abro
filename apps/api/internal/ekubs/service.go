@@ -521,7 +521,7 @@ func (s *Service) Start(ctx context.Context, userID, ekubID pgtype.UUID, in apit
 		}
 	}
 	current := CurrentRound(in.ParsedStartDate, s.today(), string(st.ekub.Cadence))
-	missed, err := st.missedPayments(in.Missed, current)
+	skips, owed, err := st.missedPayments(in.Missed, current)
 	if err != nil {
 		return apitypes.EkubDetail{}, err
 	}
@@ -532,7 +532,7 @@ func (s *Service) Start(ctx context.Context, userID, ekubID pgtype.UUID, in apit
 	}
 	// Missed payments first, so recording the rest as paid leaves out
 	// the pairs who now skip each other.
-	for _, o := range missed {
+	for _, o := range skips {
 		if err := s.q.CreateEkubMissedPayment(ctx, db.CreateEkubMissedPaymentParams{
 			EkubID: ekubID, PayerMemberID: o.payer.ID, RecipientMemberID: o.recipient.ID, CreatedByID: userID,
 		}); err != nil {
@@ -540,7 +540,7 @@ func (s *Service) Start(ctx context.Context, userID, ekubID pgtype.UUID, in apit
 		}
 	}
 	if in.PastPaid {
-		if err := s.recordPastPaid(ctx, userID, ekubID); err != nil {
+		if err := s.recordPastPaid(ctx, userID, ekubID, owed); err != nil {
 			return apitypes.EkubDetail{}, err
 		}
 	}
@@ -558,11 +558,18 @@ func (s *Service) Start(ctx context.Context, userID, ekubID pgtype.UUID, in apit
 	return s.Detail(ctx, userID, ekubID)
 }
 
+// pair keys a payment by payer and recipient member.
+type pair struct{ payer, recipient pgtype.UUID }
+
 // missedPayments checks the missed payments given at the start: each
-// must be a payment the schedule expects in a round already over.
-func (st *state) missedPayments(refs []apitypes.EkubMissedPaymentRef, current int) ([]obligation, error) {
+// must be a payment the schedule expects in a round already over. They
+// split two ways (ADR-024). If the payer's own turn is still to come,
+// the two skip each other: Z didn't pay Y, so Y won't pay Z. If the
+// payer already took their pot (with the recipient's money in it), the
+// payment stays owed instead -- skipping would let them off.
+func (st *state) missedPayments(refs []apitypes.EkubMissedPaymentRef, current int) (skips []obligation, owed map[pair]bool, err error) {
 	obs := st.obligations()
-	out := make([]obligation, 0, len(refs))
+	owed = map[pair]bool{}
 	for _, ref := range refs {
 		payer, err1 := idutil.Parse(ref.PayerMemberID)
 		recipient, err2 := idutil.Parse(ref.RecipientMemberID)
@@ -570,31 +577,36 @@ func (st *state) missedPayments(refs []apitypes.EkubMissedPaymentRef, current in
 		if err1 == nil && err2 == nil {
 			for _, o := range obs {
 				if o.payer.ID == payer && o.recipient.ID == recipient && o.round < current {
-					out = append(out, o)
+					if int(o.payer.SlotPosition) > o.round {
+						skips = append(skips, o)
+					} else {
+						owed[pair{o.payer.ID, o.recipient.ID}] = true
+					}
 					found = true
 					break
 				}
 			}
 		}
 		if !found {
-			return nil, httpx.BadRequest("NOT_A_PAST_PAYMENT",
+			return nil, nil, httpx.BadRequest("NOT_A_PAST_PAYMENT",
 				"A missed payment must be one of the payments of a round that's already over.")
 		}
 	}
-	return out, nil
+	return skips, owed, nil
 }
 
 // recordPastPaid enters an ekub that was already running: every payment
 // of the rounds already over is recorded as made, by the admin who
 // entered the history, so the app tracks from the round now collecting.
-func (s *Service) recordPastPaid(ctx context.Context, userID, ekubID pgtype.UUID) error {
+// Payments in `owed` were missed and stay open.
+func (s *Service) recordPastPaid(ctx context.Context, userID, ekubID pgtype.UUID, owed map[pair]bool) error {
 	st, err := s.load(ctx, ekubID, userID)
 	if err != nil {
 		return err
 	}
 	current := st.currentRound(s.today())
 	for _, o := range st.obligations() {
-		if o.round >= current || o.payment != nil {
+		if o.round >= current || o.payment != nil || owed[pair{o.payer.ID, o.recipient.ID}] {
 			continue
 		}
 		if _, err := s.q.CreateEkubPayment(ctx, db.CreateEkubPaymentParams{
