@@ -9,15 +9,19 @@
 // lucide-react icon per tab with an active/inactive style -- the dominant
 // active signal is the raised-shadow pill + accent color, same as every
 // other active-state pattern in this design system.
+// Tab-to-tab taps go through ~/components/tab-nav.ts so they don't pile
+// up in the Back history, like a phone app.
 
 import { Plus } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 import { BOTTOM_NAV_ITEMS } from './nav-items';
+import { goToTab } from './tab-nav';
 
 export function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
 
   return (
     <div
@@ -58,6 +62,11 @@ export function BottomNav() {
           <Link
             key={item.id}
             href={item.href}
+            onClick={(e) => {
+              if (goToTab(router, pathname, item.href)) {
+                e.preventDefault();
+              }
+            }}
             className="flex max-w-[72px] flex-1 flex-col items-center gap-0 p-0"
           >
             <div
