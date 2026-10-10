@@ -45,6 +45,13 @@ they've cleared what they owe.
   whole turns. Amounts are fixed. Someone joining after the start takes a
   full turn of their own, puts in from the round then collecting, and is
   placed when they accept; later turns move back one.
+- **Entering an ekub that was already running:** before the start, each
+  person can have the round they joined in (`joined_round`, never later
+  than their own turn). Starting with a past date makes the rounds before
+  today "over"; `pastPaid` records all their payments as confirmed (by the
+  admin entering the history), so tracking picks up from the round now
+  collecting. A friend invited after the start can be put at any turn from
+  the round now collecting.
 - **Leaving:** before the start, any time. After it, only once every
   payment into and out of your pot is confirmed, so not before your turn
   (user's choice). The admin can't leave. Leavers keep their place in the
@@ -55,9 +62,10 @@ expenses and balances). Storing each round's dues as rows (they would go
 stale whenever the order changes or someone joins). Letting an early
 leaver be refunded (the user chose "wait for your turn").
 
-**Consequences:** No automatic reminders for ekub dues yet. Shared turns
-for mid-way joiners, and handing over the admin role, aren't supported
-yet. Rounding can leave a pot a minor unit away from the exact share, but
+**Consequences:** No automatic reminders for ekub dues yet. Someone
+invited after the start takes a full turn of their own (sharing works
+when the history is entered before the start). Handing over the admin
+role isn't supported yet. Rounding can leave a pot a minor unit away from the exact share, but
 each pair still evens out.
 
 ---
