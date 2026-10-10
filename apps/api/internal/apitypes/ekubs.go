@@ -23,10 +23,14 @@ func parseEkubAmount(raw, field string) (money.MinorUnits, error) {
 }
 
 // EkubShareInput is one person's part of a slot. ID is a user id when
-// creating an ekub and a member id when rearranging one.
+// creating an ekub and a member id when rearranging one. JoinedRound,
+// before the start only, is the first round they put in -- for entering
+// an ekub that was already running, where someone joined mid-way
+// (default 1).
 type EkubShareInput struct {
-	ID     string `json:"id"`
-	Amount string `json:"amount"`
+	ID          string `json:"id"`
+	Amount      string `json:"amount"`
+	JoinedRound *int   `json:"joinedRound"`
 
 	ParsedAmount money.MinorUnits `json:"-"`
 }
@@ -36,7 +40,7 @@ func validateSlots(slots [][]EkubShareInput) error {
 		return httpx.BadRequest("VALIDATION_ERROR", "slots must have 1-100 entries")
 	}
 	seen := map[string]bool{}
-	for _, slot := range slots {
+	for turn, slot := range slots {
 		if len(slot) == 0 || len(slot) > 20 {
 			return httpx.BadRequest("VALIDATION_ERROR", "each slot must have 1-20 people")
 		}
@@ -55,6 +59,9 @@ func validateSlots(slots [][]EkubShareInput) error {
 				return err
 			}
 			slot[i].ParsedAmount = amount
+			if j := slot[i].JoinedRound; j != nil && (*j < 1 || *j > turn+1) {
+				return httpx.BadRequest("VALIDATION_ERROR", "joinedRound must be from 1 up to the person's own turn")
+			}
 		}
 	}
 	return nil
@@ -109,6 +116,9 @@ type AddEkubMemberInput struct {
 	UserID   string  `json:"userId"`
 	Amount   *string `json:"amount"`
 	Position *int    `json:"position"`
+	// Before the start only: the first round they put in (see
+	// EkubShareInput).
+	JoinedRound *int `json:"joinedRound"`
 
 	ParsedAmount money.MinorUnits `json:"-"`
 }
@@ -127,12 +137,18 @@ func (in *AddEkubMemberInput) Validate() error {
 	if in.Position != nil && (*in.Position < 1 || *in.Position > 101) {
 		return httpx.BadRequest("VALIDATION_ERROR", "position must be 1-101")
 	}
+	if in.JoinedRound != nil && (*in.JoinedRound < 1 || *in.JoinedRound > 101) {
+		return httpx.BadRequest("VALIDATION_ERROR", "joinedRound must be 1-101")
+	}
 	return nil
 }
 
-// StartEkubInput is POST /ekubs/{id}/start: the day round 1 is due.
+// StartEkubInput is POST /ekubs/{id}/start: the day round 1 is due. A
+// date in the past enters an ekub that was already running; PastPaid
+// then records every payment of the rounds already over as made.
 type StartEkubInput struct {
 	StartDate string `json:"startDate"`
+	PastPaid  bool   `json:"pastPaid"`
 
 	ParsedStartDate time.Time `json:"-"`
 }

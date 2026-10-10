@@ -306,6 +306,7 @@ func (s *Service) Create(ctx context.Context, userID pgtype.UUID, in apitypes.Cr
 		user   pgtype.UUID
 		amount int64
 		slot   int32
+		joined int32
 	}
 	var shares []share
 	creatorIn := false
@@ -323,7 +324,7 @@ func (s *Service) Create(ctx context.Context, userID pgtype.UUID, in apitypes.Cr
 			} else if err := s.requireFriend(ctx, userID, id); err != nil {
 				return apitypes.EkubDetail{}, err
 			}
-			shares = append(shares, share{user: id, amount: sh.ParsedAmount, slot: int32(i + 1)})
+			shares = append(shares, share{user: id, amount: sh.ParsedAmount, slot: int32(i + 1), joined: joinedOr1(sh.JoinedRound)})
 		}
 	}
 	if !creatorIn {
@@ -351,6 +352,7 @@ func (s *Service) Create(ctx context.Context, userID pgtype.UUID, in apitypes.Cr
 		}
 		if _, err := s.q.CreateEkubMember(ctx, db.CreateEkubMemberParams{
 			EkubID: ekub.ID, UserID: sh.user, Role: role, Status: status, Amount: sh.amount, SlotPosition: sh.slot,
+			JoinedRound: sh.joined,
 		}); err != nil {
 			return apitypes.EkubDetail{}, err
 		}
@@ -400,6 +402,13 @@ func (s *Service) UpdateSlots(ctx context.Context, userID, ekubID pgtype.UUID, i
 			}
 			placed[id] = true
 			amount := sh.ParsedAmount
+			joined := m.JoinedRound
+			if sh.JoinedRound != nil {
+				if st.ekub.Status == db.EkubStatusACTIVE && int32(*sh.JoinedRound) != m.JoinedRound {
+					return apitypes.EkubDetail{}, httpx.Conflict("EKUB_STARTED", "When someone joined can't change once the ekub has started.")
+				}
+				joined = int32(*sh.JoinedRound)
+			}
 			if st.ekub.Status == db.EkubStatusACTIVE {
 				if amount != m.Amount {
 					return apitypes.EkubDetail{}, httpx.Conflict("EKUB_STARTED", "Amounts can't change once the ekub has started.")
@@ -418,6 +427,7 @@ func (s *Service) UpdateSlots(ctx context.Context, userID, ekubID pgtype.UUID, i
 			params.MemberIds = append(params.MemberIds, id)
 			params.SlotPositions = append(params.SlotPositions, pos)
 			params.Amounts = append(params.Amounts, amount)
+			params.JoinedRounds = append(params.JoinedRounds, joined)
 		}
 	}
 	for _, m := range st.members {
@@ -462,6 +472,11 @@ func (s *Service) Start(ctx context.Context, userID, ekubID pgtype.UUID, in apit
 				"%s hasn't accepted yet. Wait for them, or take them out first.", m.DisplayName))
 		}
 		if m.Status == db.GroupMemberStatusACTIVE {
+			if m.JoinedRound > m.SlotPosition {
+				return apitypes.EkubDetail{}, httpx.Conflict("JOINED_AFTER_TURN", fmt.Sprintf(
+					"%s joined in round %d but their turn is %d; nobody can take the pot before joining.",
+					m.DisplayName, m.JoinedRound, m.SlotPosition))
+			}
 			sums[m.SlotPosition] += m.Amount
 			if m.UserID != userID {
 				others = append(others, m.UserID)
@@ -484,12 +499,54 @@ func (s *Service) Start(ctx context.Context, userID, ekubID pgtype.UUID, in apit
 	}); err != nil {
 		return apitypes.EkubDetail{}, err
 	}
+	if in.PastPaid {
+		if err := s.recordPastPaid(ctx, userID, ekubID); err != nil {
+			return apitypes.EkubDetail{}, err
+		}
+	}
+	// A start date in the past enters an ekub that was already running:
+	// say which round is due next, not when the first one was.
+	current := CurrentRound(in.ParsedStartDate, s.today(), string(st.ekub.Cadence))
+	due := DueDate(in.ParsedStartDate, string(st.ekub.Cadence), current)
+	body := fmt.Sprintf("%q has started. The first pot is due %s.", st.ekub.Name, due.Format("2 Jan 2006"))
+	if current > 1 {
+		body = fmt.Sprintf("%q is now tracked in ABRO. Round %d is due %s.", st.ekub.Name, current, due.Format("2 Jan 2006"))
+	}
 	if err := s.notifications.NotifyManyLink(ctx, others, notifications.TypeEkubPayment, "Ekub started",
-		fmt.Sprintf("%q has started. The first pot is due %s.", st.ekub.Name, in.ParsedStartDate.Format("2 Jan 2006")),
-		link(ekubID)); err != nil {
+		body, link(ekubID)); err != nil {
 		return apitypes.EkubDetail{}, err
 	}
 	return s.Detail(ctx, userID, ekubID)
+}
+
+// recordPastPaid enters an ekub that was already running: every payment
+// of the rounds already over is recorded as made, by the admin who
+// entered the history, so the app tracks from the round now collecting.
+func (s *Service) recordPastPaid(ctx context.Context, userID, ekubID pgtype.UUID) error {
+	st, err := s.load(ctx, ekubID, userID)
+	if err != nil {
+		return err
+	}
+	current := st.currentRound(s.today())
+	for _, o := range st.obligations() {
+		if o.round >= current || o.payment != nil {
+			continue
+		}
+		if _, err := s.q.CreateEkubPayment(ctx, db.CreateEkubPaymentParams{
+			EkubID: ekubID, PayerMemberID: o.payer.ID, RecipientMemberID: o.recipient.ID,
+			Amount: o.amount, Status: db.EkubPaymentStatusCONFIRMED, CreatedByID: userID,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func joinedOr1(j *int) int32 {
+	if j == nil {
+		return 1
+	}
+	return int32(*j)
 }
 
 // AddMember invites a friend. Before the start they get the part and
@@ -522,10 +579,13 @@ func (s *Service) AddMember(ctx context.Context, userID, ekubID pgtype.UUID, in 
 		position = *in.Position
 	}
 	amount := st.ekub.SlotAmount
+	// After the start, the round they join is set when they accept.
+	joined := int32(1)
 	if st.ekub.Status == db.EkubStatusDRAFT {
 		if in.Amount != nil {
 			amount = in.ParsedAmount
 		}
+		joined = joinedOr1(in.JoinedRound)
 	} else {
 		if st.currentRound(s.today()) > last {
 			return apitypes.EkubDetail{}, httpx.Conflict("EKUB_FINISHED", "Every turn in this ekub is over.")
@@ -536,7 +596,7 @@ func (s *Service) AddMember(ctx context.Context, userID, ekubID pgtype.UUID, in 
 	}
 	if _, err := s.q.CreateEkubMember(ctx, db.CreateEkubMemberParams{
 		EkubID: ekubID, UserID: otherID, Role: db.GroupMemberRoleMEMBER, Status: db.GroupMemberStatusINVITED,
-		Amount: amount, SlotPosition: int32(position),
+		Amount: amount, SlotPosition: int32(position), JoinedRound: joined,
 	}); err != nil {
 		return apitypes.EkubDetail{}, err
 	}
@@ -652,6 +712,7 @@ func (s *Service) closeGaps(ctx context.Context, st *state, gone pgtype.UUID) er
 			params.MemberIds = append(params.MemberIds, m.ID)
 			params.SlotPositions = append(params.SlotPositions, pos)
 			params.Amounts = append(params.Amounts, m.Amount)
+			params.JoinedRounds = append(params.JoinedRounds, m.JoinedRound)
 		}
 	}
 	if len(params.MemberIds) == 0 {

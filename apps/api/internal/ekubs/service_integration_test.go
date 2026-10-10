@@ -363,3 +363,79 @@ func TestEkub_DraftRules(t *testing.T) {
 	_, err = e.svc.Detail(e.ctx, e.people["A"], ekubID)
 	requireCode(t, err, "EKUB_NOT_FOUND")
 }
+
+// The user's case: a monthly ekub already three rounds in when it's
+// entered. A-E put in the full 40k, F and G 20k each sharing a turn; J
+// joined in round 3 and took round 3. From round 4 the app tracks it.
+func TestEkub_EnterRunningEkub(t *testing.T) {
+	e := setup(t, "A", "B", "C", "D", "E", "F", "G", "J")
+	three := 3
+	withJoin := func(s apitypes.EkubShareInput, round *int) apitypes.EkubShareInput {
+		s.JoinedRound = round
+		return s
+	}
+	in := apitypes.CreateEkubInput{
+		Name: "Neighbours", SlotAmount: fmt.Sprint(full), Cadence: "MONTHLY",
+		Slots: [][]apitypes.EkubShareInput{
+			{share(e.people["A"], full)}, {share(e.people["B"], full)},
+			{withJoin(share(e.people["J"], full), &three)},
+			{share(e.people["C"], full)}, {share(e.people["D"], full)}, {share(e.people["E"], full)},
+			{share(e.people["F"], half), share(e.people["G"], half)},
+		},
+	}
+	require.NoError(t, in.Validate())
+
+	// Nobody can take the pot before they joined.
+	four := 4
+	bad := apitypes.CreateEkubInput{Name: in.Name, SlotAmount: in.SlotAmount, Cadence: in.Cadence,
+		Slots: [][]apitypes.EkubShareInput{{share(e.people["A"], full)}, {withJoin(share(e.people["J"], full), &four)}}}
+	requireCode(t, bad.Validate(), "VALIDATION_ERROR")
+
+	d, err := e.svc.Create(e.ctx, e.people["A"], in)
+	require.NoError(t, err)
+	ekubID := uuid(t, d.ID)
+	for _, name := range []string{"B", "C", "D", "E", "F", "G", "J"} {
+		_, err := e.svc.Accept(e.ctx, e.people[name], ekubID)
+		require.NoError(t, err)
+	}
+
+	// Today is 2 Mar 2026. Rounds were due 5 Dec, 5 Jan, 5 Feb; round 4
+	// is due 5 Mar. Everything before it was paid.
+	start := apitypes.StartEkubInput{StartDate: "2025-12-05", PastPaid: true}
+	require.NoError(t, start.Validate())
+	d, err = e.svc.Start(e.ctx, e.people["A"], ekubID, start)
+	require.NoError(t, err)
+	assert.Equal(t, 4, d.CurrentRound)
+	assert.Equal(t, "2026-03-05", *d.Rounds[3].DueDate)
+
+	a, b, j := memberID(t, d, e, "A"), memberID(t, d, e, "B"), memberID(t, d, e, "J")
+	// A and B took their pots before J joined: no payments either way.
+	for _, other := range []string{a, b} {
+		assert.Nil(t, obligation(d, j, other))
+		assert.Nil(t, obligation(d, other, j))
+	}
+	// Round 1 (A): B, C, D, E at 40k + F, G at 20k = 200k, J not in it.
+	assert.Equal(t, "20000000", d.Rounds[0].Pot)
+	// Round 3 (J): C, D, E at 40k + F, G at 20k = 160k.
+	assert.Equal(t, "16000000", d.Rounds[2].Pot)
+	// Round 4 (C): A, B, D, E, J at 40k + F, G at 20k = 240k.
+	assert.Equal(t, "24000000", d.Rounds[3].Pot)
+
+	// Rounds 1-3 are recorded as paid; from round 4 on, nothing is.
+	for _, o := range d.Obligations {
+		if o.Round < 4 {
+			assert.Equal(t, "CONFIRMED", o.Status, "round %d", o.Round)
+		} else {
+			assert.Equal(t, "DUE", o.Status, "round %d", o.Round)
+		}
+	}
+	for i := 0; i < 3; i++ {
+		assert.Equal(t, d.Rounds[i].Pot, d.Rounds[i].Confirmed)
+	}
+
+	// J took the pot but still owes rounds 4-7, so can't leave yet.
+	d, err = e.svc.Detail(e.ctx, e.people["J"], ekubID)
+	require.NoError(t, err)
+	assert.False(t, d.CanLeave)
+	assert.Contains(t, *d.LeaveBlockedWhy, "160,000.00 ETB")
+}

@@ -26,8 +26,8 @@ RETURNING *;
 DELETE FROM ekubs WHERE id = $1;
 
 -- name: CreateEkubMember :one
-INSERT INTO ekub_members (ekub_id, user_id, role, status, amount, slot_position)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO ekub_members (ekub_id, user_id, role, status, amount, slot_position, joined_round)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: GetEkubMemberByUser :one
@@ -53,10 +53,11 @@ RETURNING *;
 -- name: SetEkubSlots :exec
 -- The admin's new arrangement, in one statement so it lands whole.
 UPDATE ekub_members m
-SET slot_position = v.slot_position, amount = v.amount
+SET slot_position = v.slot_position, amount = v.amount, joined_round = v.joined_round
 FROM (SELECT unnest(@member_ids::uuid[]) AS id,
              unnest(@slot_positions::int[]) AS slot_position,
-             unnest(@amounts::bigint[]) AS amount) v
+             unnest(@amounts::bigint[]) AS amount,
+             unnest(@joined_rounds::int[]) AS joined_round) v
 WHERE m.id = v.id AND m.ekub_id = @ekub_id;
 
 -- name: JoinStartedEkub :one
