@@ -5,6 +5,9 @@
 // to rearrange one before or after it starts. Moving a turn up or down
 // changes the round it takes the pot; the parts of a turn must add up to
 // the amount per turn (shown under each turn, and checked by the API).
+// Before the start, each person can also have the round they joined in,
+// for entering an ekub that was already running when someone joined
+// mid-way; it can't be later than their own turn.
 
 import { Avatar } from '@abro/ui';
 import { ChevronDown, ChevronUp, X } from 'lucide-react';
@@ -21,6 +24,8 @@ export interface TurnShare {
   amount: string;
   /** A short tag after the name, e.g. "invited". */
   note?: string;
+  /** The first round they put in; 1 (or unset) unless they joined later. */
+  joinedRound?: number;
 }
 
 /** Minor units as a plain decimal string for an amount input. */
@@ -30,11 +35,15 @@ export function amountInput(minor: bigint): string {
   return cents === 0n ? whole.toString() : `${whole}.${cents.toString().padStart(2, '0')}`;
 }
 
-function move<T>(list: T[], from: number, to: number): T[] {
+/** Moves a turn, then pulls anyone's joining round back to their new
+ * turn if it's now later than it. */
+function move(list: TurnShare[][], from: number, to: number): TurnShare[][] {
   const next = [...list];
   const [item] = next.splice(from, 1);
   next.splice(to, 0, item!);
-  return next;
+  return next.map((turn, i) =>
+    turn.map((s) => (s.joinedRound && s.joinedRound > i + 1 ? { ...s, joinedRound: i + 1 } : s)),
+  );
 }
 
 export function EkubTurns({
@@ -47,6 +56,7 @@ export function EkubTurns({
   onRemove,
   canRemove = () => true,
   highlightId,
+  editJoined = false,
 }: {
   turns: TurnShare[][];
   onChange: (turns: TurnShare[][]) => void;
@@ -60,6 +70,8 @@ export function EkubTurns({
   canRemove?: (share: TurnShare) => boolean;
   /** The viewer, shown as "You". */
   highlightId?: string;
+  /** Before the start: let each person's joining round be set. */
+  editJoined?: boolean;
 }) {
   return (
     <ol className="flex flex-col gap-3">
@@ -113,17 +125,56 @@ export function EkubTurns({
                     color={colorForId(share.id)}
                     size={32}
                   />
-                  <p
-                    className="min-w-0 flex-1 truncate text-[0.88rem] font-medium"
-                    style={{ color: 'var(--t-primary)' }}
-                  >
-                    {share.id === highlightId ? 'You' : share.name}
-                    {share.note && (
-                      <span className="ml-1.5 text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
-                        {share.note}
-                      </span>
+                  <div className="min-w-0 flex-1">
+                    <p
+                      className="truncate text-[0.88rem] font-medium"
+                      style={{ color: 'var(--t-primary)' }}
+                    >
+                      {share.id === highlightId ? 'You' : share.name}
+                      {share.note && (
+                        <span className="ml-1.5 text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+                          {share.note}
+                        </span>
+                      )}
+                    </p>
+                    {editJoined && i > 0 ? (
+                      <label
+                        className="flex items-center gap-1 text-[0.7rem]"
+                        style={{ color: 'var(--t-dim)' }}
+                      >
+                        Joined in
+                        <select
+                          value={share.joinedRound ?? 1}
+                          aria-label={`Round ${share.name} joined in`}
+                          onChange={(e) =>
+                            onChange(
+                              turns.map((t) =>
+                                t.map((s) =>
+                                  s.id === share.id
+                                    ? { ...s, joinedRound: Number(e.target.value) }
+                                    : s,
+                                ),
+                              ),
+                            )
+                          }
+                          className="rounded-md bg-transparent py-0.5 text-[0.7rem] font-semibold"
+                          style={{ color: 'var(--accent)' }}
+                        >
+                          {Array.from({ length: i + 1 }, (_, r) => (
+                            <option key={r} value={r + 1}>
+                              {r === 0 ? 'round 1 (from the start)' : `round ${r + 1}`}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      (share.joinedRound ?? 1) > 1 && (
+                        <p className="text-[0.7rem]" style={{ color: 'var(--t-dim)' }}>
+                          Joined in round {share.joinedRound}
+                        </p>
+                      )
                     )}
-                  </p>
+                  </div>
                   {editAmounts && turn.length > 1 ? (
                     <input
                       inputMode="decimal"
@@ -176,12 +227,14 @@ export function EkubTurns({
 }
 
 /** Pick a friend and the turn they go in: a new turn of their own, or
- * sharing one already there. */
+ * sharing one already there. In a running ekub (`positionFrom` set) they
+ * get a turn of their own, at the end or at any turn still to come. */
 export function AddToTurn({
   people,
   turnCount,
   slotAmount,
   allowShare,
+  positionFrom,
   busy,
   onAdd,
 }: {
@@ -190,14 +243,18 @@ export function AddToTurn({
   slotAmount: bigint;
   /** Only before the start can someone share a turn. */
   allowShare: boolean;
+  /** Running ekub: the first turn they can be put at (the round now
+   * collecting). */
+  positionFrom?: number;
   busy?: boolean;
-  /** turn: 0-based index of the turn to share, or null for a new one. */
+  /** turn: 0-based index of the turn to share (or, in a running ekub,
+   * to take, moving later turns back), or null for a new one at the end. */
   onAdd: (personId: string, turn: number | null, amount: string) => void;
 }) {
   const [personId, setPersonId] = useState('');
   const [turn, setTurn] = useState<string>('new');
   const [amount, setAmount] = useState(amountInput(slotAmount));
-  const sharing = turn !== 'new';
+  const sharing = allowShare && turn !== 'new';
 
   if (people.length === 0) {
     return (
@@ -241,6 +298,24 @@ export function AddToTurn({
             ))}
           </select>
         )}
+        {!allowShare && positionFrom !== undefined && (
+          <select
+            value={turn}
+            onChange={(e) => setTurn(e.target.value)}
+            aria-label="Their turn"
+            className="neo-input sm:w-52"
+          >
+            <option value="new">Their turn last</option>
+            {Array.from({ length: Math.max(0, turnCount - positionFrom + 1) }, (_, k) => {
+              const i = positionFrom - 1 + k;
+              return (
+                <option key={i} value={String(i)}>
+                  Turn {i + 1} (later turns move back)
+                </option>
+              );
+            })}
+          </select>
+        )}
       </div>
       {allowShare && sharing && (
         <label
@@ -263,7 +338,7 @@ export function AddToTurn({
         onClick={() => {
           onAdd(
             personId,
-            sharing ? Number(turn) : null,
+            turn === 'new' ? null : Number(turn),
             sharing ? amount : amountInput(slotAmount),
           );
           setPersonId('');

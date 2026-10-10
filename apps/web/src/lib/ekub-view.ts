@@ -36,6 +36,26 @@ export function todayISO(): string {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+/** How many rounds are already over (due before `today`) for an ekub
+ * starting on `start` -- the same counting as the API's CurrentRound.
+ * Dates are YYYY-MM-DD; months step like Go's AddDate (31 Jan + 1 month
+ * = 3 Mar). */
+export function roundsOver(start: string, cadence: Ekub['cadence'], today: string): number {
+  const [y, m, d] = start.split('-').map(Number);
+  const due = (round: number) => {
+    const date =
+      cadence === 'MONTHLY'
+        ? new Date(Date.UTC(y!, m! - 1 + round - 1, d!))
+        : new Date(Date.UTC(y!, m! - 1, d! + 7 * (round - 1)));
+    return date.toISOString().slice(0, 10);
+  };
+  let over = 0;
+  while (due(over + 1) < today) {
+    over++;
+  }
+  return over;
+}
+
 export function memberById(detail: EkubDetail): Map<string, EkubMember> {
   return new Map(detail.members.map((m) => [m.id, m]));
 }

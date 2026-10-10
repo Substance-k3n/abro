@@ -104,10 +104,15 @@ export async function getEkub(id: string): Promise<EkubDetail> {
 export interface EkubShareInput {
   id: string;
   amount: bigint;
+  /** Before the start: the round they joined in, for an ekub that was
+   * already running (default 1). */
+  joinedRound?: number;
 }
 
 const wireSlots = (slots: EkubShareInput[][]) =>
-  slots.map((slot) => slot.map((s) => ({ id: s.id, amount: s.amount.toString() })));
+  slots.map((slot) =>
+    slot.map((s) => ({ id: s.id, amount: s.amount.toString(), joinedRound: s.joinedRound })),
+  );
 
 export interface CreateEkubInput {
   name: string;
@@ -133,8 +138,14 @@ export async function updateEkubSlots(id: string, slots: EkubShareInput[][]): Pr
   return toDetail(await api.patch<WireDetail>(`/ekubs/${id}/slots`, { slots: wireSlots(slots) }));
 }
 
-export async function startEkub(id: string, startDate: string): Promise<EkubDetail> {
-  return toDetail(await api.post<WireDetail>(`/ekubs/${id}/start`, { startDate }));
+/** A past `startDate` enters an ekub that was already running;
+ * `pastPaid` records the rounds already over as paid. */
+export async function startEkub(
+  id: string,
+  startDate: string,
+  pastPaid: boolean,
+): Promise<EkubDetail> {
+  return toDetail(await api.post<WireDetail>(`/ekubs/${id}/start`, { startDate, pastPaid }));
 }
 
 export async function addEkubMember(

@@ -28,6 +28,7 @@ import {
   isOverdue,
   memberById,
   myPosition,
+  roundsOver,
   todayISO,
   turns as turnsOf,
 } from '~/lib/ekub-view';
@@ -74,6 +75,7 @@ function toTurnShares(detail: EkubDetail): TurnShare[][] {
       name: m.displayName,
       amount: amountInput(m.amount),
       note: m.status === 'INVITED' ? 'invited' : undefined,
+      joinedRound: m.joinedRound,
     })),
   );
 }
@@ -89,6 +91,7 @@ export default function EkubPage() {
   const [order, setOrder] = useState<TurnShare[][] | null>(null);
   const [startDate, setStartDate] = useState(todayISO());
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pastPaid, setPastPaid] = useState(true);
 
   const show = (d: EkubDetail) => {
     setDetail(d);
@@ -157,6 +160,7 @@ export default function EkubPage() {
   const myRound = pos ? detail.rounds.find((r) => r.round === pos.me.slotPosition) : undefined;
   const orderChanged = order !== null;
   const lockedTurns = running ? Math.max(0, detail.currentRound - 1) : 0;
+  const over = startDate ? roundsOver(startDate, detail.cadence, todayISO()) : 0;
   const waitingToJoin = running ? detail.members.filter((m) => m.status === 'INVITED') : [];
 
   const toPay = (pos?.toPay ?? []).filter((o) => o.status !== 'CONFIRMED');
@@ -489,6 +493,7 @@ export default function EkubPage() {
             }
             canRemove={(share) => share.id !== detail.myMemberId}
             highlightId={detail.myMemberId}
+            editJoined={isAdmin && !running}
           />
           {isAdmin && orderChanged && (
             <div className="flex gap-2">
@@ -506,7 +511,11 @@ export default function EkubPage() {
                     updateEkubSlots(
                       id,
                       turnShares.map((t) =>
-                        t.map((s) => ({ id: s.id, amount: parseAmount(s.amount) })),
+                        t.map((s) => ({
+                          id: s.id,
+                          amount: parseAmount(s.amount),
+                          joinedRound: running ? undefined : s.joinedRound,
+                        })),
                       ),
                     ),
                   )
@@ -525,9 +534,9 @@ export default function EkubPage() {
                 {running && (
                   <span className="font-normal" style={{ color: 'var(--t-dim)' }}>
                     {' '}
-                    — they put in from the round now collecting, take a turn of their own at the end
-                    (move it after they join), and don&apos;t pay or get paid by anyone whose turn
-                    came before.
+                    — they put in the full amount from the round now collecting, take the turn you
+                    pick (later turns move back when they join), and don&apos;t pay or get paid by
+                    anyone whose turn came before.
                   </span>
                 )}
               </p>
@@ -536,6 +545,7 @@ export default function EkubPage() {
                 turnCount={roundCount}
                 slotAmount={detail.slotAmount}
                 allowShare={!running}
+                positionFrom={running ? detail.currentRound : undefined}
                 busy={busy}
                 onAdd={(userId, turn, part) =>
                   act(() =>
@@ -562,7 +572,9 @@ export default function EkubPage() {
               </p>
               <p className="mb-3 text-[0.78rem]" style={{ color: 'var(--t-dim)' }}>
                 Once everyone has joined and every turn adds up. The first pot is due on the day you
-                pick, then one every {detail.cadence === 'WEEKLY' ? 'week' : 'month'}.
+                pick, then one every {detail.cadence === 'WEEKLY' ? 'week' : 'month'}. Already
+                running? Pick the day it really started, and set above which round any late joiner
+                joined in.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
@@ -574,12 +586,36 @@ export default function EkubPage() {
                 />
                 <button
                   disabled={busy || !startDate || orderChanged}
-                  onClick={() => act(() => startEkub(id, startDate))}
+                  onClick={() => act(() => startEkub(id, startDate, over > 0 && pastPaid))}
                   className="neo-btn-accent flex-1 rounded-xl py-2.5 text-[0.85rem] font-semibold disabled:opacity-50"
                 >
                   Start
                 </button>
               </div>
+              {over > 0 && (
+                <div className="mt-3 flex flex-col gap-1.5">
+                  <p className="text-[0.8rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
+                    {over === 1 ? 'Round 1 is' : `Rounds 1–${Math.min(over, roundCount)} are`}{' '}
+                    already over.
+                  </p>
+                  <label
+                    className="flex items-center gap-2 text-[0.8rem]"
+                    style={{ color: 'var(--t-secondary)' }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={pastPaid}
+                      onChange={(e) => setPastPaid(e.target.checked)}
+                    />
+                    Everyone paid for those rounds
+                  </label>
+                  <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+                    {pastPaid
+                      ? 'They’re recorded as paid, and ABRO tracks from the round now collecting.'
+                      : 'Their payments stay open; people record them as usual.'}
+                  </p>
+                </div>
+              )}
             </Card>
           )}
         </div>

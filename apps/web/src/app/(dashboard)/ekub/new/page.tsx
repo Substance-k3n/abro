@@ -110,7 +110,15 @@ export default function NewEkubPage() {
         name: name.trim(),
         slotAmount,
         cadence,
-        slots: shown.map((t) => t.map((s) => ({ id: s.id, amount: parseAmount(s.amount) }))),
+        slots: shown.map((t, i) =>
+          t.map((s) => ({
+            id: s.id,
+            amount: parseAmount(s.amount),
+            // Taking a turn out can leave someone's joining round past
+            // their (now earlier) turn.
+            joinedRound: s.joinedRound && Math.min(s.joinedRound, i + 1),
+          })),
+        ),
       });
       router.replace(`/ekub/${created.id}`);
     } catch (err) {
@@ -191,6 +199,11 @@ export default function NewEkubPage() {
           <span className="text-[0.8rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
             Turns, in the order they take the pot
           </span>
+          <span className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+            Entering an ekub that&apos;s already running? Put the turns in the order they went, and
+            for anyone who joined later set the round they joined in. You pick the real start day
+            when you start it.
+          </span>
           <EkubTurns
             turns={shown}
             onChange={setTurns}
@@ -200,6 +213,7 @@ export default function NewEkubPage() {
             onRemove={remove}
             canRemove={(share) => share.id !== myId}
             highlightId={myId}
+            editJoined
           />
           <AddToTurn
             people={available}
