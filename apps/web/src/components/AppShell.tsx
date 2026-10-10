@@ -3,6 +3,7 @@ import { OfflineBar } from './OfflineBar';
 import { PrefetchTabs } from './PrefetchTabs';
 import { PullToRefresh } from './PullToRefresh';
 import { Sidebar } from './Sidebar';
+import { TabSwipe } from './TabSwipe';
 
 /** Wraps every route under the `(dashboard)` route group: sidebar nav on
  * desktop, fixed bottom nav on mobile, per
@@ -25,6 +26,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <BottomNav />
       <PrefetchTabs />
+      <TabSwipe />
     </div>
   );
 }
