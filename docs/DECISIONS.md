@@ -52,6 +52,15 @@ they've cleared what they owe.
   admin entering the history), so tracking picks up from the round now
   collecting. A friend invited after the start can be put at any turn from
   the round now collecting.
+- **Missed payments in that history** (`ekub_missed_payments`, migration
+  0020): at the start the admin can mark payments of past rounds that were
+  never made. If the payer's own turn was still to come, the two skip each
+  other for the whole cycle, as with a late joiner: "Z didn't pay Y, so Y
+  won't pay Z" (user's choice, over keeping it as a debt). Stored once per
+  pair; derived obligations leave the pair out both ways. If the payer had
+  already taken their pot (with the recipient's money in it), skipping
+  would let them off, so that payment just stays owed (left out of
+  `pastPaid`).
 - **Leaving:** before the start, any time. After it, only once every
   payment into and out of your pot is confirmed, so not before your turn
   (user's choice). The admin can't leave. Leavers keep their place in the

@@ -40,7 +40,7 @@ func paid(obs []Obligation, payer int) int64 {
 }
 
 func TestObligations_SharedSlot(t *testing.T) {
-	obs := Obligations(40_000, exampleParticipants())
+	obs := Obligations(40_000, exampleParticipants(), nil)
 
 	// A full member takes 120k from the others (plus their own 40k back
 	// = the 160k pot): 40k from B, 40k from C, 20k from each of D and E.
@@ -76,7 +76,7 @@ func TestObligations_MidCycleJoiner(t *testing.T) {
 		{Amount: 40_000, Slot: 4, Joined: 1}, // C
 		{Amount: 40_000, Slot: 2, Joined: 2}, // F
 	}
-	obs := Obligations(40_000, ps)
+	obs := Obligations(40_000, ps, nil)
 
 	// A and F don't pay each other: F wasn't there for A's pot.
 	assert.False(t, Exchange(ps[0], ps[3]))
@@ -88,6 +88,23 @@ func TestObligations_MidCycleJoiner(t *testing.T) {
 	assert.Equal(t, int64(80_000), received(obs, 0))
 	assert.Equal(t, int64(120_000), received(obs, 1))
 	for i := range ps {
+		assert.Equal(t, received(obs, i), paid(obs, i), "member %d", i)
+	}
+}
+
+func TestObligations_MissedPaymentSkipsBothWays(t *testing.T) {
+	// B (turn 2) didn't pay A in round 1, so A doesn't pay B in round 2:
+	// they skip each other, like a late joiner.
+	skip := func(a, b int) bool { return (a == 0 && b == 1) || (a == 1 && b == 0) }
+	obs := Obligations(40_000, exampleParticipants(), skip)
+	for _, o := range obs {
+		assert.False(t, (o.Payer == 0 && o.Recipient == 1) || (o.Payer == 1 && o.Recipient == 0))
+	}
+	// A takes 80k (C, D, E) instead of 120k; B the same; C still 120k.
+	assert.Equal(t, int64(80_000), received(obs, 0))
+	assert.Equal(t, int64(80_000), received(obs, 1))
+	assert.Equal(t, int64(120_000), received(obs, 2))
+	for i := range exampleParticipants() {
 		assert.Equal(t, received(obs, i), paid(obs, i), "member %d", i)
 	}
 }

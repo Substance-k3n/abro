@@ -518,6 +518,15 @@ type EkubMember struct {
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
+type EkubMissedPayment struct {
+	ID                pgtype.UUID        `json:"id"`
+	EkubID            pgtype.UUID        `json:"ekub_id"`
+	PayerMemberID     pgtype.UUID        `json:"payer_member_id"`
+	RecipientMemberID pgtype.UUID        `json:"recipient_member_id"`
+	CreatedByID       pgtype.UUID        `json:"created_by_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
 type EkubPayment struct {
 	ID                pgtype.UUID        `json:"id"`
 	EkubID            pgtype.UUID        `json:"ekub_id"`

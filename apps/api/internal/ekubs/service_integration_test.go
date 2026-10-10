@@ -439,3 +439,70 @@ func TestEkub_EnterRunningEkub(t *testing.T) {
 	assert.False(t, d.CanLeave)
 	assert.Contains(t, *d.LeaveBlockedWhy, "160,000.00 ETB")
 }
+
+// Entering a running ekub where payments were missed. C didn't pay B in
+// round 2 and C's turn is still to come, so B and C skip each other: B
+// doesn't pay C on C's turn. A didn't pay B in round 2 either, but A
+// already took the pot (with B's money in it), so A still owes B.
+func TestEkub_EnterRunningEkubWithMissedPayment(t *testing.T) {
+	e := setup(t, "A", "B", "C", "D", "E")
+	in := apitypes.CreateEkubInput{
+		Name: "Street", SlotAmount: fmt.Sprint(full), Cadence: "MONTHLY",
+		Slots: [][]apitypes.EkubShareInput{
+			{share(e.people["A"], full)}, {share(e.people["B"], full)}, {share(e.people["C"], full)},
+			{share(e.people["D"], full)}, {share(e.people["E"], full)},
+		},
+	}
+	require.NoError(t, in.Validate())
+	d, err := e.svc.Create(e.ctx, e.people["A"], in)
+	require.NoError(t, err)
+	ekubID := uuid(t, d.ID)
+	for _, name := range []string{"B", "C", "D", "E"} {
+		_, err := e.svc.Accept(e.ctx, e.people[name], ekubID)
+		require.NoError(t, err)
+	}
+	a, b, c, dd := memberID(t, d, e, "A"), memberID(t, d, e, "B"), memberID(t, d, e, "C"), memberID(t, d, e, "D")
+
+	// Today is 2 Mar 2026; rounds were due 5 Jan and 5 Feb, round 3 is
+	// due 5 Mar. A payment of round 3 or later can't be marked missed.
+	future := apitypes.StartEkubInput{StartDate: "2026-01-05", PastPaid: true,
+		Missed: []apitypes.EkubMissedPaymentRef{{PayerMemberID: b, RecipientMemberID: dd}}}
+	require.NoError(t, future.Validate())
+	_, err = e.svc.Start(e.ctx, e.people["A"], ekubID, future)
+	requireCode(t, err, "NOT_A_PAST_PAYMENT")
+	d, err = e.svc.Detail(e.ctx, e.people["A"], ekubID)
+	require.NoError(t, err)
+	assert.Equal(t, "DRAFT", d.Status)
+
+	start := apitypes.StartEkubInput{StartDate: "2026-01-05", PastPaid: true,
+		Missed: []apitypes.EkubMissedPaymentRef{
+			{PayerMemberID: c, RecipientMemberID: b}, {PayerMemberID: a, RecipientMemberID: b},
+		}}
+	require.NoError(t, start.Validate())
+	d, err = e.svc.Start(e.ctx, e.people["A"], ekubID, start)
+	require.NoError(t, err)
+	assert.Equal(t, 3, d.CurrentRound)
+	assert.Equal(t, []apitypes.EkubMissedPayment{{PayerMemberID: c, RecipientMemberID: b, Round: 2}}, d.Missed)
+
+	// Neither pays the other, either way round.
+	assert.Nil(t, obligation(d, c, b))
+	assert.Nil(t, obligation(d, b, c))
+	// Round 1 (A): B, C, D, E = 160k. Round 2 (B): A, D, E = 120k.
+	// Round 3 (C): A, D, E = 120k. Round 4 (D): everyone else = 160k.
+	assert.Equal(t, "16000000", d.Rounds[0].Pot)
+	assert.Equal(t, "12000000", d.Rounds[1].Pot)
+	assert.Equal(t, "12000000", d.Rounds[2].Pot)
+	assert.Equal(t, "16000000", d.Rounds[3].Pot)
+	// Rounds 1-2 recorded as paid, except A's 40k to B; 3 on are due.
+	for _, o := range d.Obligations {
+		if o.Round < 3 && !(o.PayerMemberID == a && o.RecipientMemberID == b) {
+			assert.Equal(t, "CONFIRMED", o.Status, "round %d", o.Round)
+		} else {
+			assert.Equal(t, "DUE", o.Status, "round %d", o.Round)
+		}
+	}
+	assert.Equal(t, "8000000", d.Rounds[1].Confirmed)
+	// A still owes B, so is shown overdue rather than let off.
+	assert.Equal(t, "DUE", obligation(d, a, b).Status)
+	assert.Equal(t, "CONFIRMED", obligation(d, b, a).Status)
+}

@@ -23,6 +23,7 @@ type Querier interface {
 	CreateAutoGroupReminderIfDue(ctx context.Context, arg CreateAutoGroupReminderIfDueParams) (PaymentReminder, error)
 	CreateEkub(ctx context.Context, arg CreateEkubParams) (Ekub, error)
 	CreateEkubMember(ctx context.Context, arg CreateEkubMemberParams) (EkubMember, error)
+	CreateEkubMissedPayment(ctx context.Context, arg CreateEkubMissedPaymentParams) error
 	CreateEkubPayment(ctx context.Context, arg CreateEkubPaymentParams) (EkubPayment, error)
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
 	CreateExpenseNote(ctx context.Context, arg CreateExpenseNoteParams) (ExpenseNote, error)
@@ -149,6 +150,7 @@ type Querier interface {
 	// GROUP_NOT_FOUND, and GenerateDue stops at its first error.
 	ListDueRecurringExpenses(ctx context.Context, nextRunAt pgtype.Timestamptz) ([]RecurringExpense, error)
 	ListEkubMembers(ctx context.Context, ekubID pgtype.UUID) ([]ListEkubMembersRow, error)
+	ListEkubMissedPayments(ctx context.Context, ekubID pgtype.UUID) ([]EkubMissedPayment, error)
 	ListEkubPayments(ctx context.Context, ekubID pgtype.UUID) ([]EkubPayment, error)
 	ListExpenseNotesWithAuthor(ctx context.Context, expenseID pgtype.UUID) ([]ListExpenseNotesWithAuthorRow, error)
 	ListExpenseParticipantsForExpenseIDs(ctx context.Context, expenseIds []pgtype.UUID) ([]ListExpenseParticipantsForExpenseIDsRow, error)

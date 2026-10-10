@@ -93,3 +93,11 @@ ORDER BY created_at;
 UPDATE ekub_payments SET status = $2, resolved_at = now()
 WHERE id = $1 AND status = 'PENDING'
 RETURNING *;
+
+-- name: CreateEkubMissedPayment :exec
+INSERT INTO ekub_missed_payments (ekub_id, payer_member_id, recipient_member_id, created_by_id)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING;
+
+-- name: ListEkubMissedPayments :many
+SELECT * FROM ekub_missed_payments WHERE ekub_id = $1 ORDER BY created_at, id;

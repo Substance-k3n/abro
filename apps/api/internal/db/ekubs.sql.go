@@ -89,6 +89,29 @@ func (q *Queries) CreateEkubMember(ctx context.Context, arg CreateEkubMemberPara
 	return i, err
 }
 
+const createEkubMissedPayment = `-- name: CreateEkubMissedPayment :exec
+INSERT INTO ekub_missed_payments (ekub_id, payer_member_id, recipient_member_id, created_by_id)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT DO NOTHING
+`
+
+type CreateEkubMissedPaymentParams struct {
+	EkubID            pgtype.UUID `json:"ekub_id"`
+	PayerMemberID     pgtype.UUID `json:"payer_member_id"`
+	RecipientMemberID pgtype.UUID `json:"recipient_member_id"`
+	CreatedByID       pgtype.UUID `json:"created_by_id"`
+}
+
+func (q *Queries) CreateEkubMissedPayment(ctx context.Context, arg CreateEkubMissedPaymentParams) error {
+	_, err := q.db.Exec(ctx, createEkubMissedPayment,
+		arg.EkubID,
+		arg.PayerMemberID,
+		arg.RecipientMemberID,
+		arg.CreatedByID,
+	)
+	return err
+}
+
 const createEkubPayment = `-- name: CreateEkubPayment :one
 INSERT INTO ekub_payments (ekub_id, payer_member_id, recipient_member_id, amount, status, created_by_id, resolved_at)
 VALUES ($1, $2, $3, $4, $5, $6, CASE WHEN $5::ekub_payment_status = 'CONFIRMED' THEN now() END)
@@ -334,6 +357,37 @@ func (q *Queries) ListEkubMembers(ctx context.Context, ekubID pgtype.UUID) ([]Li
 			&i.DisplayName,
 			&i.AvatarUrl,
 			&i.Username,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listEkubMissedPayments = `-- name: ListEkubMissedPayments :many
+SELECT id, ekub_id, payer_member_id, recipient_member_id, created_by_id, created_at FROM ekub_missed_payments WHERE ekub_id = $1 ORDER BY created_at, id
+`
+
+func (q *Queries) ListEkubMissedPayments(ctx context.Context, ekubID pgtype.UUID) ([]EkubMissedPayment, error) {
+	rows, err := q.db.Query(ctx, listEkubMissedPayments, ekubID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []EkubMissedPayment
+	for rows.Next() {
+		var i EkubMissedPayment
+		if err := rows.Scan(
+			&i.ID,
+			&i.EkubID,
+			&i.PayerMemberID,
+			&i.RecipientMemberID,
+			&i.CreatedByID,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

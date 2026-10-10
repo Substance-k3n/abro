@@ -145,12 +145,24 @@ func (in *AddEkubMemberInput) Validate() error {
 
 // StartEkubInput is POST /ekubs/{id}/start: the day round 1 is due. A
 // date in the past enters an ekub that was already running; PastPaid
-// then records every payment of the rounds already over as made.
+// then records every payment of the rounds already over as made, except
+// the Missed ones: payments of those rounds that were never made. If the
+// payer's own turn is still to come, the two skip each other for the
+// whole cycle; if the payer already took their pot, it stays owed
+// (ADR-024).
 type StartEkubInput struct {
-	StartDate string `json:"startDate"`
-	PastPaid  bool   `json:"pastPaid"`
+	StartDate string                 `json:"startDate"`
+	PastPaid  bool                   `json:"pastPaid"`
+	Missed    []EkubMissedPaymentRef `json:"missed"`
 
 	ParsedStartDate time.Time `json:"-"`
+}
+
+// EkubMissedPaymentRef is one payment of a round already over that was
+// never made, by member id.
+type EkubMissedPaymentRef struct {
+	PayerMemberID     string `json:"payerMemberId"`
+	RecipientMemberID string `json:"recipientMemberId"`
 }
 
 func (in *StartEkubInput) Validate() error {
@@ -159,6 +171,14 @@ func (in *StartEkubInput) Validate() error {
 		return httpx.BadRequest("VALIDATION_ERROR", "startDate must be YYYY-MM-DD")
 	}
 	in.ParsedStartDate = parsed
+	if len(in.Missed) > 2000 {
+		return httpx.BadRequest("VALIDATION_ERROR", "missed can have at most 2000 entries")
+	}
+	for _, m := range in.Missed {
+		if strings.TrimSpace(m.PayerMemberID) == "" || strings.TrimSpace(m.RecipientMemberID) == "" {
+			return httpx.BadRequest("VALIDATION_ERROR", "each missed payment needs payerMemberId and recipientMemberId")
+		}
+	}
 	return nil
 }
 
@@ -232,13 +252,23 @@ type EkubObligation struct {
 	PaymentID         *string `json:"paymentId"`
 }
 
+// EkubMissedPayment is a payment of a round before the ekub was entered
+// in ABRO that was never made, by someone whose turn was still to come;
+// the two skip each other.
+type EkubMissedPayment struct {
+	PayerMemberID     string `json:"payerMemberId"`
+	RecipientMemberID string `json:"recipientMemberId"`
+	Round             int    `json:"round"`
+}
+
 type EkubDetail struct {
 	Ekub
-	MyMemberID   string           `json:"myMemberId"`
-	CurrentRound int              `json:"currentRound"`
-	Members      []EkubMember     `json:"members"`
-	Rounds       []EkubRound      `json:"rounds"`
-	Obligations  []EkubObligation `json:"obligations"`
+	MyMemberID   string              `json:"myMemberId"`
+	CurrentRound int                 `json:"currentRound"`
+	Members      []EkubMember        `json:"members"`
+	Rounds       []EkubRound         `json:"rounds"`
+	Obligations  []EkubObligation    `json:"obligations"`
+	Missed       []EkubMissedPayment `json:"missed"`
 	// Whether the viewer may leave now, and if not, why not.
 	CanLeave        bool    `json:"canLeave"`
 	LeaveBlockedWhy *string `json:"leaveBlockedWhy"`
