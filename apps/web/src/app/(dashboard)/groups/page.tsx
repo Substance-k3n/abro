@@ -34,7 +34,7 @@
 // now appears below); declining just drops the invite.
 
 import { EmptyState, GroupIcon, MoneyDisplay, SectionLabel } from '@abro/ui';
-import { Check, Plus, Users, X } from 'lucide-react';
+import { Check, ChevronRight, PiggyBank, Plus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
@@ -212,6 +212,25 @@ export default function GroupsPage() {
           Create Group
         </Link>
       </div>
+
+      {/* Ekub has no bottom-bar slot; on a phone this is the way in (ADR-024). */}
+      <Link href="/ekub" className="neo-raised mb-6 flex items-center gap-3 rounded-2xl px-4 py-3">
+        <div
+          className="neo-raised-sm flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+          style={{ color: 'var(--accent)' }}
+        >
+          <PiggyBank size={20} strokeWidth={1.8} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[0.92rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
+            Ekub
+          </p>
+          <p className="truncate text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
+            Rotating savings: everyone puts in, one turn takes the pot
+          </p>
+        </div>
+        <ChevronRight size={18} style={{ color: 'var(--t-dim)' }} />
+      </Link>
 
       {invites.length > 0 && (
         <div className="mb-6">

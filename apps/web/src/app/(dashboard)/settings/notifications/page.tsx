@@ -68,6 +68,12 @@ const TYPES: { type: string; label: string; sub: string }[] = [
     label: 'Disputed expenses',
     sub: "Someone says they weren't part of an expense",
   },
+  { type: 'EKUB_INVITATION', label: 'Ekub invitations', sub: 'Someone invites you to an ekub' },
+  {
+    type: 'EKUB_PAYMENT',
+    label: 'Ekub payments',
+    sub: 'An ekub payment to confirm, or yours confirmed',
+  },
 ];
 
 export default function NotificationSettingsPage() {

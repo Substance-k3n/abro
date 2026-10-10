@@ -1,0 +1,75 @@
+// Display helpers for the ekub screens (ADR-024): money in the ekub's
+// currency, round dates, and what the viewer owes and is owed, all read
+// off the detail the API already derived (~/lib/ekubs-api.ts).
+
+import { type CurrencyMeta, ETB, formatMoney } from '@abro/types';
+
+import type { Ekub, EkubDetail, EkubMember, EkubObligation } from './ekubs-api';
+
+export function currencyMeta(code: string): CurrencyMeta {
+  return code === ETB.code ? ETB : { ...ETB, code, symbol: code, nativeSymbol: code };
+}
+
+export function ekubMoney(amount: bigint, ekub: Pick<Ekub, 'currency'>): string {
+  return formatMoney(amount, currencyMeta(ekub.currency));
+}
+
+export function cadenceLabel(cadence: Ekub['cadence']): string {
+  return cadence === 'WEEKLY' ? 'weekly' : 'monthly';
+}
+
+/** "Mon 2 Mar" from a YYYY-MM-DD date, read as a calendar day. */
+export function formatDay(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return new Date(Date.UTC(y!, m! - 1, d!)).toLocaleDateString('en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
+/** Today as YYYY-MM-DD in the viewer's own time zone. */
+export function todayISO(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+export function memberById(detail: EkubDetail): Map<string, EkubMember> {
+  return new Map(detail.members.map((m) => [m.id, m]));
+}
+
+/** A payment still open after its round's due date has passed. */
+export function isOverdue(o: EkubObligation, detail: EkubDetail): boolean {
+  return detail.status === 'ACTIVE' && o.status !== 'CONFIRMED' && o.round < detail.currentRound;
+}
+
+export interface MyPosition {
+  me: EkubMember;
+  /** What the others put into my pot, and my own part back. */
+  fromOthers: bigint;
+  take: bigint;
+  /** Payments I make / receive, by round. */
+  toPay: EkubObligation[];
+  toReceive: EkubObligation[];
+}
+
+export function myPosition(detail: EkubDetail): MyPosition | null {
+  const me = detail.members.find((m) => m.id === detail.myMemberId);
+  if (!me) {
+    return null;
+  }
+  const toPay = detail.obligations.filter((o) => o.payerMemberId === me.id);
+  const toReceive = detail.obligations.filter((o) => o.recipientMemberId === me.id);
+  const fromOthers = toReceive.reduce((sum, o) => sum + o.amount, 0n);
+  return { me, fromOthers, take: fromOthers + me.amount, toPay, toReceive };
+}
+
+/** The turns, in order, as groups of members (taking part only). */
+export function turns(detail: EkubDetail): EkubMember[][] {
+  const byId = memberById(detail);
+  return detail.rounds.map((r) =>
+    r.memberIds.map((id) => byId.get(id)).filter((m): m is EkubMember => !!m),
+  );
+}
