@@ -92,7 +92,7 @@ func (in *CreateEkubInput) Validate() error {
 	return validateSlots(in.Slots)
 }
 
-// UpdateEkubSlotsInput is PUT /ekubs/{id}/slots: the whole arrangement,
+// UpdateEkubSlotsInput is PATCH /ekubs/{id}/slots: the whole arrangement,
 // in payout order, by member id.
 type UpdateEkubSlotsInput struct {
 	Slots [][]EkubShareInput `json:"slots"`

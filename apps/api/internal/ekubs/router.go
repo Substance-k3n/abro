@@ -28,7 +28,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/", httpx.Wrap(h.list))
 	r.Get("/{id}", httpx.Wrap(h.detail))
 	r.Delete("/{id}", httpx.Wrap(h.remove))
-	r.Put("/{id}/slots", httpx.Wrap(h.updateSlots))
+	r.Patch("/{id}/slots", httpx.Wrap(h.updateSlots))
 	r.Post("/{id}/start", httpx.Wrap(h.start))
 	r.Post("/{id}/members", httpx.Wrap(h.addMember))
 	r.Delete("/{id}/members/{memberId}", httpx.Wrap(h.removeMember))
