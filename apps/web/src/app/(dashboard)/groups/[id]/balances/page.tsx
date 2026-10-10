@@ -18,6 +18,8 @@
 //    payment owed to you stays disabled.
 //  - Someone who left the group but still has a balance is listed,
 //    marked "(left)", so no debt disappears from view.
+//  - A debt open 30+ days is tagged "Overdue", for every member to see
+//    (ADR-023, the user's choice).
 
 import { ETB, abs, formatMoney } from '@abro/types';
 import { EmptyState } from '@abro/ui';
@@ -25,6 +27,7 @@ import { ArrowLeft, Handshake } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { OverdueTag } from '~/components/OverdueTag';
 import { PaymentRow } from '~/components/PaymentRow';
 import { type SimplifiedPayment, getSimplifiedPayments } from '~/lib/balances-api';
 import { type GroupView, GroupViewLoader, PersonAvatar, nameIn } from '~/lib/group-view';
@@ -48,7 +51,7 @@ export default function GroupBalancesPage() {
 function GroupBalances({ view, payments }: { view: GroupView; payments: SimplifiedPayment[] }) {
   const router = useRouter();
   const [mode, setMode] = useState<View>('individual');
-  const { group, activeMembers, nets } = view;
+  const { group, activeMembers, nets, owingSince } = view;
 
   const ids = [
     ...activeMembers.map((m) => m.userId),
@@ -106,19 +109,22 @@ function GroupBalances({ view, payments }: { view: GroupView; payments: Simplifi
                 className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
               >
                 <PersonAvatar view={view} userId={id} size={38} />
-                <span
-                  className="flex-1 text-[0.88rem] font-semibold"
-                  style={{ color: 'var(--t-primary)' }}
-                >
-                  {nameIn(view, id)}
-                  {!activeMembers.some((m) => m.userId === id) && (
-                    <span
-                      className="ml-1.5 text-[0.7rem] font-normal"
-                      style={{ color: 'var(--t-dim)' }}
-                    >
-                      (left)
-                    </span>
-                  )}
+                <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 gap-y-1">
+                  <span
+                    className="text-[0.88rem] font-semibold"
+                    style={{ color: 'var(--t-primary)' }}
+                  >
+                    {nameIn(view, id)}
+                    {!activeMembers.some((m) => m.userId === id) && (
+                      <span
+                        className="ml-1.5 text-[0.7rem] font-normal"
+                        style={{ color: 'var(--t-dim)' }}
+                      >
+                        (left)
+                      </span>
+                    )}
+                  </span>
+                  {bal < 0n && <OverdueTag owingSince={owingSince.get(id)} />}
                 </span>
                 <span
                   className="font-mono text-[0.88rem] font-bold"
