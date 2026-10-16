@@ -107,6 +107,8 @@ func main() {
 
 	balancesSvc := balances.NewService(queries, friendsSvc, groupsSvc)
 	balancesHandler := balances.NewHandler(balancesSvc, groupsSvc, queries)
+	// Tell a group whose turn it is to pay (ADR-025).
+	expensesSvc.SetGroupExpenseHook(balances.NewNextPayerNotifier(queries, balancesSvc, notificationsSvc))
 
 	settlementsSvc := settlements.NewService(queries, balancesSvc, groupsSvc, notificationsSvc, expensesSvc)
 	settlementsHandler := settlements.NewHandler(settlementsSvc, idempotencySvc, queries)

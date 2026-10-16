@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
+	"github.com/Substance-k3n/abro/apps/api/internal/money"
 )
 
 var validGroupTypes = map[string]bool{
@@ -51,6 +52,10 @@ type UpdateGroupInput struct {
 	Description   *string `json:"description"`
 	SimplifyDebts *bool   `json:"simplifyDebts"`
 	AutoRemind    *bool   `json:"autoRemind"`
+	// NextPayerThreshold: minor units; "0" turns the next-payer
+	// notification off (ADR-025).
+	NextPayerThreshold       *string `json:"nextPayerThreshold"`
+	ParsedNextPayerThreshold *int64  `json:"-"`
 }
 
 func (in *UpdateGroupInput) Validate() error {
@@ -69,6 +74,13 @@ func (in *UpdateGroupInput) Validate() error {
 	}
 	if in.Description != nil && len(*in.Description) > 280 {
 		return httpx.BadRequest("VALIDATION_ERROR", "description must be at most 280 characters")
+	}
+	if in.NextPayerThreshold != nil {
+		parsed, err := money.ParseAmount(*in.NextPayerThreshold)
+		if err != nil {
+			return httpx.BadRequest("VALIDATION_ERROR", "nextPayerThreshold must be a non-negative amount in minor units")
+		}
+		in.ParsedNextPayerThreshold = &parsed
 	}
 	return nil
 }
@@ -114,11 +126,15 @@ type AuthGroup struct {
 	SimplifyDebts bool    `json:"simplifyDebts"`
 	// AutoRemind: the daily job reminds members whose debt to the group
 	// is overdue (ADR-023). Admins switch it.
-	AutoRemind  bool          `json:"autoRemind"`
-	CreatedByID string        `json:"createdById"`
-	CreatedAt   time.Time     `json:"createdAt"`
-	UpdatedAt   time.Time     `json:"updatedAt"`
-	Members     []GroupMember `json:"members"`
+	AutoRemind bool `json:"autoRemind"`
+	// NextPayerThreshold: when an expense leaves its payer covering at
+	// least this much, the group is told who pays next; "0" is off
+	// (ADR-025). Minor units, as a string like every amount.
+	NextPayerThreshold string        `json:"nextPayerThreshold"`
+	CreatedByID        string        `json:"createdById"`
+	CreatedAt          time.Time     `json:"createdAt"`
+	UpdatedAt          time.Time     `json:"updatedAt"`
+	Members            []GroupMember `json:"members"`
 }
 
 // GroupListItem is GET /groups/'s element shape: an AuthGroup (members

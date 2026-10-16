@@ -47,6 +47,9 @@ const (
 	// payments to confirm or confirmed (ADR-024).
 	TypeEkubInvitation Type = "EKUB_INVITATION"
 	TypeEkubPayment    Type = "EKUB_PAYMENT"
+	// TypeNextPayer: someone is covering a lot for their group; who
+	// should pay next (ADR-025).
+	TypeNextPayer Type = "NEXT_PAYER"
 )
 
 // AllTypes is every Type, in the order SET-02 lists them. A user can
@@ -56,7 +59,7 @@ var AllTypes = []Type{
 	TypeGroupInvitation, TypeGroupMembershipChange, TypeRecurringExpense,
 	TypeDebtSimplificationChange, TypePaymentReminder,
 	TypeFriendRequest, TypeFriendAccepted, TypeExpenseDisputed,
-	TypeEkubInvitation, TypeEkubPayment,
+	TypeEkubInvitation, TypeEkubPayment, TypeNextPayer,
 }
 
 func isKnownType(t string) bool {

@@ -31,7 +31,7 @@ func (q *Queries) CountActiveAdminsExcept(ctx context.Context, arg CountActiveAd
 const createGroup = `-- name: CreateGroup :one
 INSERT INTO groups (name, type, currency, description, simplify_debts, created_by_id)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind
+RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold
 `
 
 type CreateGroupParams struct {
@@ -67,6 +67,7 @@ func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Group
 		&i.DeletedByID,
 		&i.PhotoPath,
 		&i.AutoRemind,
+		&i.NextPayerThreshold,
 	)
 	return i, err
 }
@@ -104,7 +105,7 @@ func (q *Queries) CreateGroupMember(ctx context.Context, arg CreateGroupMemberPa
 }
 
 const getGroupByID = `-- name: GetGroupByID :one
-SELECT id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind FROM groups WHERE id = $1 AND deleted_at IS NULL
+SELECT id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold FROM groups WHERE id = $1 AND deleted_at IS NULL
 `
 
 // A deleted group reads as not found (0011_group_soft_delete).
@@ -125,6 +126,7 @@ func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, erro
 		&i.DeletedByID,
 		&i.PhotoPath,
 		&i.AutoRemind,
+		&i.NextPayerThreshold,
 	)
 	return i, err
 }
@@ -258,7 +260,7 @@ func (q *Queries) ListGroupMembersWithProfiles(ctx context.Context, groupID pgty
 }
 
 const listMyActiveGroups = `-- name: ListMyActiveGroups :many
-SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind FROM groups g
+SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind, g.next_payer_threshold FROM groups g
 JOIN group_members gm ON gm.group_id = g.id
 WHERE gm.user_id = $1 AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
 ORDER BY g.created_at DESC
@@ -287,6 +289,7 @@ func (q *Queries) ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([
 			&i.DeletedByID,
 			&i.PhotoPath,
 			&i.AutoRemind,
+			&i.NextPayerThreshold,
 		); err != nil {
 			return nil, err
 		}
@@ -299,7 +302,7 @@ func (q *Queries) ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([
 }
 
 const listMyActiveGroupsWithStats = `-- name: ListMyActiveGroupsWithStats :many
-SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind,
+SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind, g.next_payer_threshold,
        (SELECT count(*) FROM group_members m
         WHERE m.group_id = g.id AND m.status = 'ACTIVE')::int AS member_count,
        COALESCE((SELECT max(e.created_at) FROM expenses e
@@ -347,6 +350,7 @@ func (q *Queries) ListMyActiveGroupsWithStats(ctx context.Context, userID pgtype
 			&i.Group.DeletedByID,
 			&i.Group.PhotoPath,
 			&i.Group.AutoRemind,
+			&i.Group.NextPayerThreshold,
 			&i.MemberCount,
 			&i.LastActivityAt,
 		); err != nil {
@@ -361,7 +365,7 @@ func (q *Queries) ListMyActiveGroupsWithStats(ctx context.Context, userID pgtype
 }
 
 const listMyInvites = `-- name: ListMyInvites :many
-SELECT gm.joined_at AS invited_at, g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind
+SELECT gm.joined_at AS invited_at, g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind, g.next_payer_threshold
 FROM group_members gm
 JOIN groups g ON g.id = gm.group_id
 WHERE gm.user_id = $1 AND gm.status = 'INVITED' AND g.deleted_at IS NULL
@@ -369,20 +373,21 @@ ORDER BY gm.joined_at DESC
 `
 
 type ListMyInvitesRow struct {
-	InvitedAt     pgtype.Timestamptz `json:"invited_at"`
-	ID            pgtype.UUID        `json:"id"`
-	Name          string             `json:"name"`
-	Type          GroupType          `json:"type"`
-	Currency      string             `json:"currency"`
-	Description   pgtype.Text        `json:"description"`
-	SimplifyDebts bool               `json:"simplify_debts"`
-	CreatedByID   pgtype.UUID        `json:"created_by_id"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
-	DeletedByID   pgtype.UUID        `json:"deleted_by_id"`
-	PhotoPath     pgtype.Text        `json:"photo_path"`
-	AutoRemind    bool               `json:"auto_remind"`
+	InvitedAt          pgtype.Timestamptz `json:"invited_at"`
+	ID                 pgtype.UUID        `json:"id"`
+	Name               string             `json:"name"`
+	Type               GroupType          `json:"type"`
+	Currency           string             `json:"currency"`
+	Description        pgtype.Text        `json:"description"`
+	SimplifyDebts      bool               `json:"simplify_debts"`
+	CreatedByID        pgtype.UUID        `json:"created_by_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByID        pgtype.UUID        `json:"deleted_by_id"`
+	PhotoPath          pgtype.Text        `json:"photo_path"`
+	AutoRemind         bool               `json:"auto_remind"`
+	NextPayerThreshold int64              `json:"next_payer_threshold"`
 }
 
 func (q *Queries) ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]ListMyInvitesRow, error) {
@@ -409,6 +414,7 @@ func (q *Queries) ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]List
 			&i.DeletedByID,
 			&i.PhotoPath,
 			&i.AutoRemind,
+			&i.NextPayerThreshold,
 		); err != nil {
 			return nil, err
 		}
@@ -492,19 +498,21 @@ SET name = COALESCE($1, name),
     description = COALESCE($4, description),
     simplify_debts = COALESCE($5, simplify_debts),
     auto_remind = COALESCE($6, auto_remind),
+    next_payer_threshold = COALESCE($7, next_payer_threshold),
     updated_at = now()
-WHERE id = $7
-RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind
+WHERE id = $8
+RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold
 `
 
 type UpdateGroupParams struct {
-	Name          pgtype.Text   `json:"name"`
-	Type          NullGroupType `json:"type"`
-	Currency      pgtype.Text   `json:"currency"`
-	Description   pgtype.Text   `json:"description"`
-	SimplifyDebts pgtype.Bool   `json:"simplify_debts"`
-	AutoRemind    pgtype.Bool   `json:"auto_remind"`
-	ID            pgtype.UUID   `json:"id"`
+	Name               pgtype.Text   `json:"name"`
+	Type               NullGroupType `json:"type"`
+	Currency           pgtype.Text   `json:"currency"`
+	Description        pgtype.Text   `json:"description"`
+	SimplifyDebts      pgtype.Bool   `json:"simplify_debts"`
+	AutoRemind         pgtype.Bool   `json:"auto_remind"`
+	NextPayerThreshold pgtype.Int8   `json:"next_payer_threshold"`
+	ID                 pgtype.UUID   `json:"id"`
 }
 
 func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group, error) {
@@ -515,6 +523,7 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group
 		arg.Description,
 		arg.SimplifyDebts,
 		arg.AutoRemind,
+		arg.NextPayerThreshold,
 		arg.ID,
 	)
 	var i Group
@@ -532,6 +541,7 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group
 		&i.DeletedByID,
 		&i.PhotoPath,
 		&i.AutoRemind,
+		&i.NextPayerThreshold,
 	)
 	return i, err
 }

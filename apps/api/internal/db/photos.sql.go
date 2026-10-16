@@ -15,7 +15,7 @@ const setGroupPhoto = `-- name: SetGroupPhoto :one
 UPDATE groups
 SET photo_path = $1, updated_at = now()
 WHERE id = $2
-RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind
+RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold
 `
 
 type SetGroupPhotoParams struct {
@@ -40,6 +40,7 @@ func (q *Queries) SetGroupPhoto(ctx context.Context, arg SetGroupPhotoParams) (G
 		&i.DeletedByID,
 		&i.PhotoPath,
 		&i.AutoRemind,
+		&i.NextPayerThreshold,
 	)
 	return i, err
 }

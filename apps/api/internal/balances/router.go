@@ -31,6 +31,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/friends/{friendId}", httpx.Wrap(h.friendBalance))
 	r.Get("/groups/{groupId}", httpx.Wrap(h.groupSummary))
 	r.Get("/groups/{groupId}/simplified", httpx.Wrap(h.simplifiedGroupDebts))
+	r.Get("/groups/{groupId}/next-payers", httpx.Wrap(h.nextPayers))
 }
 
 func (h *Handler) summary(w http.ResponseWriter, r *http.Request) error {
@@ -132,6 +133,37 @@ func (h *Handler) simplifiedGroupDebts(w http.ResponseWriter, r *http.Request) e
 	out := make([]apitypes.SimplifiedTransaction, len(transactions))
 	for i, t := range transactions {
 		out[i] = apitypes.SimplifiedTransaction{FromUserID: t.FromUserID, ToUserID: t.ToUserID, Amount: strconv.FormatInt(t.Amount, 10)}
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+func (h *Handler) nextPayers(w http.ResponseWriter, r *http.Request) error {
+	groupID, err := idutil.Parse(chi.URLParam(r, "groupId"))
+	if err != nil {
+		return httpx.NotFound("GROUP_NOT_FOUND", "No such group.")
+	}
+	user := authpkg.CurrentUser(r.Context())
+	if _, err := h.groups.RequireActiveMembership(r.Context(), groupID, user.ID); err != nil {
+		return err
+	}
+	group, err := h.q.GetGroupByID(r.Context(), groupID)
+	if err != nil {
+		return err
+	}
+
+	line, err := h.svc.NextPayers(r.Context(), groupID)
+	if err != nil {
+		return err
+	}
+	out := apitypes.NextPayers{
+		Threshold: strconv.FormatInt(group.NextPayerThreshold, 10),
+		Payers:    make([]apitypes.NextPayerEntry, len(line)),
+	}
+	for i, p := range line {
+		out.Payers[i] = apitypes.NextPayerEntry{
+			UserID: idutil.String(p.UserID), Owes: strconv.FormatInt(p.Owes, 10), OwingSince: p.OwingSince,
+		}
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
