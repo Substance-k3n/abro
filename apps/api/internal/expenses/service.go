@@ -136,6 +136,11 @@ func (s *Service) Update(ctx context.Context, actorID, expenseID pgtype.UUID, in
 	if err := s.requireEditAuthority(ctx, actorID, expense); err != nil {
 		return Expense{}, err
 	}
+	// A late fee is the daily job's to write (ADR-026); waiving one is
+	// deleting it.
+	if expense.SplitType == db.SplitTypeINTEREST {
+		return Expense{}, httpx.Conflict("LATE_FEE_NOT_EDITABLE", "A late fee can't be edited. Delete it to waive it.")
+	}
 
 	prepared, err := s.prepareWrite(ctx, actorID, in)
 	if err != nil {

@@ -133,6 +133,7 @@ type Querier interface {
 	// GRP-07: the currency can't change once the group has any expense
 	// (including settlements) -- it would relabel every stored amount.
 	GroupHasExpenses(ctx context.Context, groupID pgtype.UUID) (bool, error)
+	HasLateFeeDay(ctx context.Context, arg HasLateFeeDayParams) (bool, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	IsNotificationOptedOut(ctx context.Context, arg IsNotificationOptedOutParams) (bool, error)
 	// Someone invited after the start accepts: their slot goes in at
@@ -164,6 +165,8 @@ type Querier interface {
 	// expenses were added -- each member's movements in the group (ADR-023).
 	ListGroupShareRows(ctx context.Context, groupID pgtype.UUID) ([]ListGroupShareRowsRow, error)
 	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
+	// Groups with late fees on (ADR-026).
+	ListLateFeeGroups(ctx context.Context) ([]ListLateFeeGroupsRow, error)
 	// The most recent reminder per recipient in a group.
 	ListLatestPaymentReminders(ctx context.Context, groupID pgtype.UUID) ([]PaymentReminder, error)
 	ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([]Group, error)
@@ -210,6 +213,9 @@ type Querier interface {
 	// those resolved in the last 30 days, newest first.
 	ListSettlementRequestsForUser(ctx context.Context, payerID pgtype.UUID) ([]SettlementRequest, error)
 	MarkAllNotificationsRead(ctx context.Context, userID pgtype.UUID) error
+	// Claims today's charge for a member; no row back means it was already
+	// charged today (a restart re-running the daily job).
+	MarkLateFeeDay(ctx context.Context, arg MarkLateFeeDayParams) (pgtype.Date, error)
 	// Preserves the original read_at if already read, rather than bumping it to
 	// now() on every call -- matches the "no-op if already read" behavior.
 	MarkNotificationRead(ctx context.Context, id pgtype.UUID) (Notification, error)

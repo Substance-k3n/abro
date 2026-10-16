@@ -42,7 +42,7 @@ ORDER BY e.created_at, e.id;
 -- Every share of every live expense in a group, in the order the
 -- expenses were added -- each member's movements in the group (ADR-023).
 SELECT e.id AS expense_id, e.paid_by_id, e.amount AS expense_amount, e.created_at,
-       ep.user_id, ep.amount AS share
+       e.split_type, ep.user_id, ep.amount AS share
 FROM expenses e
 JOIN expense_participants ep ON ep.expense_id = e.id
 WHERE e.group_id = $1 AND e.deleted_at IS NULL

@@ -156,7 +156,7 @@ func (q *Queries) GetPairwiseParticipantsPersonal(ctx context.Context, arg GetPa
 
 const listGroupShareRows = `-- name: ListGroupShareRows :many
 SELECT e.id AS expense_id, e.paid_by_id, e.amount AS expense_amount, e.created_at,
-       ep.user_id, ep.amount AS share
+       e.split_type, ep.user_id, ep.amount AS share
 FROM expenses e
 JOIN expense_participants ep ON ep.expense_id = e.id
 WHERE e.group_id = $1 AND e.deleted_at IS NULL
@@ -168,6 +168,7 @@ type ListGroupShareRowsRow struct {
 	PaidByID      pgtype.UUID        `json:"paid_by_id"`
 	ExpenseAmount int64              `json:"expense_amount"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	SplitType     SplitType          `json:"split_type"`
 	UserID        pgtype.UUID        `json:"user_id"`
 	Share         int64              `json:"share"`
 }
@@ -188,6 +189,7 @@ func (q *Queries) ListGroupShareRows(ctx context.Context, groupID pgtype.UUID) (
 			&i.PaidByID,
 			&i.ExpenseAmount,
 			&i.CreatedAt,
+			&i.SplitType,
 			&i.UserID,
 			&i.Share,
 		); err != nil {

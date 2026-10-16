@@ -98,6 +98,8 @@ func (h *Handler) listInvites(w http.ResponseWriter, r *http.Request) error {
 			Group: toAuthGroupRow(db.Group{
 				ID: row.ID, Name: row.Name, Type: row.Type, Currency: row.Currency,
 				Description: row.Description, SimplifyDebts: row.SimplifyDebts, AutoRemind: row.AutoRemind, NextPayerThreshold: row.NextPayerThreshold,
+				InterestRateBp: row.InterestRateBp, InterestGraceDays: row.InterestGraceDays,
+				InterestCapBp: row.InterestCapBp, InterestSince: row.InterestSince,
 				CreatedByID: row.CreatedByID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 			}),
 			InvitedAt: row.InvitedAt.Time,
@@ -257,10 +259,14 @@ func toAuthGroupRow(g db.Group) apitypes.AuthGroup {
 		ID: idutil.String(g.ID), Name: g.Name, Type: string(g.Type), Currency: g.Currency,
 		SimplifyDebts: g.SimplifyDebts, AutoRemind: g.AutoRemind, CreatedByID: idutil.String(g.CreatedByID),
 		NextPayerThreshold: strconv.FormatInt(g.NextPayerThreshold, 10),
-		CreatedAt:          g.CreatedAt.Time, UpdatedAt: g.UpdatedAt.Time, Members: []apitypes.GroupMember{},
+		InterestRateBP:     g.InterestRateBp, InterestGraceDays: g.InterestGraceDays, InterestCapBP: g.InterestCapBp,
+		CreatedAt: g.CreatedAt.Time, UpdatedAt: g.UpdatedAt.Time, Members: []apitypes.GroupMember{},
 	}
 	if g.Description.Valid {
 		out.Description = &g.Description.String
+	}
+	if g.InterestSince.Valid {
+		out.InterestSince = &g.InterestSince.Time
 	}
 	if url, ok := PhotoURL(g.ID, g.PhotoPath); ok {
 		out.PhotoURL = &url
