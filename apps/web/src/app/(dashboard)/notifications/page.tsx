@@ -25,7 +25,16 @@
 // type (DESTINATIONS) -- older notifications carry no link.
 
 import { EmptyState } from '@abro/ui';
-import { Bell, type LucideIcon, Receipt, UserPlus, Users, Utensils, Wallet } from 'lucide-react';
+import {
+  Bell,
+  Clock,
+  type LucideIcon,
+  Receipt,
+  UserPlus,
+  Users,
+  Utensils,
+  Wallet,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -56,6 +65,7 @@ const ICONS: Record<string, LucideIcon> = {
   EKUB_INVITATION: UserPlus,
   EKUB_PAYMENT: Wallet,
   NEXT_PAYER: Users,
+  LATE_FEE: Clock,
 };
 
 const DESTINATIONS: Record<string, string> = {

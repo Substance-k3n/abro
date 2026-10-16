@@ -123,6 +123,7 @@ const SPLIT_LABELS: Record<string, string> = {
   EXACT: 'Exact split',
   PERCENTAGE: 'Percentage split',
   SHARES: 'Shares split',
+  INTEREST: 'Late fee',
 };
 
 export interface ActivityDisplay {
@@ -172,6 +173,27 @@ export function toActivityDisplay(
       sub: expense.groupId ? (groupNameById.get(expense.groupId) ?? 'Group') : 'Personal',
       amount: BigInt(expense.amount),
       dir: youReceived ? 'receive' : 'paid',
+      time,
+    };
+  }
+
+  if (expense.splitType === 'INTEREST') {
+    // A late fee (ADR-026): the debtor is the one participant, the
+    // person owed is the "payer".
+    const debtor = expense.participants[0]?.user;
+    const debtorName = debtor?.displayName.split(' ')[0] ?? 'Someone';
+    const creditorName = expense.paidBy.displayName.split(' ')[0];
+    const iOwe = debtor?.id === meId;
+    return {
+      category: 'Late fee',
+      title: iOwe
+        ? `Late fee to ${creditorName}`
+        : iPaid
+          ? `Late fee from ${debtorName}`
+          : `Late fee: ${debtorName} to ${creditorName}`,
+      sub: expense.groupId ? (groupNameById.get(expense.groupId) ?? 'Group') : 'Personal',
+      amount: BigInt(expense.amount),
+      dir: iOwe ? 'owe' : iPaid ? 'receive' : 'paid',
       time,
     };
   }

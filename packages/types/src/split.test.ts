@@ -56,7 +56,7 @@ describe('expenseParticipantSchema', () => {
 
 describe('splitTypeSchema', () => {
   it('accepts every documented split type', () => {
-    for (const type of ['EQUAL', 'EXACT', 'PERCENTAGE', 'SHARES', 'SETTLEMENT']) {
+    for (const type of ['EQUAL', 'EXACT', 'PERCENTAGE', 'SHARES', 'SETTLEMENT', 'INTEREST']) {
       expect(splitTypeSchema.safeParse(type).success).toBe(true);
     }
   });
