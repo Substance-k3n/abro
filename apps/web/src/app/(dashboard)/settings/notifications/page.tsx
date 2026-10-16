@@ -79,6 +79,11 @@ const TYPES: { type: string; label: string; sub: string }[] = [
     label: 'Whose turn to pay',
     sub: 'Someone in a group is covering a lot; who pays next',
   },
+  {
+    type: 'LATE_FEE',
+    label: 'Late fees',
+    sub: 'A group turns late fees on or off, or one starts on your debt',
+  },
 ];
 
 export default function NotificationSettingsPage() {

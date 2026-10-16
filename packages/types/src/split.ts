@@ -11,6 +11,9 @@ export const SplitType = {
   PERCENTAGE: 'PERCENTAGE',
   SHARES: 'SHARES',
   SETTLEMENT: 'SETTLEMENT',
+  // A late fee (ADR-026): written by apps/api's daily job, never by a
+  // form -- paid by someone owed, the debtor's share carrying it.
+  INTEREST: 'INTEREST',
 } as const;
 
 export type SplitType = (typeof SplitType)[keyof typeof SplitType];

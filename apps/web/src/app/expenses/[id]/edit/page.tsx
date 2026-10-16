@@ -110,12 +110,19 @@ export default function EditExpensePage() {
   if (state.status === 'error') {
     return <ErrorState message={state.message} onRetry={load} minHeight="60vh" />;
   }
-  if (state.status === 'notFound' || state.data.expense.splitType === 'SETTLEMENT') {
-    const settlement = state.status === 'ready';
+  if (
+    state.status === 'notFound' ||
+    state.data.expense.splitType === 'SETTLEMENT' ||
+    state.data.expense.splitType === 'INTEREST'
+  ) {
+    const settlement = state.status === 'ready' && state.data.expense.splitType === 'SETTLEMENT';
+    const lateFee = state.status === 'ready' && state.data.expense.splitType === 'INTEREST';
     return shell(
       <>
         <button
-          onClick={() => router.push(settlement ? `/expenses/${params.id}` : '/activity')}
+          onClick={() =>
+            router.push(settlement || lateFee ? `/expenses/${params.id}` : '/activity')
+          }
           className="mb-4 flex items-center gap-1 text-[0.85rem] font-medium"
           style={{ color: 'var(--accent)' }}
         >
@@ -123,11 +130,19 @@ export default function EditExpensePage() {
         </button>
         <EmptyState
           icon={<Receipt size={26} strokeWidth={1.5} />}
-          title={settlement ? 'Settlements can’t be edited' : 'Expense not found'}
+          title={
+            settlement
+              ? 'Settlements can’t be edited'
+              : lateFee
+                ? 'Late fees can’t be edited'
+                : 'Expense not found'
+          }
           description={
             settlement
               ? 'A recorded settlement stays as it is. Delete it and record a new one instead.'
-              : "This expense doesn't exist, was deleted, or the link may be out of date."
+              : lateFee
+                ? 'The person owed or an admin can delete it to waive it.'
+                : "This expense doesn't exist, was deleted, or the link may be out of date."
           }
         />
       </>,

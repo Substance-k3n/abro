@@ -28,6 +28,8 @@ export const notificationTypes = [
   'EKUB_PAYMENT',
   // ADR-025: someone is covering a lot for their group; who pays next.
   'NEXT_PAYER',
+  // ADR-026: late fees turned on/off in a group, or one started on yours.
+  'LATE_FEE',
 ] as const;
 export type NotificationType = (typeof notificationTypes)[number];
 

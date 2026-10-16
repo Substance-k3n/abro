@@ -35,6 +35,13 @@ export interface AuthGroup {
   /** Minor units: once an expense leaves its payer covering this much,
    * the group is told who pays next; "0" = off (ADR-025). */
   nextPayerThreshold: string;
+  /** Late fees (ADR-026): basis points a day of the overdue amount (0 =
+   * off), days' grace, the most a debt grows by in basis points, and
+   * when they were turned on (older debt never gets one). */
+  interestRateBp: number;
+  interestGraceDays: number;
+  interestCapBp: number;
+  interestSince: string | null;
   createdById: string;
   createdAt: string;
   updatedAt: string;
@@ -113,6 +120,9 @@ export function updateGroup(
     simplifyDebts?: boolean;
     autoRemind?: boolean;
     nextPayerThreshold?: string;
+    interestRateBp?: number;
+    interestGraceDays?: number;
+    interestCapBp?: number;
   },
 ): Promise<AuthGroup> {
   return api.patch(`/groups/${id}`, patch);
@@ -165,4 +175,18 @@ export function groupTypeFor(type: string): GroupType & { tint: string } {
  * (Trip's `var(--c-amber)`). */
 export function tintOf(color: string): string {
   return `color-mix(in srgb, ${color} 13%, transparent)`;
+}
+
+/** Basis points as a percentage: 100 -> "1%", 250 -> "2.5%" (apps/api's
+ * groups.FormatBP). */
+export function formatBp(bp: number): string {
+  return `${Number((bp / 100).toFixed(2))}%`;
+}
+
+/** A group's late-fee rule in words, or null when off (ADR-026). */
+export function lateFeeTerms(g: AuthGroup): string | null {
+  if (g.interestRateBp <= 0) {
+    return null;
+  }
+  return `${formatBp(g.interestRateBp)} a day on debt unpaid after ${g.interestGraceDays} days, up to ${formatBp(g.interestCapBp)} of it`;
 }

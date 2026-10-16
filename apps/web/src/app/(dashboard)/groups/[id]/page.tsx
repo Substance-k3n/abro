@@ -22,6 +22,8 @@
 //  - "Whose turn to pay" card (ADR-025, not in the spec): the next three
 //    members who owe the group, most first, from apps/api's
 //    next-payers line. Hidden when nobody owes.
+//  - When late fees are on (ADR-026), the info card says so and on
+//    what terms, so nobody is surprised by one.
 
 import { ETB, abs, formatMoney } from '@abro/types';
 import { ActivityItem, EmptyState } from '@abro/ui';
@@ -42,7 +44,7 @@ import { useState } from 'react';
 import { type NextPayer, getNextPayers } from '~/lib/balances-api';
 import { type AuthExpense, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
 import { type GroupView, GroupViewLoader, PersonAvatar, nameIn } from '~/lib/group-view';
-import { groupTypeFor } from '~/lib/groups-api';
+import { groupTypeFor, lateFeeTerms } from '~/lib/groups-api';
 import { GroupPicture } from '~/components/GroupPicture';
 import { photoSrc } from '~/lib/photos';
 
@@ -149,6 +151,11 @@ function GroupDetail({
             {group.description && (
               <p className="mt-1 text-[0.78rem]" style={{ color: 'var(--t-muted)' }}>
                 {group.description}
+              </p>
+            )}
+            {lateFeeTerms(group) && (
+              <p className="mt-1 text-[0.75rem] font-medium" style={{ color: 'var(--c-amber)' }}>
+                ⏰ Late fees on: {lateFeeTerms(group)}.
               </p>
             )}
           </div>
