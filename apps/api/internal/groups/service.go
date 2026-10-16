@@ -185,6 +185,9 @@ func (s *Service) Update(ctx context.Context, userID, groupID pgtype.UUID, in ap
 	if in.AutoRemind != nil {
 		params.AutoRemind = pgtype.Bool{Bool: *in.AutoRemind, Valid: true}
 	}
+	if in.ParsedNextPayerThreshold != nil {
+		params.NextPayerThreshold = pgtype.Int8{Int64: *in.ParsedNextPayerThreshold, Valid: true}
+	}
 
 	updated, err := s.q.UpdateGroup(ctx, params)
 	if err != nil {

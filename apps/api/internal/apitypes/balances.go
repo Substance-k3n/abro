@@ -43,3 +43,18 @@ type BalancesSummary struct {
 	Friends []FriendBalance `json:"friends"`
 	Groups  []GroupBalance  `json:"groups"`
 }
+
+// NextPayers is GET /balances/groups/{id}/next-payers: who should pay the
+// group's next bill, in order (ADR-025).
+type NextPayers struct {
+	// Threshold is the group's next_payer_threshold ("0" = no
+	// notifications; the line is still shown).
+	Threshold string           `json:"threshold"`
+	Payers    []NextPayerEntry `json:"payers"`
+}
+
+type NextPayerEntry struct {
+	UserID     string     `json:"userId"`
+	Owes       string     `json:"owes"`
+	OwingSince *time.Time `json:"owingSince"`
+}

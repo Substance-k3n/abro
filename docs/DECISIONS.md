@@ -7,6 +7,44 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-025: Whose turn to pay -- a derived next-payer line per group
+
+**Status:** Accepted (user request, 2026-10-16).
+
+**Context:** A week of real use showed one friend paying every group
+bill while the others let their debt grow and never paid first. The
+user wanted the app to say who pays next once someone has covered
+"around 5,000", with a runner-up if that person doesn't come.
+
+**Decision (chosen with the user):**
+
+- **The line is derived, never stored:** the active members who owe the
+  group, the most first; on a tie, whoever has owed the longest
+  (`OwingSince`, ADR-023). `GET /balances/groups/{id}/next-payers`.
+  Whoever actually pays is credited like any payer, so the line
+  re-orders by itself -- the runner-up is just the next name -- and a
+  member who owes and pays the next bill pays off their debt with it.
+- **Notification, per-group limit:** `groups.next_payer_threshold`
+  (migration 0021, minor units, default 5,000.00, `0` = off), set by an
+  admin (`PATCH /groups/{id}`). When a new group expense takes its
+  payer's net across the limit, every active member gets a
+  `NEXT_PAYER` notification: "Abel is covering 6,000.00 ETB in
+  "Lunch". Next to pay: Kidus, then Sara, then Dawit." Only on
+  crossing, so it isn't repeated on every expense after; opt-out-able
+  like every type.
+- Wired as `expenses.GroupExpenseHook` (balances.NextPayerNotifier): it
+  can't fail the expense -- an error is logged.
+
+**Alternatives considered:** notifying after every expense (noisy);
+showing the line with no notification (the user wanted the nudge);
+a fixed rota (ignores who actually owes).
+
+**Consequences:** edits and deletes don't re-send it; recurring
+expenses do (they go through `expenses.Create`). Settlements don't
+(they aren't new spending). Late fees on debt left unpaid are ADR-026.
+
+---
+
 ## ADR-024: Ekub — rotating savings groups, with derived pairwise payments
 
 **Status:** Accepted (user request, 2026-10-10).

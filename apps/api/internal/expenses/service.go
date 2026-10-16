@@ -43,6 +43,7 @@ type Service struct {
 	friends       *friends.Service
 	notifications *notifications.Service
 	receiptStore  *storage.ReceiptStorage
+	afterGroup    GroupExpenseHook
 }
 
 func NewService(q db.Querier, groupsSvc *groups.Service, friendsSvc *friends.Service, notificationsSvc *notifications.Service, receiptStore *storage.ReceiptStorage) *Service {
@@ -57,6 +58,17 @@ type Expense struct {
 	PaidBy       db.Profile
 	Participants []db.ListExpenseParticipantsForExpenseIDsRow
 }
+
+// GroupExpenseHook runs after a new group expense is saved: telling the
+// group whose turn it is to pay (balances.NextPayerNotifier, ADR-025).
+// An interface because balances can't be imported here without a cycle
+// in its tests' setup, and so a hook can never fail the expense.
+type GroupExpenseHook interface {
+	AfterGroupExpense(ctx context.Context, groupID, payerID pgtype.UUID, amount, payerShare money.MinorUnits)
+}
+
+// SetGroupExpenseHook wires the hook in (cmd/api/main.go); none is fine.
+func (s *Service) SetGroupExpenseHook(h GroupExpenseHook) { s.afterGroup = h }
 
 type preparedWrite struct {
 	paidByID     pgtype.UUID
@@ -101,6 +113,16 @@ func (s *Service) Create(ctx context.Context, actorID pgtype.UUID, in apitypes.C
 		return fmt.Sprintf("%s added an expense: %q (%s).", actor, full.Name, money.Format(full.Amount, full.Currency))
 	}); err != nil {
 		return Expense{}, err
+	}
+
+	if groupID.Valid && s.afterGroup != nil {
+		var payerShare money.MinorUnits
+		for _, p := range prepared.participants {
+			if p.UserID == idutil.String(prepared.paidByID) {
+				payerShare = p.Amount
+			}
+		}
+		s.afterGroup.AfterGroupExpense(ctx, groupID, prepared.paidByID, full.Amount, payerShare)
 	}
 
 	return full, nil

@@ -3,6 +3,7 @@ package groups
 import (
 	"net/http"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -96,7 +97,7 @@ func (h *Handler) listInvites(w http.ResponseWriter, r *http.Request) error {
 		out[i] = apitypes.GroupInvite{
 			Group: toAuthGroupRow(db.Group{
 				ID: row.ID, Name: row.Name, Type: row.Type, Currency: row.Currency,
-				Description: row.Description, SimplifyDebts: row.SimplifyDebts, AutoRemind: row.AutoRemind,
+				Description: row.Description, SimplifyDebts: row.SimplifyDebts, AutoRemind: row.AutoRemind, NextPayerThreshold: row.NextPayerThreshold,
 				CreatedByID: row.CreatedByID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 			}),
 			InvitedAt: row.InvitedAt.Time,
@@ -255,7 +256,8 @@ func toAuthGroupRow(g db.Group) apitypes.AuthGroup {
 	out := apitypes.AuthGroup{
 		ID: idutil.String(g.ID), Name: g.Name, Type: string(g.Type), Currency: g.Currency,
 		SimplifyDebts: g.SimplifyDebts, AutoRemind: g.AutoRemind, CreatedByID: idutil.String(g.CreatedByID),
-		CreatedAt: g.CreatedAt.Time, UpdatedAt: g.UpdatedAt.Time, Members: []apitypes.GroupMember{},
+		NextPayerThreshold: strconv.FormatInt(g.NextPayerThreshold, 10),
+		CreatedAt:          g.CreatedAt.Time, UpdatedAt: g.UpdatedAt.Time, Members: []apitypes.GroupMember{},
 	}
 	if g.Description.Valid {
 		out.Description = &g.Description.String

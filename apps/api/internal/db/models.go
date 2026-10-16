@@ -584,19 +584,20 @@ type Friendship struct {
 }
 
 type Group struct {
-	ID            pgtype.UUID        `json:"id"`
-	Name          string             `json:"name"`
-	Type          GroupType          `json:"type"`
-	Currency      string             `json:"currency"`
-	Description   pgtype.Text        `json:"description"`
-	SimplifyDebts bool               `json:"simplify_debts"`
-	CreatedByID   pgtype.UUID        `json:"created_by_id"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	DeletedAt     pgtype.Timestamptz `json:"deleted_at"`
-	DeletedByID   pgtype.UUID        `json:"deleted_by_id"`
-	PhotoPath     pgtype.Text        `json:"photo_path"`
-	AutoRemind    bool               `json:"auto_remind"`
+	ID                 pgtype.UUID        `json:"id"`
+	Name               string             `json:"name"`
+	Type               GroupType          `json:"type"`
+	Currency           string             `json:"currency"`
+	Description        pgtype.Text        `json:"description"`
+	SimplifyDebts      bool               `json:"simplify_debts"`
+	CreatedByID        pgtype.UUID        `json:"created_by_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt          pgtype.Timestamptz `json:"deleted_at"`
+	DeletedByID        pgtype.UUID        `json:"deleted_by_id"`
+	PhotoPath          pgtype.Text        `json:"photo_path"`
+	AutoRemind         bool               `json:"auto_remind"`
+	NextPayerThreshold int64              `json:"next_payer_threshold"`
 }
 
 type GroupMember struct {
