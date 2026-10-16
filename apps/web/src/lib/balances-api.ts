@@ -197,3 +197,26 @@ export async function getSimplifiedPayments(groupId: string): Promise<Simplified
   );
   return rows.map((r) => ({ ...r, amount: BigInt(r.amount) }));
 }
+
+export interface NextPayer {
+  userId: string;
+  /** What they owe the group, positive. */
+  owes: bigint;
+  owingSince: string | null;
+}
+
+/** GET /balances/groups/{id}/next-payers: who should pay the group's
+ * next bill, in order -- most owed first, ties to whoever has owed
+ * longest (ADR-025). threshold is the group's notification limit. */
+export async function getNextPayers(
+  groupId: string,
+): Promise<{ threshold: bigint; payers: NextPayer[] }> {
+  const res: {
+    threshold: string;
+    payers: { userId: string; owes: string; owingSince: string | null }[];
+  } = await api.get(`/balances/groups/${groupId}/next-payers`);
+  return {
+    threshold: BigInt(res.threshold),
+    payers: res.payers.map((p) => ({ ...p, owes: BigInt(p.owes) })),
+  };
+}

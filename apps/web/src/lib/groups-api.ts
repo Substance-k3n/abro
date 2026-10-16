@@ -32,6 +32,9 @@ export interface AuthGroup {
   simplifyDebts: boolean;
   /** Overdue members get automatic reminders (ADR-023). Admins switch it. */
   autoRemind: boolean;
+  /** Minor units: once an expense leaves its payer covering this much,
+   * the group is told who pays next; "0" = off (ADR-025). */
+  nextPayerThreshold: string;
   createdById: string;
   createdAt: string;
   updatedAt: string;
@@ -109,6 +112,7 @@ export function updateGroup(
     description?: string;
     simplifyDebts?: boolean;
     autoRemind?: boolean;
+    nextPayerThreshold?: string;
   },
 ): Promise<AuthGroup> {
   return api.patch(`/groups/${id}`, patch);

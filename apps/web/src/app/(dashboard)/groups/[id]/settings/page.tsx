@@ -27,14 +27,17 @@
 //    form's Save. Everyone sees it on the group's pages.
 //  - "Automatic reminders" (ADR-023): admins switch the daily job's
 //    reminders to overdue members, saved with the form.
+//  - "Whose turn to pay" (ADR-025): admins set the amount someone has to
+//    be covering before the group is told who pays next; off sends 0.
 
-import { ETB, abs, formatMoney } from '@abro/types';
+import { ETB, abs, formatMoney, toDecimal } from '@abro/types';
 import { ArrowLeft, LogOut, Trash2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
 
 import { PhotoPicker } from '~/components/PhotoPicker';
 import { ApiError } from '~/lib/api-client';
+import { parseAmount } from '~/lib/expense-split';
 import { listExpenses } from '~/lib/expenses-api';
 import { type GroupView, GroupViewLoader } from '~/lib/group-view';
 import { deleteGroup, groupTypeFor, removeGroupMember, updateGroup } from '~/lib/groups-api';
@@ -43,6 +46,8 @@ import { photoSrc, removeGroupPhoto, uploadGroupPhoto } from '~/lib/photos';
 import { GROUP_TYPES } from '~/lib/reference-data';
 
 const CURRENCIES = ['ETB', 'USD', 'EUR'];
+/** 5,000.00 -- apps/api's default next_payer_threshold (ADR-025). */
+const DEFAULT_NEXT_PAYER = 500000n;
 
 export default function GroupSettingsPage() {
   const params = useParams<{ id: string }>();
@@ -81,6 +86,13 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
   const [currency, setCurrency] = useState(group.currency);
   const [simplify, setSimplify] = useState(group.simplifyDebts);
   const [autoRemind, setAutoRemind] = useState(group.autoRemind);
+  const savedThreshold = BigInt(group.nextPayerThreshold);
+  const [nextPayerOn, setNextPayerOn] = useState(savedThreshold > 0n);
+  const [nextPayerAmount, setNextPayerAmount] = useState(
+    String(toDecimal(savedThreshold > 0n ? savedThreshold : DEFAULT_NEXT_PAYER, ETB.decimalDigits)),
+  );
+  const threshold = nextPayerOn ? parseAmount(nextPayerAmount) : 0n;
+  const thresholdInvalid = nextPayerOn && threshold <= 0n;
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -95,7 +107,8 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
     type.toUpperCase() !== group.type ||
     currency !== group.currency ||
     simplify !== group.simplifyDebts ||
-    autoRemind !== group.autoRemind;
+    autoRemind !== group.autoRemind ||
+    threshold !== savedThreshold;
 
   const save = async () => {
     setSaving(true);
@@ -108,6 +121,7 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
         ...(currency !== group.currency ? { currency } : {}),
         simplifyDebts: simplify,
         autoRemind,
+        nextPayerThreshold: threshold.toString(),
       });
       setGroup({ ...updated, members: group.members }); // PATCH returns members: []
       setSaved(true);
@@ -302,6 +316,48 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
               <span className="neo-toggle-thumb" />
             </button>
           </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.85rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
+                  Whose turn to pay
+                </p>
+                <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+                  When someone is covering this much for the group, tell everyone who pays next.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNextPayerOn((v) => !v)}
+                className={`neo-toggle shrink-0 ${nextPayerOn ? 'on' : ''}`}
+                aria-pressed={nextPayerOn}
+                aria-label="Whose turn to pay"
+              >
+                <span className="neo-toggle-thumb" />
+              </button>
+            </div>
+            {nextPayerOn && (
+              <div className="flex items-center gap-2">
+                <input
+                  className="neo-input flex-1 font-mono"
+                  inputMode="decimal"
+                  aria-label="Amount covered before telling the group"
+                  value={nextPayerAmount}
+                  onChange={(e) => setNextPayerAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                  style={{ color: 'var(--t-primary)' }}
+                />
+                <span className="font-mono text-[0.8rem]" style={{ color: 'var(--t-muted)' }}>
+                  {group.currency}
+                </span>
+              </div>
+            )}
+            {thresholdInvalid && (
+              <p className="pl-1 text-[0.72rem]" style={{ color: 'var(--c-red)' }}>
+                Enter an amount above 0, or turn it off.
+              </p>
+            )}
+          </div>
         </Section>
       </fieldset>
 
@@ -318,7 +374,7 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
           )}
           <button
             onClick={save}
-            disabled={!dirty || !name.trim() || saving}
+            disabled={!dirty || !name.trim() || thresholdInvalid || saving}
             className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving ? 'Saving…' : saved && !dirty ? 'Saved ✓' : 'Save Changes'}
