@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -188,6 +190,15 @@ func (s *Service) Update(ctx context.Context, userID, groupID pgtype.UUID, in ap
 	if in.ParsedNextPayerThreshold != nil {
 		params.NextPayerThreshold = pgtype.Int8{Int64: *in.ParsedNextPayerThreshold, Valid: true}
 	}
+	if in.InterestRateBP != nil {
+		params.InterestRateBp = pgtype.Int4{Int32: *in.InterestRateBP, Valid: true}
+	}
+	if in.InterestGraceDays != nil {
+		params.InterestGraceDays = pgtype.Int4{Int32: *in.InterestGraceDays, Valid: true}
+	}
+	if in.InterestCapBP != nil {
+		params.InterestCapBp = pgtype.Int4{Int32: *in.InterestCapBP, Valid: true}
+	}
 
 	updated, err := s.q.UpdateGroup(ctx, params)
 	if err != nil {
@@ -213,7 +224,52 @@ func (s *Service) Update(ctx context.Context, userID, groupID pgtype.UUID, in ap
 		}
 	}
 
+	if err := s.notifyLateFeeChange(ctx, userID, before, updated); err != nil {
+		return db.Group{}, err
+	}
+
 	return updated, nil
+}
+
+// notifyLateFeeChange tells every other member when an admin turns late
+// fees on or off or changes them (ADR-026): it's their money.
+func (s *Service) notifyLateFeeChange(ctx context.Context, actorID pgtype.UUID, before, after db.Group) error {
+	if before.InterestRateBp == after.InterestRateBp && before.InterestGraceDays == after.InterestGraceDays &&
+		before.InterestCapBp == after.InterestCapBp {
+		return nil
+	}
+	if before.InterestRateBp == 0 && after.InterestRateBp == 0 {
+		return nil // only the dormant grace/cap changed
+	}
+	var body string
+	switch {
+	case after.InterestRateBp == 0:
+		body = fmt.Sprintf("Late fees are now off in %q. Fees already added stay unless deleted.", after.Name)
+	case before.InterestRateBp == 0:
+		body = fmt.Sprintf("Late fees are now on in %q: %s. Only debt added from today counts.", after.Name, LateFeeTerms(after))
+	default:
+		body = fmt.Sprintf("Late fees changed in %q: %s.", after.Name, LateFeeTerms(after))
+	}
+	others, err := s.q.ListActiveMemberIDsExcept(ctx, db.ListActiveMemberIDsExceptParams{GroupID: after.ID, UserID: actorID})
+	if err != nil {
+		return err
+	}
+	return s.notifications.NotifyManyLink(ctx, others, notifications.TypeLateFee,
+		"Late fees", body, "/groups/"+idutil.String(after.ID))
+}
+
+// LateFeeTerms is a group's late-fee rule in words: "1% a day on debt
+// unpaid after 7 days, up to 20% of it".
+func LateFeeTerms(g db.Group) string {
+	return fmt.Sprintf("%s a day on debt unpaid after %d days, up to %s of it",
+		FormatBP(g.InterestRateBp), g.InterestGraceDays, FormatBP(g.InterestCapBp))
+}
+
+// FormatBP is basis points as a percentage: 100 -> "1%", 250 -> "2.5%".
+func FormatBP(bp int32) string {
+	s := strconv.FormatFloat(float64(bp)/100, 'f', 2, 64)
+	s = strings.TrimRight(strings.TrimRight(s, "0"), ".")
+	return s + "%"
 }
 
 func (s *Service) AddMember(ctx context.Context, actorID, groupID, targetUserID pgtype.UUID) (db.GroupMember, error) {

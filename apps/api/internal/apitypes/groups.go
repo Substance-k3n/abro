@@ -56,7 +56,20 @@ type UpdateGroupInput struct {
 	// notification off (ADR-025).
 	NextPayerThreshold       *string `json:"nextPayerThreshold"`
 	ParsedNextPayerThreshold *int64  `json:"-"`
+	// Late fees (ADR-026): a day's fee in basis points of the overdue
+	// amount (0 = off), the days' grace, and the most a debt can grow by.
+	InterestRateBP    *int32 `json:"interestRateBp"`
+	InterestGraceDays *int32 `json:"interestGraceDays"`
+	InterestCapBP     *int32 `json:"interestCapBp"`
 }
+
+// Late-fee limits, matching migration 0022's checks.
+const (
+	MaxInterestRateBP    = 500
+	MaxInterestGraceDays = 60
+	MinInterestCapBP     = 100
+	MaxInterestCapBP     = 10000
+)
 
 func (in *UpdateGroupInput) Validate() error {
 	if in.Name != nil {
@@ -81,6 +94,15 @@ func (in *UpdateGroupInput) Validate() error {
 			return httpx.BadRequest("VALIDATION_ERROR", "nextPayerThreshold must be a non-negative amount in minor units")
 		}
 		in.ParsedNextPayerThreshold = &parsed
+	}
+	if in.InterestRateBP != nil && (*in.InterestRateBP < 0 || *in.InterestRateBP > MaxInterestRateBP) {
+		return httpx.BadRequest("VALIDATION_ERROR", "the late fee must be between 0% and 5% a day")
+	}
+	if in.InterestGraceDays != nil && (*in.InterestGraceDays < 0 || *in.InterestGraceDays > MaxInterestGraceDays) {
+		return httpx.BadRequest("VALIDATION_ERROR", "the grace period must be 0 to 60 days")
+	}
+	if in.InterestCapBP != nil && (*in.InterestCapBP < MinInterestCapBP || *in.InterestCapBP > MaxInterestCapBP) {
+		return httpx.BadRequest("VALIDATION_ERROR", "the most a debt can grow by must be between 1% and 100%")
 	}
 	return nil
 }
@@ -130,11 +152,18 @@ type AuthGroup struct {
 	// NextPayerThreshold: when an expense leaves its payer covering at
 	// least this much, the group is told who pays next; "0" is off
 	// (ADR-025). Minor units, as a string like every amount.
-	NextPayerThreshold string        `json:"nextPayerThreshold"`
-	CreatedByID        string        `json:"createdById"`
-	CreatedAt          time.Time     `json:"createdAt"`
-	UpdatedAt          time.Time     `json:"updatedAt"`
-	Members            []GroupMember `json:"members"`
+	NextPayerThreshold string `json:"nextPayerThreshold"`
+	// Late fees (ADR-026): basis points a day of the overdue amount (0 =
+	// off), days' grace, the most a debt grows by in basis points, and
+	// when they were turned on (debt from before never gets one).
+	InterestRateBP    int32         `json:"interestRateBp"`
+	InterestGraceDays int32         `json:"interestGraceDays"`
+	InterestCapBP     int32         `json:"interestCapBp"`
+	InterestSince     *time.Time    `json:"interestSince"`
+	CreatedByID       string        `json:"createdById"`
+	CreatedAt         time.Time     `json:"createdAt"`
+	UpdatedAt         time.Time     `json:"updatedAt"`
+	Members           []GroupMember `json:"members"`
 }
 
 // GroupListItem is GET /groups/'s element shape: an AuthGroup (members

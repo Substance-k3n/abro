@@ -50,6 +50,9 @@ const (
 	// TypeNextPayer: someone is covering a lot for their group; who
 	// should pay next (ADR-025).
 	TypeNextPayer Type = "NEXT_PAYER"
+	// TypeLateFee: late fees turned on/off in a group, or one started on
+	// your debt (ADR-026).
+	TypeLateFee Type = "LATE_FEE"
 )
 
 // AllTypes is every Type, in the order SET-02 lists them. A user can
@@ -59,7 +62,7 @@ var AllTypes = []Type{
 	TypeGroupInvitation, TypeGroupMembershipChange, TypeRecurringExpense,
 	TypeDebtSimplificationChange, TypePaymentReminder,
 	TypeFriendRequest, TypeFriendAccepted, TypeExpenseDisputed,
-	TypeEkubInvitation, TypeEkubPayment, TypeNextPayer,
+	TypeEkubInvitation, TypeEkubPayment, TypeNextPayer, TypeLateFee,
 }
 
 func isKnownType(t string) bool {

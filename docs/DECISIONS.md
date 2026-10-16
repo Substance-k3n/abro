@@ -7,6 +7,60 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-026: Late fees on group debt -- opt-in, simple daily interest, capped
+
+**Status:** Accepted (user request, 2026-10-16).
+
+**Context:** With the next-payer line (ADR-025) people still had no
+reason to pay on time. The user asked for an optional fee: if a debt
+isn't paid within a week, a percentage is added day by day -- and it
+must still work for someone already in debt to everyone, whose payment
+should clear it.
+
+**Decision (chosen with the user):**
+
+- **Off by default; a group admin turns it on** (`PATCH /groups/{id}`
+  `interestRateBp`, `interestGraceDays`, `interestCapBp`; migration
+  0022). Rate in basis points a day (0.01%-5%), grace 0-60 days
+  (default 7), cap 1%-100% of the debt (default 20%). Every other
+  member is told (`LATE_FEE` notification) when it's turned on, off or
+  changed.
+- **Only new debt:** turning it on stamps `groups.interest_since`; debt
+  added before then never gets a fee. Turning it off clears it.
+- **Simple interest on the overdue part, capped per debt:** each
+  member's debt is split into unpaid parts, oldest paid first (FIFO,
+  as for debt age, ADR-023; `money.UnpaidParts`). A part past its grace
+  period adds rate x what's left of it each day, until it has added the
+  cap (`money.LateFeeToday`). Fees are left out of the parts, so a fee
+  never earns a fee. Paying anything -- a settlement, or the next bill
+  -- pays the oldest debt first and so stops its fee at once. Never
+  more in a day than the member owes the group.
+- **Fees are facts:** the daily run (10:00 Addis Ababa, with the
+  reminders, ADR-023) writes one `INTEREST` expense per person owed,
+  paid by them, the debtor's share carrying it, split by how much each
+  is owed. Balances stay derived. `late_fee_days` marks who was charged
+  which day, so a restart never charges twice. A fee can't be edited;
+  the payer or an admin deletes it to waive it. Analytics leave fees out
+  of spending, like settlements.
+- The debtor is told (`LATE_FEE`) when a run of fees starts, not every
+  day.
+
+**Alternatives considered:** fees derived on the fly (they'd change or
+vanish when an old expense is edited); compounding (unfair, and grows
+fast); a per-expense switch by the payer (confusing; the user chose a
+group setting); a weekly flat fee.
+
+**Consequences:**
+
+- A day the API is down isn't charged later.
+- A part partly paid is charged on what's left, and its cap counts
+  days, so it can end up below the full cap in money -- in the
+  debtor's favour.
+- The INTEREST split type can't be dropped from Postgres's enum; the
+  down migration rewrites fees as EXACT expenses (same balances).
+
+---
+
 ## ADR-025: Whose turn to pay -- a derived next-payer line per group
 
 **Status:** Accepted (user request, 2026-10-16).

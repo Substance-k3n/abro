@@ -23,6 +23,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/groups"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idempotency"
+	"github.com/Substance-k3n/abro/apps/api/internal/latefees"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 	"github.com/Substance-k3n/abro/apps/api/internal/photos"
 	"github.com/Substance-k3n/abro/apps/api/internal/push"
@@ -120,7 +121,9 @@ func main() {
 	// daily automatic reminders, sent from this process.
 	remindersSvc := reminders.NewService(queries, friendsSvc, balancesSvc, notificationsSvc)
 	remindersHandler := reminders.NewHandler(remindersSvc, queries)
-	go remindersSvc.RunDaily(ctx)
+	// Late fees (ADR-026) are charged in the same daily run.
+	lateFeesSvc := latefees.NewService(queries, balancesSvc, notificationsSvc)
+	go remindersSvc.RunDaily(ctx, lateFeesSvc.ChargeDue)
 
 	// Ekub, the rotating savings group (ADR-024).
 	ekubsHandler := ekubs.NewHandler(ekubs.NewService(queries, friendsSvc, notificationsSvc), queries)

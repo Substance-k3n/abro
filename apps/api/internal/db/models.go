@@ -449,6 +449,7 @@ const (
 	SplitTypePERCENTAGE SplitType = "PERCENTAGE"
 	SplitTypeSHARES     SplitType = "SHARES"
 	SplitTypeSETTLEMENT SplitType = "SETTLEMENT"
+	SplitTypeINTEREST   SplitType = "INTEREST"
 )
 
 func (e *SplitType) Scan(src interface{}) error {
@@ -598,6 +599,10 @@ type Group struct {
 	PhotoPath          pgtype.Text        `json:"photo_path"`
 	AutoRemind         bool               `json:"auto_remind"`
 	NextPayerThreshold int64              `json:"next_payer_threshold"`
+	InterestRateBp     int32              `json:"interest_rate_bp"`
+	InterestGraceDays  int32              `json:"interest_grace_days"`
+	InterestCapBp      int32              `json:"interest_cap_bp"`
+	InterestSince      pgtype.Timestamptz `json:"interest_since"`
 }
 
 type GroupMember struct {
@@ -615,6 +620,13 @@ type IdempotencyKey struct {
 	Key       string             `json:"key"`
 	Endpoint  string             `json:"endpoint"`
 	Response  []byte             `json:"response"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type LateFeeDay struct {
+	GroupID   pgtype.UUID        `json:"group_id"`
+	DebtorID  pgtype.UUID        `json:"debtor_id"`
+	Day       pgtype.Date        `json:"day"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 

@@ -71,3 +71,29 @@ func (s *Service) GroupOwingSince(ctx context.Context, groupID pgtype.UUID) (map
 	}
 	return out, nil
 }
+
+// GroupPrincipalMovements is each member's movements in a group (as in
+// GroupOwingSince) leaving late fees out, keyed like NetPosition.UserID:
+// what late fees are charged on, so a fee never earns a fee (ADR-026).
+func (s *Service) GroupPrincipalMovements(ctx context.Context, groupID pgtype.UUID) (map[string][]money.Movement, error) {
+	rows, err := s.q.ListGroupShareRows(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	out := map[string][]money.Movement{}
+	var lastExpense pgtype.UUID
+	for _, r := range rows {
+		if r.SplitType == db.SplitTypeINTEREST {
+			continue
+		}
+		at := r.CreatedAt.Time
+		if r.ExpenseID != lastExpense {
+			lastExpense = r.ExpenseID
+			payer := idutil.String(r.PaidByID)
+			out[payer] = append(out[payer], money.Movement{At: at, Amount: -r.ExpenseAmount})
+		}
+		user := idutil.String(r.UserID)
+		out[user] = append(out[user], money.Movement{At: at, Amount: r.Share})
+	}
+	return out, nil
+}

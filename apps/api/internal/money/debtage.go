@@ -18,14 +18,23 @@ type Movement struct {
 //
 // movements must be in the order they happened.
 func OwingSince(movements []Movement) (since time.Time, ok bool) {
-	// Unpaid parts of the balance, oldest first. They all share the
-	// balance's sign; a payment bigger than the whole balance flips it,
-	// and the leftover starts a new part.
-	type part struct {
-		at     time.Time
-		amount MinorUnits
+	parts := UnpaidParts(movements)
+	if len(parts) == 0 {
+		return time.Time{}, false
 	}
-	var parts []part
+	return parts[0].At, true
+}
+
+// UnpaidParts is what's left of a positive balance, oldest first: each
+// part is when it was added and how much of it is still unpaid, with
+// payments paying off the oldest first (ADR-023). Empty when the
+// balance isn't positive. Late fees are charged on these (ADR-026).
+//
+// movements must be in the order they happened.
+func UnpaidParts(movements []Movement) []Movement {
+	// They all share the balance's sign; a payment bigger than the whole
+	// balance flips it, and the leftover starts a new part.
+	var parts []Movement
 	var balance MinorUnits
 
 	for _, m := range movements {
@@ -33,27 +42,27 @@ func OwingSince(movements []Movement) (since time.Time, ok bool) {
 			continue
 		}
 		if balance == 0 || (balance > 0) == (m.Amount > 0) {
-			parts = append(parts, part{at: m.At, amount: Abs(m.Amount)})
+			parts = append(parts, Movement{At: m.At, Amount: Abs(m.Amount)})
 			balance += m.Amount
 			continue
 		}
 		left := Abs(m.Amount)
 		for len(parts) > 0 && left > 0 {
-			paid := min(left, parts[0].amount)
-			parts[0].amount -= paid
+			paid := min(left, parts[0].Amount)
+			parts[0].Amount -= paid
 			left -= paid
-			if parts[0].amount == 0 {
+			if parts[0].Amount == 0 {
 				parts = parts[1:]
 			}
 		}
 		balance += m.Amount
 		if left > 0 {
-			parts = []part{{at: m.At, amount: left}}
+			parts = []Movement{{At: m.At, Amount: left}}
 		}
 	}
 
-	if balance <= 0 || len(parts) == 0 {
-		return time.Time{}, false
+	if balance <= 0 {
+		return nil
 	}
-	return parts[0].at, true
+	return parts
 }

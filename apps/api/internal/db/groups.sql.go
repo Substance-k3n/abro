@@ -31,7 +31,7 @@ func (q *Queries) CountActiveAdminsExcept(ctx context.Context, arg CountActiveAd
 const createGroup = `-- name: CreateGroup :one
 INSERT INTO groups (name, type, currency, description, simplify_debts, created_by_id)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold
+RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold, interest_rate_bp, interest_grace_days, interest_cap_bp, interest_since
 `
 
 type CreateGroupParams struct {
@@ -68,6 +68,10 @@ func (q *Queries) CreateGroup(ctx context.Context, arg CreateGroupParams) (Group
 		&i.PhotoPath,
 		&i.AutoRemind,
 		&i.NextPayerThreshold,
+		&i.InterestRateBp,
+		&i.InterestGraceDays,
+		&i.InterestCapBp,
+		&i.InterestSince,
 	)
 	return i, err
 }
@@ -105,7 +109,7 @@ func (q *Queries) CreateGroupMember(ctx context.Context, arg CreateGroupMemberPa
 }
 
 const getGroupByID = `-- name: GetGroupByID :one
-SELECT id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold FROM groups WHERE id = $1 AND deleted_at IS NULL
+SELECT id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold, interest_rate_bp, interest_grace_days, interest_cap_bp, interest_since FROM groups WHERE id = $1 AND deleted_at IS NULL
 `
 
 // A deleted group reads as not found (0011_group_soft_delete).
@@ -127,6 +131,10 @@ func (q *Queries) GetGroupByID(ctx context.Context, id pgtype.UUID) (Group, erro
 		&i.PhotoPath,
 		&i.AutoRemind,
 		&i.NextPayerThreshold,
+		&i.InterestRateBp,
+		&i.InterestGraceDays,
+		&i.InterestCapBp,
+		&i.InterestSince,
 	)
 	return i, err
 }
@@ -260,7 +268,7 @@ func (q *Queries) ListGroupMembersWithProfiles(ctx context.Context, groupID pgty
 }
 
 const listMyActiveGroups = `-- name: ListMyActiveGroups :many
-SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind, g.next_payer_threshold FROM groups g
+SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind, g.next_payer_threshold, g.interest_rate_bp, g.interest_grace_days, g.interest_cap_bp, g.interest_since FROM groups g
 JOIN group_members gm ON gm.group_id = g.id
 WHERE gm.user_id = $1 AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
 ORDER BY g.created_at DESC
@@ -290,6 +298,10 @@ func (q *Queries) ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([
 			&i.PhotoPath,
 			&i.AutoRemind,
 			&i.NextPayerThreshold,
+			&i.InterestRateBp,
+			&i.InterestGraceDays,
+			&i.InterestCapBp,
+			&i.InterestSince,
 		); err != nil {
 			return nil, err
 		}
@@ -302,7 +314,7 @@ func (q *Queries) ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([
 }
 
 const listMyActiveGroupsWithStats = `-- name: ListMyActiveGroupsWithStats :many
-SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind, g.next_payer_threshold,
+SELECT g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind, g.next_payer_threshold, g.interest_rate_bp, g.interest_grace_days, g.interest_cap_bp, g.interest_since,
        (SELECT count(*) FROM group_members m
         WHERE m.group_id = g.id AND m.status = 'ACTIVE')::int AS member_count,
        COALESCE((SELECT max(e.created_at) FROM expenses e
@@ -351,6 +363,10 @@ func (q *Queries) ListMyActiveGroupsWithStats(ctx context.Context, userID pgtype
 			&i.Group.PhotoPath,
 			&i.Group.AutoRemind,
 			&i.Group.NextPayerThreshold,
+			&i.Group.InterestRateBp,
+			&i.Group.InterestGraceDays,
+			&i.Group.InterestCapBp,
+			&i.Group.InterestSince,
 			&i.MemberCount,
 			&i.LastActivityAt,
 		); err != nil {
@@ -365,7 +381,7 @@ func (q *Queries) ListMyActiveGroupsWithStats(ctx context.Context, userID pgtype
 }
 
 const listMyInvites = `-- name: ListMyInvites :many
-SELECT gm.joined_at AS invited_at, g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind, g.next_payer_threshold
+SELECT gm.joined_at AS invited_at, g.id, g.name, g.type, g.currency, g.description, g.simplify_debts, g.created_by_id, g.created_at, g.updated_at, g.deleted_at, g.deleted_by_id, g.photo_path, g.auto_remind, g.next_payer_threshold, g.interest_rate_bp, g.interest_grace_days, g.interest_cap_bp, g.interest_since
 FROM group_members gm
 JOIN groups g ON g.id = gm.group_id
 WHERE gm.user_id = $1 AND gm.status = 'INVITED' AND g.deleted_at IS NULL
@@ -388,6 +404,10 @@ type ListMyInvitesRow struct {
 	PhotoPath          pgtype.Text        `json:"photo_path"`
 	AutoRemind         bool               `json:"auto_remind"`
 	NextPayerThreshold int64              `json:"next_payer_threshold"`
+	InterestRateBp     int32              `json:"interest_rate_bp"`
+	InterestGraceDays  int32              `json:"interest_grace_days"`
+	InterestCapBp      int32              `json:"interest_cap_bp"`
+	InterestSince      pgtype.Timestamptz `json:"interest_since"`
 }
 
 func (q *Queries) ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]ListMyInvitesRow, error) {
@@ -415,6 +435,10 @@ func (q *Queries) ListMyInvites(ctx context.Context, userID pgtype.UUID) ([]List
 			&i.PhotoPath,
 			&i.AutoRemind,
 			&i.NextPayerThreshold,
+			&i.InterestRateBp,
+			&i.InterestGraceDays,
+			&i.InterestCapBp,
+			&i.InterestSince,
 		); err != nil {
 			return nil, err
 		}
@@ -499,9 +523,21 @@ SET name = COALESCE($1, name),
     simplify_debts = COALESCE($5, simplify_debts),
     auto_remind = COALESCE($6, auto_remind),
     next_payer_threshold = COALESCE($7, next_payer_threshold),
+    -- Late fees (ADR-026): turning them on stamps when, so older debt is
+    -- never charged; turning them off clears it. Changing the rate while
+    -- on keeps it. (The right-hand side sees the row as it was.)
+    interest_since = CASE
+        WHEN $8::int IS NULL THEN interest_since
+        WHEN $8::int = 0 THEN NULL
+        WHEN interest_rate_bp = 0 THEN now()
+        ELSE interest_since
+    END,
+    interest_rate_bp = COALESCE($8::int, interest_rate_bp),
+    interest_grace_days = COALESCE($9, interest_grace_days),
+    interest_cap_bp = COALESCE($10, interest_cap_bp),
     updated_at = now()
-WHERE id = $8
-RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold
+WHERE id = $11
+RETURNING id, name, type, currency, description, simplify_debts, created_by_id, created_at, updated_at, deleted_at, deleted_by_id, photo_path, auto_remind, next_payer_threshold, interest_rate_bp, interest_grace_days, interest_cap_bp, interest_since
 `
 
 type UpdateGroupParams struct {
@@ -512,6 +548,9 @@ type UpdateGroupParams struct {
 	SimplifyDebts      pgtype.Bool   `json:"simplify_debts"`
 	AutoRemind         pgtype.Bool   `json:"auto_remind"`
 	NextPayerThreshold pgtype.Int8   `json:"next_payer_threshold"`
+	InterestRateBp     pgtype.Int4   `json:"interest_rate_bp"`
+	InterestGraceDays  pgtype.Int4   `json:"interest_grace_days"`
+	InterestCapBp      pgtype.Int4   `json:"interest_cap_bp"`
 	ID                 pgtype.UUID   `json:"id"`
 }
 
@@ -524,6 +563,9 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group
 		arg.SimplifyDebts,
 		arg.AutoRemind,
 		arg.NextPayerThreshold,
+		arg.InterestRateBp,
+		arg.InterestGraceDays,
+		arg.InterestCapBp,
 		arg.ID,
 	)
 	var i Group
@@ -542,6 +584,10 @@ func (q *Queries) UpdateGroup(ctx context.Context, arg UpdateGroupParams) (Group
 		&i.PhotoPath,
 		&i.AutoRemind,
 		&i.NextPayerThreshold,
+		&i.InterestRateBp,
+		&i.InterestGraceDays,
+		&i.InterestCapBp,
+		&i.InterestSince,
 	)
 	return i, err
 }
