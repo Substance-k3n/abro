@@ -193,7 +193,7 @@ function GroupDetail({
       )}
 
       {/* Quick actions */}
-      <div className={`mb-5 grid gap-2.5 ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
+      <div className="mb-5 grid grid-cols-4 gap-2.5">
         <Link
           href={`/expenses/new?groupId=${group.id}`}
           className="neo-btn-accent flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
@@ -230,16 +230,14 @@ function GroupDetail({
           <Split size={18} strokeWidth={2} />
           <span className="text-[0.68rem] font-medium">Simplify</span>
         </Link>
-        {isAdmin && (
-          <Link
-            href={`/groups/${group.id}/admin`}
-            className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
-            style={{ color: 'var(--t-secondary)' }}
-          >
-            <LayoutDashboard size={18} strokeWidth={2} />
-            <span className="text-[0.68rem] font-medium">Dashboard</span>
-          </Link>
-        )}
+        <Link
+          href={`/groups/${group.id}/admin`}
+          className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
+          style={{ color: 'var(--t-secondary)' }}
+        >
+          <LayoutDashboard size={18} strokeWidth={2} />
+          <span className="text-[0.68rem] font-medium">Dashboard</span>
+        </Link>
       </div>
 
       {/* Tabs */}

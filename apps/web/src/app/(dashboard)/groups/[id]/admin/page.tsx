@@ -1,35 +1,25 @@
 'use client';
 
 // Group admin dashboard (roadmap P6; no ABRO_FRONTEND_SPEC.md screen).
-// One page for a group's admins:
-//  - Health: who owes the group (most first) with a Remind button
+// Open to every active member, read-only for members (user decision
+// 2026-10-16: "everyone should experience that"). Only admins get the
+// action buttons; apps/api still refuses them for anyone else.
+//  - Health: who owes the group (most first) with an admin Remind button
 //    (ADR-018: once per member per group every 24 hours) and an
 //    "Overdue" tag past 30 days, whose automatic reminders show as
 //    "Auto-reminded" (ADR-023); who is owed; the suggested payments.
-//  - Pending invites: resend (once every 24 hours) or cancel.
+//  - Pending invites: admins resend (once every 24 hours) or cancel.
 //  - Spending: totals, what each person paid vs. their share, spending
 //    by category, and the last six months.
 //
 // Nets and suggested payments are the same derived values every group
 // screen uses (~/lib/group-view.tsx, GET /balances/groups/{id}); the
 // spending figures are GET /analytics/groups/{id}, where settlements
-// count only as "settled", never as spending. Members who aren't admins
-// get a short "admins only" note -- the role/remove controls stay on
-// Members and Settings, linked from the header.
+// count only as "settled", never as spending. The role/remove controls
+// stay on Members and Settings, linked from the header.
 
 import { ETB, abs, formatMoney } from '@abro/types';
-import { EmptyState } from '@abro/ui';
-import {
-  ArrowLeft,
-  BellRing,
-  CheckCircle2,
-  Clock,
-  Send,
-  Settings,
-  ShieldCheck,
-  Users,
-  X,
-} from 'lucide-react';
+import { ArrowLeft, BellRing, CheckCircle2, Clock, Send, Settings, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
@@ -64,8 +54,8 @@ export default function GroupAdminPage() {
   // remounts Dashboard, and its "Reminder sent" line must survive that.
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Reminders are admins-only (403 otherwise); a member still gets the
-  // page shell and the "admins only" note rather than "Group not found".
+  // Reminders are admins-only (403 otherwise); a member sees the
+  // dashboard without them rather than "Group not found".
   const load = async () => {
     const [stats, payments, reminders] = await Promise.all([
       getGroupStats(params.id),
@@ -83,7 +73,7 @@ export default function GroupAdminPage() {
   return (
     <GroupViewLoader groupId={params.id} extra={load}>
       {(view, reload) =>
-        view.myMembership.role === 'ADMIN' && data.stats ? (
+        data.stats ? (
           <Dashboard
             view={view}
             data={{ ...data, stats: data.stats }}
@@ -91,9 +81,7 @@ export default function GroupAdminPage() {
             notice={notice}
             setNotice={setNotice}
           />
-        ) : (
-          <NotAdmin view={view} />
-        )
+        ) : null
       }
     </GroupViewLoader>
   );
@@ -116,7 +104,7 @@ function Header({ view }: { view: GroupView }) {
         className="font-display shrink-0 px-2 text-[1.05rem] font-bold"
         style={{ color: 'var(--t-primary)' }}
       >
-        Admin dashboard
+        {view.myMembership.role === 'ADMIN' ? 'Admin dashboard' : 'Dashboard'}
       </h2>
       <div className="flex shrink-0 gap-2">
         <Link
@@ -138,19 +126,6 @@ function Header({ view }: { view: GroupView }) {
   );
 }
 
-function NotAdmin({ view }: { view: GroupView }) {
-  return (
-    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
-      <Header view={view} />
-      <EmptyState
-        icon={<ShieldCheck size={26} strokeWidth={1.5} />}
-        title="For group admins"
-        description="Only this group's admins can see its dashboard. Ask an admin if you need something changed."
-      />
-    </div>
-  );
-}
-
 function Dashboard({
   view,
   data,
@@ -166,6 +141,7 @@ function Dashboard({
 }) {
   const { stats, payments, reminders } = data;
   const { group, nets } = view;
+  const isAdmin = view.myMembership.role === 'ADMIN';
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<GroupMember | null>(null);
@@ -284,7 +260,7 @@ function Dashboard({
                         <OverdueTag owingSince={view.owingSince.get(userId)} />
                       </div>
                     </div>
-                    {userId === view.profile.id ? (
+                    {!isAdmin ? null : userId === view.profile.id ? (
                       <span className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
                         That&apos;s you
                       </span>
@@ -364,13 +340,15 @@ function Dashboard({
           {invited.length === 0 ? (
             <p className="text-[0.82rem]" style={{ color: 'var(--t-dim)' }}>
               No pending invites.{' '}
-              <Link
-                href={`/groups/${group.id}/members`}
-                className="font-semibold"
-                style={{ color: 'var(--accent)' }}
-              >
-                Invite someone
-              </Link>
+              {isAdmin && (
+                <Link
+                  href={`/groups/${group.id}/members`}
+                  className="font-semibold"
+                  style={{ color: 'var(--accent)' }}
+                >
+                  Invite someone
+                </Link>
+              )}
             </p>
           ) : (
             <div className="flex flex-col gap-2">
@@ -432,46 +410,50 @@ function Dashboard({
                         Invited {shortDuration(now - invitedAt)} ago
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      disabled={!canResend || busy !== null}
-                      title={
-                        canResend
-                          ? 'Send the invite again'
-                          : `You can resend in ${shortDuration(resendAt - now)}`
-                      }
-                      onClick={() =>
-                        run(
-                          key,
-                          () => resendInvite(group.id, m.userId),
-                          `Invite sent to ${nameIn(view, m.userId)} again.`,
-                          'Could not resend the invite.',
-                        )
-                      }
-                      className="neo-btn flex items-center gap-1.5 rounded-xl px-3 py-2 text-[0.75rem] font-semibold disabled:opacity-50"
-                      style={{ color: canResend ? 'var(--accent)' : 'var(--t-dim)' }}
-                    >
-                      <Send size={13} strokeWidth={2} />
-                      {busy === key
-                        ? 'Sending…'
-                        : canResend
-                          ? 'Resend'
-                          : `In ${shortDuration(resendAt - now)}`}
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Cancel the invite for ${nameIn(view, m.userId)}`}
-                      disabled={busy !== null}
-                      onClick={() => {
-                        setActionError(null);
-                        setNotice(null);
-                        setConfirmCancel(m);
-                      }}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg"
-                      style={{ color: 'var(--c-red)' }}
-                    >
-                      <X size={16} strokeWidth={2} />
-                    </button>
+                    {isAdmin && (
+                      <>
+                        <button
+                          type="button"
+                          disabled={!canResend || busy !== null}
+                          title={
+                            canResend
+                              ? 'Send the invite again'
+                              : `You can resend in ${shortDuration(resendAt - now)}`
+                          }
+                          onClick={() =>
+                            run(
+                              key,
+                              () => resendInvite(group.id, m.userId),
+                              `Invite sent to ${nameIn(view, m.userId)} again.`,
+                              'Could not resend the invite.',
+                            )
+                          }
+                          className="neo-btn flex items-center gap-1.5 rounded-xl px-3 py-2 text-[0.75rem] font-semibold disabled:opacity-50"
+                          style={{ color: canResend ? 'var(--accent)' : 'var(--t-dim)' }}
+                        >
+                          <Send size={13} strokeWidth={2} />
+                          {busy === key
+                            ? 'Sending…'
+                            : canResend
+                              ? 'Resend'
+                              : `In ${shortDuration(resendAt - now)}`}
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Cancel the invite for ${nameIn(view, m.userId)}`}
+                          disabled={busy !== null}
+                          onClick={() => {
+                            setActionError(null);
+                            setNotice(null);
+                            setConfirmCancel(m);
+                          }}
+                          className="flex h-8 w-8 items-center justify-center rounded-lg"
+                          style={{ color: 'var(--c-red)' }}
+                        >
+                          <X size={16} strokeWidth={2} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 );
               })}
