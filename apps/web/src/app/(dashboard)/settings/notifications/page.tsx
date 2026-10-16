@@ -74,6 +74,11 @@ const TYPES: { type: string; label: string; sub: string }[] = [
     label: 'Ekub payments',
     sub: 'An ekub payment to confirm, or yours confirmed',
   },
+  {
+    type: 'NEXT_PAYER',
+    label: 'Whose turn to pay',
+    sub: 'Someone in a group is covering a lot; who pays next',
+  },
 ];
 
 export default function NotificationSettingsPage() {

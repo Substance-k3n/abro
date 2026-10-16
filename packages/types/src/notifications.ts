@@ -26,6 +26,8 @@ export const notificationTypes = [
   // ADR-024: ekub invitations, and ekub payments to confirm or confirmed.
   'EKUB_INVITATION',
   'EKUB_PAYMENT',
+  // ADR-025: someone is covering a lot for their group; who pays next.
+  'NEXT_PAYER',
 ] as const;
 export type NotificationType = (typeof notificationTypes)[number];
 
