@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start --port 3200",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"no tests yet\" && exit 0"
+    "test": "echo \"no tests yet\" && exit 0",
+    "voice:manifest": "node scripts/voice-manifest.mjs"
   },
   "dependencies": {
     "@abro/types": "workspace:*",
@@ -28,6 +29,7 @@
     "@types/qrcode": "1.5.6",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "esbuild": "^0.28.2",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.3"
   }

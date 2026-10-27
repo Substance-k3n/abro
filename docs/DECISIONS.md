@@ -51,6 +51,14 @@ pack them again in the Tezaz repo and replace the files under a new
 name (e.g. `tezaz-react-0.0.0-<tezaz commit>.tgz`), updating
 `package.json` and the lockfile: build caches keep a same-named file.
 
+Production Tezaz sessions only allow the actions in the project's
+published list. `pnpm --filter @abro/web voice:manifest` writes the
+actions the app declares to `apps/api/internal/voice/manifest.json`, and
+apps/api publishes it with the production key each time it starts
+(retrying while the relay wakes up), so a new or reworded action is live
+with the deploy. CI fails when the file is stale. A development key
+publishes nothing.
+
 **Actions** (`components/VoiceAssistant.tsx` and `components/voice/`):
 open a page, a group or a friend by name; read out balances; add an
 expense the user paid in a group, split equally between its active
