@@ -24,6 +24,7 @@ import { type VoiceStatus, getVoiceStatus, getVoiceToken } from '~/lib/voice-api
 
 import { FriendActions } from './voice/FriendActions';
 import { GroupActions } from './voice/GroupActions';
+import { SearchActions } from './voice/SearchActions';
 import { money, spokenAmount, useDirectory } from './voice/shared';
 
 /** Pages the assistant may open by name. */
@@ -197,6 +198,7 @@ export function VoiceAssistant() {
       <VoiceActions />
       <FriendActions />
       <GroupActions />
+      <SearchActions />
       <TezazWidget offset={narrow ? 104 : 24} strings={{ title: 'ABRO' }} />
     </TezazProvider>
   );
