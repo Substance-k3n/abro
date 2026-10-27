@@ -204,6 +204,7 @@ export function VoiceAssistant() {
         theme={{ accent: '#5371ea', accentInk: '#ffffff' }}
         launcher={{ size: 55 }}
         radius={16}
+        typing="desktop"
         strings={{ title: 'ABRO' }}
       />
     </TezazProvider>
