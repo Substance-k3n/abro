@@ -48,6 +48,12 @@ type Config struct {
 	VAPIDPrivateKey string
 	// Contact push services see on our requests; defaults to WebOrigin.
 	VAPIDSubject string
+
+	// ADR-027 -- voice commands through Tezaz. Relay URL and secret key
+	// both set turns it on, for the emails in VoiceTesters ("*" = all).
+	TezazRelayURL  string
+	TezazSecretKey string
+	VoiceTesters   string
 }
 
 // Load reads .env into the process environment if present (dev
@@ -85,6 +91,10 @@ func Load() Config {
 		VAPIDPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
 		VAPIDPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:    getEnv("VAPID_SUBJECT", getEnv("WEB_ORIGIN", "http://localhost:3200")),
+
+		TezazRelayURL:  os.Getenv("TEZAZ_RELAY_URL"),
+		TezazSecretKey: os.Getenv("TEZAZ_SECRET_KEY"),
+		VoiceTesters:   os.Getenv("VOICE_TESTERS"),
 	}
 }
 

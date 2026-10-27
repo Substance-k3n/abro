@@ -7,6 +7,48 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-027: Voice commands through Tezaz -- testers only, tokens from the API
+
+**Status:** Accepted (user request, 2026-10-27). Pilot.
+
+**Context:** The user wants to try voice commands ("open the Bole
+group", "add 300 birr for lunch") in a real app. Tezaz, the user's
+voice-command service, runs at tezaz.onrender.com: the browser talks to
+its relay over a WebSocket, and the app registers the actions the
+assistant may call. A Tezaz session needs a short-lived token, minted
+with a secret key that must stay on a server.
+
+**Decision:**
+
+- **The API mints the tokens** (`internal/voice`): `GET /voice` says
+  whether the signed-in user gets voice (and where the session is);
+  `POST /voice/token` calls the relay's `POST /v1/tokens` with
+  `TEZAZ_SECRET_KEY`, for `WEB_ORIGIN`, with the user's id as the
+  visitor id (Tezaz's per-visitor limits then apply per ABRO user).
+  The secret never reaches the browser.
+- **Testers only** (`VOICE_TESTERS`, emails or `*`): everyone else gets
+  `{"enabled": false}` / `403 VOICE_NOT_ENABLED`, so strangers can't
+  spend the speech credit. Unconfigured means off.
+- **Actions run in the web app through the existing API calls**, so
+  every rule and permission stays where it is (§2 of the workflow);
+  the assistant can't do anything the user couldn't do on screen.
+  Anything that changes money asks the user to confirm first.
+- Errors: relay limit -> `429 VOICE_LIMIT_REACHED`; relay down, refused
+  or misconfigured -> `502 VOICE_UNAVAILABLE`.
+
+**Alternatives:** The Tezaz public key straight from the page -- no API
+change, but anyone could then open sessions on our account. Minting
+tokens in a Next.js route -- it would have to re-check the session the
+Go API owns.
+
+**Consequences:** What the user says, and the screen state the actions
+return, go to Tezaz and its speech provider; testers should know that.
+Tezaz keeps redacted transcripts for its project's retention period.
+The voice SDK isn't published yet, so the web app will carry a packed
+copy (next PR).
+
+---
+
 ## ADR-026: Late fees on group debt -- opt-in, simple daily interest, capped
 
 **Status:** Accepted (user request, 2026-10-16).

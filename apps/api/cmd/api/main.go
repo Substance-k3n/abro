@@ -32,6 +32,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/settlements"
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
 	"github.com/Substance-k3n/abro/apps/api/internal/users"
+	"github.com/Substance-k3n/abro/apps/api/internal/voice"
 )
 
 func main() {
@@ -131,6 +132,9 @@ func main() {
 	recurringSvc := recurring.NewService(queries, expensesSvc, notificationsSvc)
 	recurringHandler := recurring.NewHandler(recurringSvc, queries)
 
+	// Voice commands through Tezaz (ADR-027): tokens for testers only.
+	voiceHandler := voice.NewHandler(voice.NewService(cfg.TezazRelayURL, cfg.TezazSecretKey, cfg.WebOrigin, cfg.VoiceTesters), queries)
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -167,6 +171,7 @@ func main() {
 	r.Route("/analytics", analyticsHandler.Mount)
 	r.Route("/recurring", recurringHandler.Mount)
 	r.Route("/ekubs", ekubsHandler.Mount)
+	r.Route("/voice", voiceHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
