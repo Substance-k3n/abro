@@ -2,27 +2,28 @@
 
 // Voice commands through Tezaz (docs/DECISIONS.md ADR-027), for testers
 // only: apps/api's GET /voice decides, so everyone else renders nothing
-// and loads no session. The assistant can only call the actions below,
-// and each one goes through the same ~/lib/*-api.ts calls the screens
-// use -- apps/api still checks every rule and permission. Adding an
-// expense moves money, so the widget asks before it runs (dangerous).
+// and loads no session. The assistant can only call the actions
+// registered here and in ./voice/, and each one goes through the same
+// ~/lib/*-api.ts calls the screens use -- apps/api still checks every
+// rule and permission. Anything that moves money is `dangerous`, so the
+// widget asks before it runs.
 //
 // It sits beside the page, not around it, so turning voice on never
 // remounts the screen underneath.
 
-import { type MinorUnits, formatMoney } from '@abro/types';
 import { TezazProvider, TezazWidget, useCapability } from '@tezaz/react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { friendOweSplit, getBalancesSummary } from '~/lib/balances-api';
-import { currencyMeta } from '~/lib/ekub-view';
-import { parseAmount } from '~/lib/expense-split';
 import { createExpense } from '~/lib/expenses-api';
-import { type FriendListItem, listFriends } from '~/lib/friends-api';
-import { type GroupListItem, getGroup, listGroups } from '~/lib/groups-api';
+import { listFriends } from '~/lib/friends-api';
+import { getGroup, listGroups } from '~/lib/groups-api';
 import { CATEGORIES } from '~/lib/reference-data';
 import { type VoiceStatus, getVoiceStatus, getVoiceToken } from '~/lib/voice-api';
+
+import { FriendActions } from './voice/FriendActions';
+import { money, spokenAmount, useDirectory } from './voice/shared';
 
 /** Pages the assistant may open by name. */
 const PAGES: Record<string, string> = {
@@ -38,48 +39,9 @@ const PAGES: Record<string, string> = {
   'add expense': '/expenses/new',
 };
 
-/** Best match for a spoken name: exact, then starts-with, then contains. */
-function pick<T>(items: T[], name: (item: T) => string, spoken: string): T | undefined {
-  const s = spoken.trim().toLowerCase();
-  const names = items.map((i) => name(i).toLowerCase());
-  const at =
-    [
-      names.indexOf(s),
-      names.findIndex((n) => n.startsWith(s)),
-      names.findIndex((n) => n.includes(s)),
-    ].find((i) => i >= 0) ?? -1;
-  return items[at];
-}
-
-const money = (amount: MinorUnits, currency: string) => formatMoney(amount, currencyMeta(currency));
-
 function VoiceActions() {
   const router = useRouter();
-  // Loaded once per session so the confirmation question can name the
-  // group and its size without a request; refreshed when an action runs.
-  const groups = useRef<GroupListItem[]>([]);
-  const friends = useRef<FriendListItem[]>([]);
-  useEffect(() => {
-    listGroups().then(
-      (g) => (groups.current = g),
-      () => {},
-    );
-    listFriends().then(
-      (f) => (friends.current = f),
-      () => {},
-    );
-  }, []);
-
-  const findGroup = async (spoken: string) => {
-    groups.current = await listGroups();
-    const group = pick(groups.current, (g) => g.name, spoken);
-    if (!group) {
-      throw new Error(
-        `No group called "${spoken}". The groups are: ${groups.current.map((g) => g.name).join(', ') || 'none'}.`,
-      );
-    }
-    return group;
-  };
+  const { findGroup, findFriend, groupNamed } = useDirectory();
 
   useCapability<{ page: string }>({
     name: 'open_page',
@@ -119,13 +81,9 @@ function VoiceActions() {
       required: ['friend'],
     },
     handler: async ({ friend }) => {
-      friends.current = await listFriends();
-      const f = pick(friends.current, (x) => x.friend.displayName, friend);
-      if (!f) {
-        throw new Error(`No friend called "${friend}".`);
-      }
-      router.push(`/friends/${f.friend.id}`);
-      return `opened ${f.friend.displayName}`;
+      const f = await findFriend(friend);
+      router.push(`/friends/${f.id}`);
+      return `opened ${f.displayName}`;
     },
   });
 
@@ -182,18 +140,15 @@ function VoiceActions() {
     },
     dangerous: true,
     describe: ({ group, amount, description }) => {
-      const g = pick(groups.current, (x) => x.name, group);
+      const g = groupNamed(group);
       const where = g
         ? `${g.name}, split equally between ${g.memberCount} people`
         : `the group "${group}"`;
-      return `Add ${money(parseAmount(String(amount)), g?.currency ?? 'ETB')} for "${description}" in ${where}, paid by you?`;
+      return `Add ${money(spokenAmount(amount), g?.currency ?? 'ETB')} for "${description}" in ${where}, paid by you?`;
     },
     handler: async ({ group, amount, description, category }) => {
       const g = await findGroup(group);
-      const minor = parseAmount(String(amount));
-      if (minor <= 0n) {
-        throw new Error('The amount must be more than zero.');
-      }
+      const minor = spokenAmount(amount);
       const members = (await getGroup(g.id)).members.filter((m) => m.status === 'ACTIVE');
       const expense = await createExpense(
         {
@@ -239,6 +194,7 @@ export function VoiceAssistant() {
       autoConnect={false}
     >
       <VoiceActions />
+      <FriendActions />
       <TezazWidget offset={narrow ? 104 : 24} strings={{ title: 'ABRO' }} />
     </TezazProvider>
   );
