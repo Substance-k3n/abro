@@ -11,6 +11,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -88,6 +90,8 @@ func (s *Service) Token(ctx context.Context, userID string) (Token, error) {
 
 	resp, err := s.client.Do(req)
 	if err != nil {
+		// Also a relay still waking up past the client timeout.
+		log.Printf("voice: token request: %v", err)
 		return Token{}, unavailable()
 	}
 	defer resp.Body.Close()
@@ -96,10 +100,15 @@ func (s *Service) Token(ctx context.Context, userID string) (Token, error) {
 	case resp.StatusCode == http.StatusTooManyRequests:
 		return Token{}, httpx.TooManyRequests("VOICE_LIMIT_REACHED", "Voice has reached its limit for now. Try again later.")
 	case resp.StatusCode != http.StatusOK:
+		// The relay's reason (invalid_key, origin_not_allowed, ...) holds no
+		// secrets and is the only way to tell a wrong key from a wrong origin.
+		reason, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		log.Printf("voice: relay refused a token for origin %s: %d %s", s.origin, resp.StatusCode, strings.TrimSpace(string(reason)))
 		return Token{}, unavailable()
 	}
 	var t Token
 	if err := json.NewDecoder(resp.Body).Decode(&t); err != nil || t.Token == "" {
+		log.Printf("voice: unreadable token from relay: %v", err)
 		return Token{}, unavailable()
 	}
 	return t, nil
