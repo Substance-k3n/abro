@@ -36,6 +36,13 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # apps/api publishes this list to the voice relay on start (ADR-027).
+      - name: Voice actions list is current
+        run: |
+          pnpm --filter @abro/web voice:manifest
+          git diff --exit-code apps/api/internal/voice/manifest.json || {
+            echo "Run: pnpm --filter @abro/web voice:manifest, and commit the result."; exit 1; }
+
   api:
     runs-on: ubuntu-latest
     services:
