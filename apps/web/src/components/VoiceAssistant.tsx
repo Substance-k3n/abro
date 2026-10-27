@@ -199,7 +199,13 @@ export function VoiceAssistant() {
       <FriendActions />
       <GroupActions />
       <SearchActions />
-      <TezazWidget offset={narrow ? 104 : 24} strings={{ title: 'ABRO' }} />
+      <TezazWidget
+        offset={narrow ? 104 : 48}
+        theme={{ accent: '#89487d', accentInk: '#ffffff' }}
+        launcher={{ size: 55 }}
+        radius={16}
+        strings={{ title: 'ABRO' }}
+      />
     </TezazProvider>
   );
 }
