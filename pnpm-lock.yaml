@@ -800,7 +800,7 @@ packages:
     version: 0.0.0
 
   '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0.tgz':
-    resolution: {integrity: sha512-9wJ7ezT/Qr1c1zN+jKAx38WX1dW9SOyYeFHZuUy1tn5ZEuDccrIUL3bkwqAUqXBsic0Bh1i7jqQigqCiLechXQ==, tarball: file:vendor/tezaz/tezaz-react-0.0.0.tgz}
+    resolution: {integrity: sha512-w/CueXEwARsmIhffgEeHRJzKkSApZKdJcxEefJMZ3jgGuEFJQLL7xceF7qja6lhFAOHVQUEmGhdXj6Q8pZSn6w==, tarball: file:vendor/tezaz/tezaz-react-0.0.0.tgz}
     version: 0.0.0
     peerDependencies:
       react: ^19.0.0
