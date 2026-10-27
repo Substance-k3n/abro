@@ -29,6 +29,9 @@
 //    friend -- a group expense can include people who aren't.
 //  - Unknown id, deleted expense, or one you're not party to all show
 //    the same "Expense not found" state (apps/api 404/403).
+//  - A late fee (ADR-026, split type INTEREST) reads "Owed to" instead
+//    of "Paid by", explains itself, has no receipt and no Edit; Delete
+//    waives it.
 
 import { EmptyState } from '@abro/ui';
 import { ETB, formatMoney } from '@abro/types';
@@ -48,6 +51,7 @@ import { type GroupListItem, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { CATEGORIES } from '~/lib/reference-data';
 import { photoSrc } from '~/lib/photos';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 const METHOD_LABEL: Record<string, string> = {
   EQUAL: 'Equal',
@@ -55,6 +59,7 @@ const METHOD_LABEL: Record<string, string> = {
   PERCENTAGE: 'Percentage',
   SHARES: 'Shares',
   SETTLEMENT: 'Settlement',
+  INTEREST: 'Late fee',
 };
 
 interface DetailData {
@@ -88,7 +93,8 @@ export default function ExpenseDetailPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const load = () => {
-    setState({ status: 'loading' });
+    // Keep showing what's there while it refreshes (ADR-022).
+    setState((current) => (current.status === 'ready' ? current : { status: 'loading' }));
     Promise.all([me(), getExpense(params.id), listGroups(), listFriends()])
       .then(([profile, expense, groups, friends]) => {
         setState({
@@ -115,6 +121,7 @@ export default function ExpenseDetailPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [params.id]);
+  useApiRefresh(load);
 
   if (state.status === 'loading') {
     return <LoadingState minHeight="60vh" />;
@@ -190,7 +197,7 @@ export default function ExpenseDetailPage() {
             </button>
             {menuOpen && (
               <div className="neo-raised-sm absolute right-0 top-11 z-10 flex w-44 flex-col gap-1 rounded-2xl p-2">
-                {expense.splitType !== 'SETTLEMENT' && (
+                {expense.splitType !== 'SETTLEMENT' && expense.splitType !== 'INTEREST' && (
                   <Link
                     href={`/expenses/${expense.id}/edit`}
                     className="flex items-center gap-2 rounded-xl px-3 py-2 text-[0.82rem] font-medium"
@@ -272,7 +279,11 @@ export default function ExpenseDetailPage() {
           className="neo-raised-sm flex h-14 w-14 items-center justify-center rounded-2xl text-[1.4rem]"
           style={{ color: 'var(--t-muted)' }}
         >
-          {expense.splitType === 'SETTLEMENT' ? '🤝' : (category?.icon ?? '📦')}
+          {expense.splitType === 'SETTLEMENT'
+            ? '🤝'
+            : expense.splitType === 'INTEREST'
+              ? '⏰'
+              : (category?.icon ?? '📦')}
         </div>
         <p
           className="font-display text-[2rem] font-extrabold tracking-tighter"
@@ -299,7 +310,7 @@ export default function ExpenseDetailPage() {
           className="font-display mb-3 text-[0.75rem] font-bold uppercase tracking-[0.06em]"
           style={{ color: 'var(--t-dim)' }}
         >
-          Paid by
+          {expense.splitType === 'INTEREST' ? 'Owed to' : 'Paid by'}
         </p>
         <div className="flex items-center gap-2.5">
           <Avatar user={expense.paidBy} size="h-9 w-9 text-[0.72rem]" />
@@ -368,13 +379,23 @@ export default function ExpenseDetailPage() {
         </div>
       </div>
 
-      <ReceiptSection
-        expense={expense}
-        canManage={mightManage}
-        onChange={(updated) =>
-          setState({ status: 'ready', data: { ...state.data, expense: updated } })
-        }
-      />
+      {expense.splitType === 'INTEREST' ? (
+        <p
+          className="neo-inset-sm mb-4 rounded-[14px] px-3.5 py-2.5 text-[0.78rem]"
+          style={{ color: 'var(--t-muted)' }}
+        >
+          A late fee the group added for debt left unpaid. Paying what you owe stops new ones. The
+          person owed or an admin can delete it to waive it.
+        </p>
+      ) : (
+        <ReceiptSection
+          expense={expense}
+          canManage={mightManage}
+          onChange={(updated) =>
+            setState({ status: 'ready', data: { ...state.data, expense: updated } })
+          }
+        />
+      )}
 
       {/* Notes */}
       {expense.notes && (

@@ -5,16 +5,17 @@
 // own pull-to-refresh is off (globals.css sets overscroll-behavior: none
 // so the app doesn't rubber-band), and an installed app has none anyway.
 //
-// Refreshing empties the read cache (~/lib/api-client.ts) and remounts
-// the screen under a new key, so it loads everything again the way it
-// does when first opened -- no full page reload, and the bottom bar
-// stays put. Touch only; a pull that starts anywhere but the very top
+// Refreshing marks the read cache (~/lib/api-client.ts) old and remounts
+// the screen under a new key: it shows what it had at once and swaps in
+// the server's answer when it lands (ADR-022) -- no blank skeleton, no
+// full page reload, and the bottom bar stays put. Offline, it simply
+// keeps showing the saved data. Touch only; a pull that starts anywhere but the very top
 // of the page is an ordinary scroll.
 
 import { RefreshCw } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 
-import { clearApiCache } from '~/lib/api-client';
+import { markApiCacheStale } from '~/lib/api-client';
 
 /** How far (px) the finger must pull before letting go refreshes. */
 const TRIGGER = 70;
@@ -53,7 +54,7 @@ export function PullToRefresh({ children }: { children: ReactNode }) {
       setPull(0);
       if (pulled >= TRIGGER) {
         setRefreshing(true);
-        clearApiCache();
+        markApiCacheStale();
         setGeneration((g) => g + 1);
         window.setTimeout(() => setRefreshing(false), 700);
       }

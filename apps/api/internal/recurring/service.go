@@ -154,8 +154,9 @@ func (s *Service) GenerateDue(ctx context.Context, now time.Time) (int, error) {
 			return generated, err
 		}
 
-		if err := s.notifications.NotifyMany(ctx, recipientIDs, notifications.TypeRecurringExpense,
-			"Recurring expense generated", fmt.Sprintf("A recurring expense was generated: %q (%s).", created.Name, money.Format(created.Amount, created.Currency))); err != nil {
+		if err := s.notifications.NotifyManyLink(ctx, recipientIDs, notifications.TypeRecurringExpense,
+			"Recurring expense generated", fmt.Sprintf("A recurring expense was generated: %q (%s).", created.Name, money.Format(created.Amount, created.Currency)),
+			"/expenses/"+idutil.String(created.ID)); err != nil {
 			return generated, err
 		}
 

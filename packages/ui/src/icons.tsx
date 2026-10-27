@@ -2,6 +2,7 @@ import {
   ArrowUpRight,
   Briefcase,
   CheckCircle2,
+  Clock,
   Film,
   Heart,
   Home,
@@ -28,6 +29,8 @@ const CATEGORY_ICONS: Record<string, LucideIcon> = {
   Travel: Plane,
   Other: Package,
   Settlement: CheckCircle2,
+  // A late fee (ADR-026).
+  'Late fee': Clock,
 };
 
 /** Ported from the prototype's CategoryIcon lookup (App.tsx). */

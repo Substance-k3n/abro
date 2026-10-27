@@ -52,6 +52,7 @@ import {
 } from '~/lib/friends-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { photoSrc } from '~/lib/photos';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 type FriendsTab = 'unsettled' | 'settled' | 'all';
 
@@ -80,8 +81,6 @@ export default function FriendsPage() {
 
   const load = () => {
     setError(null);
-    setFriends(null);
-    setRows(null);
     Promise.all([listFriends(), getBalancesSummary(), listIncomingRequests()])
       .then(([friendList, balances, incoming]) => {
         setRequests(incoming);
@@ -94,6 +93,8 @@ export default function FriendsPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   const respond = async (req: IncomingFriendRequest, accept: boolean) => {
     setBusyRequest(req.friendshipId);

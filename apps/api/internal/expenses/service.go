@@ -43,6 +43,7 @@ type Service struct {
 	friends       *friends.Service
 	notifications *notifications.Service
 	receiptStore  *storage.ReceiptStorage
+	afterGroup    GroupExpenseHook
 }
 
 func NewService(q db.Querier, groupsSvc *groups.Service, friendsSvc *friends.Service, notificationsSvc *notifications.Service, receiptStore *storage.ReceiptStorage) *Service {
@@ -57,6 +58,17 @@ type Expense struct {
 	PaidBy       db.Profile
 	Participants []db.ListExpenseParticipantsForExpenseIDsRow
 }
+
+// GroupExpenseHook runs after a new group expense is saved: telling the
+// group whose turn it is to pay (balances.NextPayerNotifier, ADR-025).
+// An interface because balances can't be imported here without a cycle
+// in its tests' setup, and so a hook can never fail the expense.
+type GroupExpenseHook interface {
+	AfterGroupExpense(ctx context.Context, groupID, payerID pgtype.UUID, amount, payerShare money.MinorUnits)
+}
+
+// SetGroupExpenseHook wires the hook in (cmd/api/main.go); none is fine.
+func (s *Service) SetGroupExpenseHook(h GroupExpenseHook) { s.afterGroup = h }
 
 type preparedWrite struct {
 	paidByID     pgtype.UUID
@@ -103,6 +115,16 @@ func (s *Service) Create(ctx context.Context, actorID pgtype.UUID, in apitypes.C
 		return Expense{}, err
 	}
 
+	if groupID.Valid && s.afterGroup != nil {
+		var payerShare money.MinorUnits
+		for _, p := range prepared.participants {
+			if p.UserID == idutil.String(prepared.paidByID) {
+				payerShare = p.Amount
+			}
+		}
+		s.afterGroup.AfterGroupExpense(ctx, groupID, prepared.paidByID, full.Amount, payerShare)
+	}
+
 	return full, nil
 }
 
@@ -113,6 +135,11 @@ func (s *Service) Update(ctx context.Context, actorID, expenseID pgtype.UUID, in
 	}
 	if err := s.requireEditAuthority(ctx, actorID, expense); err != nil {
 		return Expense{}, err
+	}
+	// A late fee is the daily job's to write (ADR-026); waiving one is
+	// deleting it.
+	if expense.SplitType == db.SplitTypeINTEREST {
+		return Expense{}, httpx.Conflict("LATE_FEE_NOT_EDITABLE", "A late fee can't be edited. Delete it to waive it.")
 	}
 
 	prepared, err := s.prepareWrite(ctx, actorID, in)
@@ -604,7 +631,12 @@ func (s *Service) notifyParties(ctx context.Context, actorID pgtype.UUID, expens
 		actorName = actor.DisplayName
 	}
 
-	return s.notifications.NotifyMany(ctx, ids, t, title, body(actorName))
+	// A deleted expense has no screen to open; the list does instead.
+	link := ""
+	if t != notifications.TypeExpenseDeleted {
+		link = "/expenses/" + idutil.String(expense.ID)
+	}
+	return s.notifications.NotifyManyLink(ctx, ids, t, title, body(actorName), link)
 }
 
 func (s *Service) requireVisible(ctx context.Context, actorID, expenseID pgtype.UUID) (db.Expense, error) {

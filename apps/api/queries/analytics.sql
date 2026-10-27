@@ -10,7 +10,7 @@ WITH involved AS (
     SELECT DISTINCT e.id, e.amount
     FROM expenses e
     LEFT JOIN expense_participants ep ON ep.expense_id = e.id AND ep.user_id = sqlc.arg('user_id')
-    WHERE e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+    WHERE e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
       AND e.expense_date >= sqlc.arg('start_date') AND e.expense_date < sqlc.arg('end_date')
       AND (e.paid_by_id = sqlc.arg('user_id') OR ep.user_id = sqlc.arg('user_id'))
 )
@@ -18,25 +18,25 @@ SELECT
     COALESCE((SELECT sum(amount) FROM involved), 0)::bigint AS total_spending,
     COALESCE((
         SELECT sum(e.amount) FROM expenses e
-        WHERE e.paid_by_id = sqlc.arg('user_id') AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+        WHERE e.paid_by_id = sqlc.arg('user_id') AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
           AND e.expense_date >= sqlc.arg('start_date') AND e.expense_date < sqlc.arg('end_date')
     ), 0)::bigint AS your_contribution,
     COALESCE((
         SELECT sum(ep.amount) FROM expense_participants ep JOIN expenses e ON e.id = ep.expense_id
-        WHERE ep.user_id = sqlc.arg('user_id') AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+        WHERE ep.user_id = sqlc.arg('user_id') AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
           AND e.expense_date >= sqlc.arg('start_date') AND e.expense_date < sqlc.arg('end_date')
     ), 0)::bigint AS your_share,
     COALESCE((
         SELECT sum(ep.amount) FROM expense_participants ep JOIN expenses e ON e.id = ep.expense_id
         WHERE ep.user_id = sqlc.arg('user_id') AND e.paid_by_id != sqlc.arg('user_id')
-          AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+          AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
           AND e.expense_date >= sqlc.arg('start_date') AND e.expense_date < sqlc.arg('end_date')
     ), 0)::bigint AS amount_owed;
 
 -- name: GetCategoryBreakdown :many
 SELECT e.category, sum(e.amount)::bigint AS amount
 FROM expenses e
-WHERE e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+WHERE e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
   AND e.expense_date >= sqlc.arg('start_date') AND e.expense_date < sqlc.arg('end_date')
   AND (e.paid_by_id = sqlc.arg('user_id')
        OR EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = sqlc.arg('user_id')))
@@ -51,7 +51,7 @@ FROM group_members gm
 JOIN groups g ON g.id = gm.group_id
 JOIN expenses e ON e.group_id = g.id
 WHERE gm.user_id = sqlc.arg('user_id') AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
-  AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+  AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
   AND e.expense_date >= sqlc.arg('start_date') AND e.expense_date < sqlc.arg('end_date')
   AND (e.paid_by_id = sqlc.arg('user_id')
        OR EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = sqlc.arg('user_id')))
@@ -62,7 +62,7 @@ GROUP BY g.id, g.name;
 -- other months of the year with zero.
 SELECT EXTRACT(MONTH FROM e.expense_date)::int AS month, sum(e.amount)::bigint AS total_spending
 FROM expenses e
-WHERE e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+WHERE e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
   AND e.expense_date >= sqlc.arg('start_date') AND e.expense_date < sqlc.arg('end_date')
   AND (e.paid_by_id = sqlc.arg('user_id')
        OR EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = sqlc.arg('user_id')))
@@ -92,8 +92,8 @@ WHERE ep.user_id = sqlc.arg('user_id') AND ep.amount > 0 AND e.paid_by_id != sql
 
 -- name: GetGroupStatsTotals :one
 SELECT
-    COALESCE(sum(amount) FILTER (WHERE split_type != 'SETTLEMENT'), 0)::bigint AS total_spent,
-    count(*) FILTER (WHERE split_type != 'SETTLEMENT')::int AS expense_count,
+    COALESCE(sum(amount) FILTER (WHERE split_type NOT IN ('SETTLEMENT', 'INTEREST')), 0)::bigint AS total_spent,
+    count(*) FILTER (WHERE split_type NOT IN ('SETTLEMENT', 'INTEREST'))::int AS expense_count,
     COALESCE(sum(amount) FILTER (WHERE split_type = 'SETTLEMENT'), 0)::bigint AS settled_total
 FROM expenses
 WHERE group_id = $1 AND deleted_at IS NULL;
@@ -104,12 +104,12 @@ WHERE group_id = $1 AND deleted_at IS NULL;
 -- since left, same as balances.GetGroupSummary.
 WITH paid AS (
     SELECT x.paid_by_id AS user_id, sum(x.amount)::bigint AS total FROM expenses x
-    WHERE x.group_id = sqlc.arg('group_id') AND x.deleted_at IS NULL AND x.split_type != 'SETTLEMENT'
+    WHERE x.group_id = sqlc.arg('group_id') AND x.deleted_at IS NULL AND x.split_type NOT IN ('SETTLEMENT', 'INTEREST')
     GROUP BY x.paid_by_id
 ), share AS (
     SELECT ep.user_id, sum(ep.amount)::bigint AS total FROM expense_participants ep
     JOIN expenses e ON e.id = ep.expense_id
-    WHERE e.group_id = sqlc.arg('group_id') AND e.deleted_at IS NULL AND e.split_type != 'SETTLEMENT'
+    WHERE e.group_id = sqlc.arg('group_id') AND e.deleted_at IS NULL AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST')
     GROUP BY ep.user_id
 )
 SELECT COALESCE(paid.user_id, share.user_id)::uuid AS user_id,
@@ -119,7 +119,7 @@ FROM paid FULL OUTER JOIN share ON share.user_id = paid.user_id;
 
 -- name: GetGroupCategoryBreakdown :many
 SELECT category, sum(amount)::bigint AS amount FROM expenses
-WHERE group_id = $1 AND deleted_at IS NULL AND split_type != 'SETTLEMENT'
+WHERE group_id = $1 AND deleted_at IS NULL AND split_type NOT IN ('SETTLEMENT', 'INTEREST')
 GROUP BY category
 ORDER BY amount DESC, category;
 
@@ -130,6 +130,6 @@ SELECT EXTRACT(YEAR FROM expense_date AT TIME ZONE 'UTC')::int AS year,
        EXTRACT(MONTH FROM expense_date AT TIME ZONE 'UTC')::int AS month,
        sum(amount)::bigint AS total_spending
 FROM expenses
-WHERE group_id = sqlc.arg('group_id') AND deleted_at IS NULL AND split_type != 'SETTLEMENT'
+WHERE group_id = sqlc.arg('group_id') AND deleted_at IS NULL AND split_type NOT IN ('SETTLEMENT', 'INTEREST')
   AND expense_date >= sqlc.arg('start_date') AND expense_date < sqlc.arg('end_date')
 GROUP BY 1, 2;

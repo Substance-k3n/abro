@@ -14,7 +14,7 @@ import (
 const getCategoryBreakdown = `-- name: GetCategoryBreakdown :many
 SELECT e.category, sum(e.amount)::bigint AS amount
 FROM expenses e
-WHERE e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+WHERE e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
   AND e.expense_date >= $1 AND e.expense_date < $2
   AND (e.paid_by_id = $3
        OR EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $3))
@@ -54,7 +54,7 @@ func (q *Queries) GetCategoryBreakdown(ctx context.Context, arg GetCategoryBreak
 
 const getGroupCategoryBreakdown = `-- name: GetGroupCategoryBreakdown :many
 SELECT category, sum(amount)::bigint AS amount FROM expenses
-WHERE group_id = $1 AND deleted_at IS NULL AND split_type != 'SETTLEMENT'
+WHERE group_id = $1 AND deleted_at IS NULL AND split_type NOT IN ('SETTLEMENT', 'INTEREST')
 GROUP BY category
 ORDER BY amount DESC, category
 `
@@ -87,12 +87,12 @@ func (q *Queries) GetGroupCategoryBreakdown(ctx context.Context, groupID pgtype.
 const getGroupMemberPaidShare = `-- name: GetGroupMemberPaidShare :many
 WITH paid AS (
     SELECT x.paid_by_id AS user_id, sum(x.amount)::bigint AS total FROM expenses x
-    WHERE x.group_id = $1 AND x.deleted_at IS NULL AND x.split_type != 'SETTLEMENT'
+    WHERE x.group_id = $1 AND x.deleted_at IS NULL AND x.split_type NOT IN ('SETTLEMENT', 'INTEREST')
     GROUP BY x.paid_by_id
 ), share AS (
     SELECT ep.user_id, sum(ep.amount)::bigint AS total FROM expense_participants ep
     JOIN expenses e ON e.id = ep.expense_id
-    WHERE e.group_id = $1 AND e.deleted_at IS NULL AND e.split_type != 'SETTLEMENT'
+    WHERE e.group_id = $1 AND e.deleted_at IS NULL AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST')
     GROUP BY ep.user_id
 )
 SELECT COALESCE(paid.user_id, share.user_id)::uuid AS user_id,
@@ -135,7 +135,7 @@ SELECT EXTRACT(YEAR FROM expense_date AT TIME ZONE 'UTC')::int AS year,
        EXTRACT(MONTH FROM expense_date AT TIME ZONE 'UTC')::int AS month,
        sum(amount)::bigint AS total_spending
 FROM expenses
-WHERE group_id = $1 AND deleted_at IS NULL AND split_type != 'SETTLEMENT'
+WHERE group_id = $1 AND deleted_at IS NULL AND split_type NOT IN ('SETTLEMENT', 'INTEREST')
   AND expense_date >= $2 AND expense_date < $3
 GROUP BY 1, 2
 `
@@ -180,7 +180,7 @@ FROM group_members gm
 JOIN groups g ON g.id = gm.group_id
 JOIN expenses e ON e.group_id = g.id
 WHERE gm.user_id = $1 AND gm.status = 'ACTIVE' AND g.deleted_at IS NULL
-  AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+  AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
   AND e.expense_date >= $2 AND e.expense_date < $3
   AND (e.paid_by_id = $1
        OR EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $1))
@@ -225,8 +225,8 @@ func (q *Queries) GetGroupSpending(ctx context.Context, arg GetGroupSpendingPara
 const getGroupStatsTotals = `-- name: GetGroupStatsTotals :one
 
 SELECT
-    COALESCE(sum(amount) FILTER (WHERE split_type != 'SETTLEMENT'), 0)::bigint AS total_spent,
-    count(*) FILTER (WHERE split_type != 'SETTLEMENT')::int AS expense_count,
+    COALESCE(sum(amount) FILTER (WHERE split_type NOT IN ('SETTLEMENT', 'INTEREST')), 0)::bigint AS total_spent,
+    count(*) FILTER (WHERE split_type NOT IN ('SETTLEMENT', 'INTEREST'))::int AS expense_count,
     COALESCE(sum(amount) FILTER (WHERE split_type = 'SETTLEMENT'), 0)::bigint AS settled_total
 FROM expenses
 WHERE group_id = $1 AND deleted_at IS NULL
@@ -252,7 +252,7 @@ func (q *Queries) GetGroupStatsTotals(ctx context.Context, groupID pgtype.UUID) 
 const getMonthlyTrendRaw = `-- name: GetMonthlyTrendRaw :many
 SELECT EXTRACT(MONTH FROM e.expense_date)::int AS month, sum(e.amount)::bigint AS total_spending
 FROM expenses e
-WHERE e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+WHERE e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
   AND e.expense_date >= $1 AND e.expense_date < $2
   AND (e.paid_by_id = $3
        OR EXISTS (SELECT 1 FROM expense_participants ep WHERE ep.expense_id = e.id AND ep.user_id = $3))
@@ -343,7 +343,7 @@ WITH involved AS (
     SELECT DISTINCT e.id, e.amount
     FROM expenses e
     LEFT JOIN expense_participants ep ON ep.expense_id = e.id AND ep.user_id = $1
-    WHERE e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+    WHERE e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
       AND e.expense_date >= $2 AND e.expense_date < $3
       AND (e.paid_by_id = $1 OR ep.user_id = $1)
 )
@@ -351,18 +351,18 @@ SELECT
     COALESCE((SELECT sum(amount) FROM involved), 0)::bigint AS total_spending,
     COALESCE((
         SELECT sum(e.amount) FROM expenses e
-        WHERE e.paid_by_id = $1 AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+        WHERE e.paid_by_id = $1 AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
           AND e.expense_date >= $2 AND e.expense_date < $3
     ), 0)::bigint AS your_contribution,
     COALESCE((
         SELECT sum(ep.amount) FROM expense_participants ep JOIN expenses e ON e.id = ep.expense_id
-        WHERE ep.user_id = $1 AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+        WHERE ep.user_id = $1 AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
           AND e.expense_date >= $2 AND e.expense_date < $3
     ), 0)::bigint AS your_share,
     COALESCE((
         SELECT sum(ep.amount) FROM expense_participants ep JOIN expenses e ON e.id = ep.expense_id
         WHERE ep.user_id = $1 AND e.paid_by_id != $1
-          AND e.split_type != 'SETTLEMENT' AND e.deleted_at IS NULL
+          AND e.split_type NOT IN ('SETTLEMENT', 'INTEREST') AND e.deleted_at IS NULL
           AND e.expense_date >= $2 AND e.expense_date < $3
     ), 0)::bigint AS amount_owed
 `

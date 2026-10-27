@@ -12,7 +12,7 @@ import (
 )
 
 const getProfileByEmail = `-- name: GetProfileByEmail :one
-SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path FROM profiles WHERE email = $1
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends FROM profiles WHERE email = $1
 `
 
 func (q *Queries) GetProfileByEmail(ctx context.Context, email pgtype.Text) (Profile, error) {
@@ -30,12 +30,13 @@ func (q *Queries) GetProfileByEmail(ctx context.Context, email pgtype.Text) (Pro
 		&i.UpdatedAt,
 		&i.Username,
 		&i.AvatarPath,
+		&i.AutoRemindFriends,
 	)
 	return i, err
 }
 
 const getProfileByID = `-- name: GetProfileByID :one
-SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path FROM profiles WHERE id = $1
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends FROM profiles WHERE id = $1
 `
 
 func (q *Queries) GetProfileByID(ctx context.Context, id pgtype.UUID) (Profile, error) {
@@ -53,12 +54,13 @@ func (q *Queries) GetProfileByID(ctx context.Context, id pgtype.UUID) (Profile, 
 		&i.UpdatedAt,
 		&i.Username,
 		&i.AvatarPath,
+		&i.AutoRemindFriends,
 	)
 	return i, err
 }
 
 const getProfileByUsername = `-- name: GetProfileByUsername :one
-SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path FROM profiles WHERE username = $1
+SELECT id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends FROM profiles WHERE username = $1
 `
 
 // Phase 8 (AUTH-05) -- backs the username-availability check.
@@ -77,6 +79,7 @@ func (q *Queries) GetProfileByUsername(ctx context.Context, username pgtype.Text
 		&i.UpdatedAt,
 		&i.Username,
 		&i.AvatarPath,
+		&i.AutoRemindFriends,
 	)
 	return i, err
 }
@@ -90,7 +93,7 @@ SET display_name = COALESCE($1, display_name),
     locale = COALESCE($5, locale),
     updated_at = now()
 WHERE id = $6
-RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path
+RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends
 `
 
 type UpdateProfileParams struct {
@@ -124,6 +127,7 @@ func (q *Queries) UpdateProfile(ctx context.Context, arg UpdateProfileParams) (P
 		&i.UpdatedAt,
 		&i.Username,
 		&i.AvatarPath,
+		&i.AutoRemindFriends,
 	)
 	return i, err
 }
@@ -132,7 +136,7 @@ const upsertProfileByEmail = `-- name: UpsertProfileByEmail :one
 INSERT INTO profiles (email, display_name)
 VALUES ($1, $2)
 ON CONFLICT (email) DO UPDATE SET id = profiles.id
-RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path
+RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends
 `
 
 type UpsertProfileByEmailParams struct {
@@ -158,6 +162,7 @@ func (q *Queries) UpsertProfileByEmail(ctx context.Context, arg UpsertProfileByE
 		&i.UpdatedAt,
 		&i.Username,
 		&i.AvatarPath,
+		&i.AutoRemindFriends,
 	)
 	return i, err
 }
@@ -166,7 +171,7 @@ const upsertProfileByEmailWithNameAvatar = `-- name: UpsertProfileByEmailWithNam
 INSERT INTO profiles (email, display_name, avatar_url)
 VALUES ($1, $2, $3)
 ON CONFLICT (email) DO UPDATE SET id = profiles.id
-RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path
+RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends
 `
 
 type UpsertProfileByEmailWithNameAvatarParams struct {
@@ -192,6 +197,7 @@ func (q *Queries) UpsertProfileByEmailWithNameAvatar(ctx context.Context, arg Up
 		&i.UpdatedAt,
 		&i.Username,
 		&i.AvatarPath,
+		&i.AutoRemindFriends,
 	)
 	return i, err
 }

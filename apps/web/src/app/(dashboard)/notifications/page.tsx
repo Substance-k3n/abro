@@ -25,7 +25,16 @@
 // type (DESTINATIONS) -- older notifications carry no link.
 
 import { EmptyState } from '@abro/ui';
-import { Bell, type LucideIcon, Receipt, UserPlus, Utensils, Wallet } from 'lucide-react';
+import {
+  Bell,
+  Clock,
+  type LucideIcon,
+  Receipt,
+  UserPlus,
+  Users,
+  Utensils,
+  Wallet,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -38,6 +47,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from '~/lib/notifications-api';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 const ICONS: Record<string, LucideIcon> = {
   EXPENSE_ADDED: Utensils,
@@ -52,6 +62,10 @@ const ICONS: Record<string, LucideIcon> = {
   FRIEND_REQUEST: UserPlus,
   FRIEND_ACCEPTED: UserPlus,
   EXPENSE_DISPUTED: Receipt,
+  EKUB_INVITATION: UserPlus,
+  EKUB_PAYMENT: Wallet,
+  NEXT_PAYER: Users,
+  LATE_FEE: Clock,
 };
 
 const DESTINATIONS: Record<string, string> = {
@@ -60,6 +74,7 @@ const DESTINATIONS: Record<string, string> = {
   GROUP_INVITATION: '/groups',
   FRIEND_REQUEST: '/friends',
   FRIEND_ACCEPTED: '/friends',
+  EKUB_INVITATION: '/ekub',
 };
 
 export default function NotificationsPage() {
@@ -69,7 +84,6 @@ export default function NotificationsPage() {
 
   const load = () => {
     setError(null);
-    setNotifications(null);
     listNotifications({ limit: 50 })
       .then(setNotifications)
       .catch((err) => {
@@ -78,6 +92,8 @@ export default function NotificationsPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   const markAllRead = () => {
     if (!notifications) {

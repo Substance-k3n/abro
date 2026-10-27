@@ -25,14 +25,22 @@
 //  - Group photo (roadmap Phase 4c, ADR-017): admins add, change or
 //    remove it at the top; it saves straight away, separately from the
 //    form's Save. Everyone sees it on the group's pages.
+//  - "Automatic reminders" (ADR-023): admins switch the daily job's
+//    reminders to overdue members, saved with the form.
+//  - "Whose turn to pay" (ADR-025): admins set the amount someone has to
+//    be covering before the group is told who pays next; off sends 0.
+//  - "Late fees" (ADR-026): admins turn on a daily % on debt unpaid past
+//    a grace period, up to a cap. Entered as percentages, sent as basis
+//    points; apps/api checks the same limits.
 
-import { ETB, abs, formatMoney } from '@abro/types';
+import { ETB, abs, formatMoney, toDecimal } from '@abro/types';
 import { ArrowLeft, LogOut, Trash2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
 
 import { PhotoPicker } from '~/components/PhotoPicker';
 import { ApiError } from '~/lib/api-client';
+import { parseAmount } from '~/lib/expense-split';
 import { listExpenses } from '~/lib/expenses-api';
 import { type GroupView, GroupViewLoader } from '~/lib/group-view';
 import { deleteGroup, groupTypeFor, removeGroupMember, updateGroup } from '~/lib/groups-api';
@@ -41,6 +49,20 @@ import { photoSrc, removeGroupPhoto, uploadGroupPhoto } from '~/lib/photos';
 import { GROUP_TYPES } from '~/lib/reference-data';
 
 const CURRENCIES = ['ETB', 'USD', 'EUR'];
+/** 5,000.00 -- apps/api's default next_payer_threshold (ADR-025). */
+const DEFAULT_NEXT_PAYER = 500000n;
+/** 1% a day: the suggested late fee when turning them on (ADR-026). */
+const DEFAULT_FEE_RATE_BP = 100;
+
+/** Basis points as a % input: 250 -> "2.5". */
+function pctInput(bp: number): string {
+  return String(Number((bp / 100).toFixed(2)));
+}
+
+/** A % input as whole basis points: "2.5" -> 250; NaN if not a number. */
+function toBp(input: string): number {
+  return input.trim() === '' ? Number.NaN : Math.round(Number(input) * 100);
+}
 
 export default function GroupSettingsPage() {
   const params = useParams<{ id: string }>();
@@ -78,6 +100,32 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
   const [type, setType] = useState(groupTypeFor(group.type).id);
   const [currency, setCurrency] = useState(group.currency);
   const [simplify, setSimplify] = useState(group.simplifyDebts);
+  const [autoRemind, setAutoRemind] = useState(group.autoRemind);
+  const savedThreshold = BigInt(group.nextPayerThreshold);
+  const [nextPayerOn, setNextPayerOn] = useState(savedThreshold > 0n);
+  const [nextPayerAmount, setNextPayerAmount] = useState(
+    String(toDecimal(savedThreshold > 0n ? savedThreshold : DEFAULT_NEXT_PAYER, ETB.decimalDigits)),
+  );
+  const threshold = nextPayerOn ? parseAmount(nextPayerAmount) : 0n;
+  const thresholdInvalid = nextPayerOn && threshold <= 0n;
+
+  const [feesOn, setFeesOn] = useState(group.interestRateBp > 0);
+  const [feeRate, setFeeRate] = useState(
+    pctInput(group.interestRateBp > 0 ? group.interestRateBp : DEFAULT_FEE_RATE_BP),
+  );
+  const [feeGrace, setFeeGrace] = useState(String(group.interestGraceDays));
+  const [feeCap, setFeeCap] = useState(pctInput(group.interestCapBp));
+  const rateBp = feesOn ? toBp(feeRate) : 0;
+  const graceDays = Number(feeGrace);
+  const capBp = toBp(feeCap);
+  const feesInvalid =
+    feesOn &&
+    (!(rateBp >= 1 && rateBp <= 500) ||
+      !(Number.isInteger(graceDays) && graceDays >= 0 && graceDays <= 60) ||
+      !(capBp >= 100 && capBp <= 10000));
+  const feesDirty =
+    rateBp !== group.interestRateBp ||
+    (feesOn && (graceDays !== group.interestGraceDays || capBp !== group.interestCapBp));
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -91,7 +139,10 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
     description.trim() !== (group.description ?? '') ||
     type.toUpperCase() !== group.type ||
     currency !== group.currency ||
-    simplify !== group.simplifyDebts;
+    simplify !== group.simplifyDebts ||
+    autoRemind !== group.autoRemind ||
+    threshold !== savedThreshold ||
+    feesDirty;
 
   const save = async () => {
     setSaving(true);
@@ -103,6 +154,10 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
         type: type.toUpperCase(),
         ...(currency !== group.currency ? { currency } : {}),
         simplifyDebts: simplify,
+        autoRemind,
+        nextPayerThreshold: threshold.toString(),
+        interestRateBp: rateBp,
+        ...(feesOn ? { interestGraceDays: graceDays, interestCapBp: capBp } : {}),
       });
       setGroup({ ...updated, members: group.members }); // PATCH returns members: []
       setSaved(true);
@@ -277,6 +332,114 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
               <span className="neo-toggle-thumb" />
             </button>
           </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[0.85rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
+                Automatic reminders
+              </p>
+              <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+                Privately remind members who owe for 30 days, then every 2 weeks.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAutoRemind((v) => !v)}
+              className={`neo-toggle shrink-0 ${autoRemind ? 'on' : ''}`}
+              aria-pressed={autoRemind}
+              aria-label="Automatic reminders"
+            >
+              <span className="neo-toggle-thumb" />
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.85rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
+                  Whose turn to pay
+                </p>
+                <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+                  When someone is covering this much for the group, tell everyone who pays next.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNextPayerOn((v) => !v)}
+                className={`neo-toggle shrink-0 ${nextPayerOn ? 'on' : ''}`}
+                aria-pressed={nextPayerOn}
+                aria-label="Whose turn to pay"
+              >
+                <span className="neo-toggle-thumb" />
+              </button>
+            </div>
+            {nextPayerOn && (
+              <div className="flex items-center gap-2">
+                <input
+                  className="neo-input flex-1 font-mono"
+                  inputMode="decimal"
+                  aria-label="Amount covered before telling the group"
+                  value={nextPayerAmount}
+                  onChange={(e) => setNextPayerAmount(e.target.value.replace(/[^\d.]/g, ''))}
+                  style={{ color: 'var(--t-primary)' }}
+                />
+                <span className="font-mono text-[0.8rem]" style={{ color: 'var(--t-muted)' }}>
+                  {group.currency}
+                </span>
+              </div>
+            )}
+            {thresholdInvalid && (
+              <p className="pl-1 text-[0.72rem]" style={{ color: 'var(--c-red)' }}>
+                Enter an amount above 0, or turn it off.
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[0.85rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
+                  Late fees
+                </p>
+                <p className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+                  Add a small % a day to debt left unpaid too long. It goes to whoever is owed. Only
+                  debt added after you turn it on counts, and paying stops it.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFeesOn((v) => !v)}
+                className={`neo-toggle shrink-0 ${feesOn ? 'on' : ''}`}
+                aria-pressed={feesOn}
+                aria-label="Late fees"
+              >
+                <span className="neo-toggle-thumb" />
+              </button>
+            </div>
+            {feesOn && (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <FeeInput label="Fee a day" unit="%" value={feeRate} onChange={setFeeRate} />
+                <FeeInput
+                  label="Starts after"
+                  unit="days"
+                  value={feeGrace}
+                  onChange={setFeeGrace}
+                  whole
+                />
+                <FeeInput label="At most" unit="% of debt" value={feeCap} onChange={setFeeCap} />
+              </div>
+            )}
+            {feesInvalid && (
+              <p className="pl-1 text-[0.72rem]" style={{ color: 'var(--c-red)' }}>
+                Use 0.01%–5% a day, 0–60 days, and at most 1%–100%.
+              </p>
+            )}
+            {feesOn && !feesInvalid && group.interestRateBp === 0 && (
+              <p className="pl-1 text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+                Everyone in the group will be told when you save.
+              </p>
+            )}
+          </div>
         </Section>
       </fieldset>
 
@@ -293,7 +456,7 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
           )}
           <button
             onClick={save}
-            disabled={!dirty || !name.trim() || saving}
+            disabled={!dirty || !name.trim() || thresholdInvalid || feesInvalid || saving}
             className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving ? 'Saving…' : saved && !dirty ? 'Saved ✓' : 'Save Changes'}
@@ -423,5 +586,39 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
       </label>
       {children}
     </div>
+  );
+}
+
+function FeeInput({
+  label,
+  unit,
+  value,
+  onChange,
+  whole = false,
+}: {
+  label: string;
+  unit: string;
+  value: string;
+  onChange: (v: string) => void;
+  whole?: boolean;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="pl-1 text-[0.72rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
+        {label}
+      </span>
+      <span className="flex items-center gap-2">
+        <input
+          className="neo-input min-w-0 flex-1 font-mono"
+          inputMode={whole ? 'numeric' : 'decimal'}
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(whole ? /[^\d]/g : /[^\d.]/g, ''))}
+          style={{ color: 'var(--t-primary)' }}
+        />
+        <span className="shrink-0 text-[0.75rem]" style={{ color: 'var(--t-muted)' }}>
+          {unit}
+        </span>
+      </span>
+    </label>
   );
 }

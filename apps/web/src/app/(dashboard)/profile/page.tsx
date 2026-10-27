@@ -35,6 +35,7 @@ import { listFriends } from '~/lib/friends-api';
 import { listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { photoSrc } from '~/lib/photos';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 interface Stats {
   friends: number;
@@ -78,7 +79,6 @@ export default function ProfilePage() {
 
   const load = () => {
     setError(null);
-    setProfile(null);
     Promise.all([me(), loadStats()])
       .then(([p, s]) => {
         setProfile(p);
@@ -90,6 +90,8 @@ export default function ProfilePage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   const signOut = async () => {
     setSigningOut(true);

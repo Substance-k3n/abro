@@ -19,6 +19,11 @@
 //  - Members tab lists ACTIVE members; pending invites are on GRP-06.
 //  - Admins get a fourth quick action, Dashboard (roadmap P6), opening
 //    /groups/[id]/admin.
+//  - "Whose turn to pay" card (ADR-025, not in the spec): the next three
+//    members who owe the group, most first, from apps/api's
+//    next-payers line. Hidden when nobody owes.
+//  - When late fees are on (ADR-026), the info card says so and on
+//    what terms, so nobody is surprised by one.
 
 import { ETB, abs, formatMoney } from '@abro/types';
 import { ActivityItem, EmptyState } from '@abro/ui';
@@ -36,31 +41,47 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
+import { type NextPayer, getNextPayers } from '~/lib/balances-api';
 import { type AuthExpense, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
 import { type GroupView, GroupViewLoader, PersonAvatar, nameIn } from '~/lib/group-view';
-import { groupTypeFor } from '~/lib/groups-api';
+import { groupTypeFor, lateFeeTerms } from '~/lib/groups-api';
 import { GroupPicture } from '~/components/GroupPicture';
 import { photoSrc } from '~/lib/photos';
 
 type Tab = 'expenses' | 'balances' | 'members';
 
 const PREVIEW_COUNT = 5;
+const NEXT_PAYERS_SHOWN = 3;
 
 export default function GroupDetailPage() {
   const params = useParams<{ id: string }>();
   const [expenses, setExpenses] = useState<AuthExpense[]>([]);
+  const [nextPayers, setNextPayers] = useState<NextPayer[]>([]);
 
   return (
     <GroupViewLoader
       groupId={params.id}
-      extra={() => listExpenses({ groupId: params.id, limit: PREVIEW_COUNT + 1 }).then(setExpenses)}
+      extra={async () => {
+        await Promise.all([
+          listExpenses({ groupId: params.id, limit: PREVIEW_COUNT + 1 }).then(setExpenses),
+          getNextPayers(params.id).then((r) => setNextPayers(r.payers)),
+        ]);
+      }}
     >
-      {(view) => <GroupDetail view={view} expenses={expenses} />}
+      {(view) => <GroupDetail view={view} expenses={expenses} nextPayers={nextPayers} />}
     </GroupViewLoader>
   );
 }
 
-function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpense[] }) {
+function GroupDetail({
+  view,
+  expenses,
+  nextPayers,
+}: {
+  view: GroupView;
+  expenses: AuthExpense[];
+  nextPayers: NextPayer[];
+}) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('expenses');
   const { group, profile, myMembership, activeMembers, nets } = view;
@@ -132,6 +153,11 @@ function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpens
                 {group.description}
               </p>
             )}
+            {lateFeeTerms(group) && (
+              <p className="mt-1 text-[0.75rem] font-medium" style={{ color: 'var(--c-amber)' }}>
+                ⏰ Late fees on: {lateFeeTerms(group)}.
+              </p>
+            )}
           </div>
         </div>
 
@@ -162,8 +188,12 @@ function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpens
         </div>
       </div>
 
+      {nextPayers.length > 0 && (
+        <NextPayersCard view={view} payers={nextPayers.slice(0, NEXT_PAYERS_SHOWN)} />
+      )}
+
       {/* Quick actions */}
-      <div className={`mb-5 grid gap-2.5 ${isAdmin ? 'grid-cols-4' : 'grid-cols-3'}`}>
+      <div className="mb-5 grid grid-cols-4 gap-2.5">
         <Link
           href={`/expenses/new?groupId=${group.id}`}
           className="neo-btn-accent flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
@@ -200,16 +230,14 @@ function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpens
           <Split size={18} strokeWidth={2} />
           <span className="text-[0.68rem] font-medium">Simplify</span>
         </Link>
-        {isAdmin && (
-          <Link
-            href={`/groups/${group.id}/admin`}
-            className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
-            style={{ color: 'var(--t-secondary)' }}
-          >
-            <LayoutDashboard size={18} strokeWidth={2} />
-            <span className="text-[0.68rem] font-medium">Dashboard</span>
-          </Link>
-        )}
+        <Link
+          href={`/groups/${group.id}/admin`}
+          className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
+          style={{ color: 'var(--t-secondary)' }}
+        >
+          <LayoutDashboard size={18} strokeWidth={2} />
+          <span className="text-[0.68rem] font-medium">Dashboard</span>
+        </Link>
       </div>
 
       {/* Tabs */}
@@ -342,5 +370,52 @@ function GroupDetail({ view, expenses }: { view: GroupView; expenses: AuthExpens
         </div>
       )}
     </div>
+  );
+}
+
+/** Who should pay the group's next bill (ADR-025): whoever pays is
+ * credited, so the line re-orders itself -- if the first can't make
+ * it, the next one is up. */
+function NextPayersCard({ view, payers }: { view: GroupView; payers: NextPayer[] }) {
+  const meNext = payers[0]?.userId === view.profile.id;
+  return (
+    <section className="neo-raised-sm mb-4 rounded-3xl p-4">
+      <p
+        className="font-display mb-1 text-[0.75rem] font-bold uppercase tracking-[0.06em]"
+        style={{ color: 'var(--t-dim)' }}
+      >
+        Whose turn to pay
+      </p>
+      {meNext && (
+        <p className="mb-1 text-[0.88rem] font-semibold" style={{ color: 'var(--accent)' }}>
+          You&apos;re next to pay the bill.
+        </p>
+      )}
+      <ol className="mt-2 flex flex-col gap-2">
+        {payers.map((p, i) => (
+          <li key={p.userId} className="flex items-center gap-3">
+            <span
+              className="w-10 shrink-0 text-[0.7rem] font-semibold uppercase"
+              style={{ color: i === 0 ? 'var(--accent)' : 'var(--t-dim)' }}
+            >
+              {i === 0 ? 'Next' : 'Then'}
+            </span>
+            <PersonAvatar view={view} userId={p.userId} size={30} />
+            <span
+              className="min-w-0 flex-1 truncate text-[0.85rem] font-semibold"
+              style={{ color: 'var(--t-primary)' }}
+            >
+              {p.userId === view.profile.id ? 'You' : nameIn(view, p.userId)}
+            </span>
+            <span className="font-mono text-[0.8rem] font-bold" style={{ color: 'var(--c-red)' }}>
+              owes {formatMoney(p.owes, ETB)}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+        Whoever owes the most pays next. Paying a bill counts toward what you owe.
+      </p>
+    </section>
   );
 }

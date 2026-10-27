@@ -53,3 +53,17 @@ services:
         sync: false
       - key: RECEIPTS_BUCKET
         sync: false
+      # Phone notifications (ADR-021): a VAPID key pair from
+      # `go run ./cmd/vapidkeys`. Never rotate them -- that silently
+      # unsubscribes every device. Leave unset for in-app only.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      # Voice commands through Tezaz (ADR-027). Unset: no voice button.
+      - key: TEZAZ_RELAY_URL
+        sync: false
+      - key: TEZAZ_SECRET_KEY
+        sync: false
+      - key: VOICE_TESTERS
+        sync: false

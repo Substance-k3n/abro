@@ -23,6 +23,13 @@ export const notificationTypes = [
   'FRIEND_ACCEPTED',
   // ADR-020: someone says they weren't part of an expense.
   'EXPENSE_DISPUTED',
+  // ADR-024: ekub invitations, and ekub payments to confirm or confirmed.
+  'EKUB_INVITATION',
+  'EKUB_PAYMENT',
+  // ADR-025: someone is covering a lot for their group; who pays next.
+  'NEXT_PAYER',
+  // ADR-026: late fees turned on/off in a group, or one started on yours.
+  'LATE_FEE',
 ] as const;
 export type NotificationType = (typeof notificationTypes)[number];
 

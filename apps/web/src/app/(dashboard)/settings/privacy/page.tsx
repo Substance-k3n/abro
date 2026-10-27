@@ -26,6 +26,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, logout, me } from '~/lib/auth-api';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 export default function PrivacySettingsPage() {
   const router = useRouter();
@@ -44,6 +45,8 @@ export default function PrivacySettingsPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   if (error) {
     return <ErrorState message={error} onRetry={load} />;

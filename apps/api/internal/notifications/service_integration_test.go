@@ -14,7 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
+	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
+	"github.com/Substance-k3n/abro/apps/api/internal/push"
 )
 
 func testDatabaseURL() string {
@@ -216,5 +218,88 @@ func TestPreferences(t *testing.T) {
 		prefs, err := svc.Preferences(ctx, user.ID)
 		require.NoError(t, err)
 		assert.True(t, prefs[notifications.TypeSettlement])
+	})
+}
+
+// fakePusher records what would have been pushed (ADR-021).
+type fakePusher struct {
+	sent []push.Message
+	to   []pgtype.UUID
+}
+
+func (f *fakePusher) Send(userIDs []pgtype.UUID, msg push.Message) {
+	f.to = append(f.to, userIDs...)
+	f.sent = append(f.sent, msg)
+}
+
+func TestPush(t *testing.T) {
+	t.Run("NotifyLink pushes the stored notification, link included", func(t *testing.T) {
+		svc, makeProfile := testEnv(t)
+		pusher := &fakePusher{}
+		svc.SetPusher(pusher)
+		user := makeProfile(t, "A")
+		ctx := context.Background()
+
+		n, err := svc.NotifyLink(ctx, user.ID, notifications.TypeExpenseAdded, "Lunch", "You owe 50.00 ETB", "/expenses/x")
+		require.NoError(t, err)
+
+		require.Len(t, pusher.sent, 1)
+		assert.Equal(t, []pgtype.UUID{user.ID}, pusher.to)
+		assert.Equal(t, push.Message{
+			ID: idutil.String(n.ID), Type: "EXPENSE_ADDED", Title: "Lunch", Body: "You owe 50.00 ETB", Link: "/expenses/x",
+		}, pusher.sent[0])
+	})
+
+	t.Run("NotifyMany pushes once per recipient who wants it", func(t *testing.T) {
+		svc, makeProfile := testEnv(t)
+		pusher := &fakePusher{}
+		svc.SetPusher(pusher)
+		a := makeProfile(t, "A")
+		b := makeProfile(t, "B")
+		optedOut := makeProfile(t, "C")
+		ctx := context.Background()
+		_, err := svc.UpdatePreferences(ctx, optedOut.ID, map[string]bool{"SETTLEMENT": false})
+		require.NoError(t, err)
+
+		require.NoError(t, svc.NotifyMany(ctx, []pgtype.UUID{a.ID, b.ID, a.ID, optedOut.ID}, notifications.TypeSettlement, "Paid", "Body"))
+
+		assert.ElementsMatch(t, []pgtype.UUID{a.ID, b.ID}, pusher.to)
+		require.Len(t, pusher.sent, 2)
+		assert.Equal(t, "Paid", pusher.sent[0].Title)
+	})
+
+	t.Run("NotifyManyLink stores and pushes the link for every recipient", func(t *testing.T) {
+		svc, makeProfile := testEnv(t)
+		pusher := &fakePusher{}
+		svc.SetPusher(pusher)
+		a := makeProfile(t, "A")
+		b := makeProfile(t, "B")
+		ctx := context.Background()
+
+		require.NoError(t, svc.NotifyManyLink(ctx, []pgtype.UUID{a.ID, b.ID}, notifications.TypeExpenseAdded, "New expense", "Body", "/expenses/e1"))
+
+		for _, user := range []db.Profile{a, b} {
+			list, err := svc.List(ctx, user.ID, false, 50, 0)
+			require.NoError(t, err)
+			require.Len(t, list, 1)
+			assert.Equal(t, "/expenses/e1", list[0].Link.String)
+		}
+		require.Len(t, pusher.sent, 2)
+		assert.Equal(t, "/expenses/e1", pusher.sent[0].Link)
+		assert.Equal(t, "/expenses/e1", pusher.sent[1].Link)
+	})
+
+	t.Run("an opted-out type isn't pushed either", func(t *testing.T) {
+		svc, makeProfile := testEnv(t)
+		pusher := &fakePusher{}
+		svc.SetPusher(pusher)
+		user := makeProfile(t, "A")
+		ctx := context.Background()
+		_, err := svc.UpdatePreferences(ctx, user.ID, map[string]bool{"EXPENSE_ADDED": false})
+		require.NoError(t, err)
+
+		_, err = svc.Notify(ctx, user.ID, notifications.TypeExpenseAdded, "Lunch", "Body")
+		require.NoError(t, err)
+		assert.Empty(t, pusher.sent)
 	})
 }

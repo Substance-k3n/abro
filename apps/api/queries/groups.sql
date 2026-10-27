@@ -67,6 +67,20 @@ SET name = COALESCE(sqlc.narg('name'), name),
     currency = COALESCE(sqlc.narg('currency'), currency),
     description = COALESCE(sqlc.narg('description'), description),
     simplify_debts = COALESCE(sqlc.narg('simplify_debts'), simplify_debts),
+    auto_remind = COALESCE(sqlc.narg('auto_remind'), auto_remind),
+    next_payer_threshold = COALESCE(sqlc.narg('next_payer_threshold'), next_payer_threshold),
+    -- Late fees (ADR-026): turning them on stamps when, so older debt is
+    -- never charged; turning them off clears it. Changing the rate while
+    -- on keeps it. (The right-hand side sees the row as it was.)
+    interest_since = CASE
+        WHEN sqlc.narg('interest_rate_bp')::int IS NULL THEN interest_since
+        WHEN sqlc.narg('interest_rate_bp')::int = 0 THEN NULL
+        WHEN interest_rate_bp = 0 THEN now()
+        ELSE interest_since
+    END,
+    interest_rate_bp = COALESCE(sqlc.narg('interest_rate_bp')::int, interest_rate_bp),
+    interest_grace_days = COALESCE(sqlc.narg('interest_grace_days'), interest_grace_days),
+    interest_cap_bp = COALESCE(sqlc.narg('interest_cap_bp'), interest_cap_bp),
     updated_at = now()
 WHERE id = sqlc.arg('id')
 RETURNING *;

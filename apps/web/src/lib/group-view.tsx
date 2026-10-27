@@ -29,6 +29,7 @@ import { getGroupBalances } from './balances-api';
 import { type AuthGroup, type GroupMember, getGroup } from './groups-api';
 import { colorForId, initialsOf } from './identity';
 import { photoSrc } from '~/lib/photos';
+import { useApiRefresh } from './use-api-refresh';
 
 export interface GroupView {
   profile: AuthProfile;
@@ -38,6 +39,8 @@ export interface GroupView {
   myMembership: GroupMember;
   activeMembers: GroupMember[];
   nets: Map<string, bigint>;
+  /** For each member who owes the group, when they started (ADR-023). */
+  owingSince: Map<string, string>;
   people: Map<string, AuthProfile>;
 }
 
@@ -53,6 +56,9 @@ async function loadGroupView(id: string): Promise<GroupView> {
     myMembership,
     activeMembers: group.members.filter((m) => m.status === 'ACTIVE'),
     nets: new Map(entries.map((e) => [e.userId, BigInt(e.netBalance)])),
+    owingSince: new Map(
+      entries.flatMap((e) => (e.owingSince ? [[e.userId, e.owingSince] as const] : [])),
+    ),
     people: new Map(group.members.map((m) => [m.userId, m.user])),
   };
 }
@@ -81,7 +87,8 @@ export function GroupViewLoader({
   const [state, setState] = useState<LoadState>({ status: 'loading' });
 
   const load = () => {
-    setState({ status: 'loading' });
+    // Keep showing what's there while it refreshes (ADR-022).
+    setState((current) => (current.status === 'ready' ? current : { status: 'loading' }));
     Promise.all([loadGroupView(groupId), extra?.()])
       .then(([data]) => setState({ status: 'ready', data }))
       .catch((err) => {
@@ -98,6 +105,7 @@ export function GroupViewLoader({
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(load, [groupId]);
+  useApiRefresh(load);
 
   if (state.status === 'loading') {
     return <LoadingState minHeight="60vh" />;

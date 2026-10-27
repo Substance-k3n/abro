@@ -13,6 +13,8 @@ COPY apps/web/package.json apps/web/
 COPY packages/types/package.json packages/types/
 COPY packages/ui/package.json packages/ui/
 COPY packages/config/package.json packages/config/
+# The packed Tezaz SDK (ADR-027), installed as file: dependencies.
+COPY vendor vendor
 RUN pnpm install --frozen-lockfile --filter @abro/web... --filter .
 COPY packages packages
 COPY apps/web apps/web

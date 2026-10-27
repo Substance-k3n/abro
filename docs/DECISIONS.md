@@ -7,6 +7,391 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-027: Voice commands through Tezaz -- testers only, tokens from the API
+
+**Status:** Accepted (user request, 2026-10-27). Pilot.
+
+**Context:** The user wants to try voice commands ("open the Bole
+group", "add 300 birr for lunch") in a real app. Tezaz, the user's
+voice-command service, runs at tezaz.onrender.com: the browser talks to
+its relay over a WebSocket, and the app registers the actions the
+assistant may call. A Tezaz session needs a short-lived token, minted
+with a secret key that must stay on a server.
+
+**Decision:**
+
+- **The API mints the tokens** (`internal/voice`): `GET /voice` says
+  whether the signed-in user gets voice (and where the session is);
+  `POST /voice/token` calls the relay's `POST /v1/tokens` with
+  `TEZAZ_SECRET_KEY`, for `WEB_ORIGIN`, with the user's id as the
+  visitor id (Tezaz's per-visitor limits then apply per ABRO user).
+  The secret never reaches the browser.
+- **Testers only** (`VOICE_TESTERS`, emails or `*`): everyone else gets
+  `{"enabled": false}` / `403 VOICE_NOT_ENABLED`, so strangers can't
+  spend the speech credit. Unconfigured means off.
+- **Actions run in the web app through the existing API calls**, so
+  every rule and permission stays where it is (§2 of the workflow);
+  the assistant can't do anything the user couldn't do on screen.
+  Anything that changes money asks the user to confirm first.
+- Errors: relay limit -> `429 VOICE_LIMIT_REACHED`; relay down, refused
+  or misconfigured -> `502 VOICE_UNAVAILABLE`.
+
+**Alternatives:** The Tezaz public key straight from the page -- no API
+change, but anyone could then open sessions on our account. Minting
+tokens in a Next.js route -- it would have to re-check the session the
+Go API owns.
+
+**Consequences:** What the user says, and the screen state the actions
+return, go to Tezaz and its speech provider; testers should know that.
+Tezaz keeps redacted transcripts for its project's retention period.
+The voice SDK isn't published yet, so the web app carries packed copies
+of `@tezaz/core` and `@tezaz/react` in `vendor/tezaz/` (installed as
+`file:` dependencies, with a pnpm override for core). To update them,
+pack them again in the Tezaz repo and replace the files under a new
+name (e.g. `tezaz-react-0.0.0-<tezaz commit>.tgz`), updating
+`package.json` and the lockfile: build caches keep a same-named file.
+
+**Actions** (`components/VoiceAssistant.tsx` and `components/voice/`):
+open a page, a group or a friend by name; read out balances; add an
+expense the user paid in a group, split equally between its active
+members; add an expense or a loan with one friend (either one paid,
+halved or owed in full); record a payment made (a claim the other person
+confirms, ADR-019) or received (counts at once), checked against what's
+owed first; remind a friend; send a friend request; create a group and
+invite friends, or invite one more; read a group's balances, who pays
+next (ADR-025) and where the user stands in an ekub; search expenses,
+read the latest activity, and explain a balance with one friend. Every
+money action
+is `dangerous` and confirmed with the exact amount and people; reminders
+and friend requests are confirmed too.
+
+---
+
+## ADR-026: Late fees on group debt -- opt-in, simple daily interest, capped
+
+**Status:** Accepted (user request, 2026-10-16).
+
+**Context:** With the next-payer line (ADR-025) people still had no
+reason to pay on time. The user asked for an optional fee: if a debt
+isn't paid within a week, a percentage is added day by day -- and it
+must still work for someone already in debt to everyone, whose payment
+should clear it.
+
+**Decision (chosen with the user):**
+
+- **Off by default; a group admin turns it on** (`PATCH /groups/{id}`
+  `interestRateBp`, `interestGraceDays`, `interestCapBp`; migration
+  0022). Rate in basis points a day (0.01%-5%), grace 0-60 days
+  (default 7), cap 1%-100% of the debt (default 20%). Every other
+  member is told (`LATE_FEE` notification) when it's turned on, off or
+  changed.
+- **Only new debt:** turning it on stamps `groups.interest_since`; debt
+  added before then never gets a fee. Turning it off clears it.
+- **Simple interest on the overdue part, capped per debt:** each
+  member's debt is split into unpaid parts, oldest paid first (FIFO,
+  as for debt age, ADR-023; `money.UnpaidParts`). A part past its grace
+  period adds rate x what's left of it each day, until it has added the
+  cap (`money.LateFeeToday`). Fees are left out of the parts, so a fee
+  never earns a fee. Paying anything -- a settlement, or the next bill
+  -- pays the oldest debt first and so stops its fee at once. Never
+  more in a day than the member owes the group.
+- **Fees are facts:** the daily run (10:00 Addis Ababa, with the
+  reminders, ADR-023) writes one `INTEREST` expense per person owed,
+  paid by them, the debtor's share carrying it, split by how much each
+  is owed. Balances stay derived. `late_fee_days` marks who was charged
+  which day, so a restart never charges twice. A fee can't be edited;
+  the payer or an admin deletes it to waive it. Analytics leave fees out
+  of spending, like settlements.
+- The debtor is told (`LATE_FEE`) when a run of fees starts, not every
+  day.
+
+**Alternatives considered:** fees derived on the fly (they'd change or
+vanish when an old expense is edited); compounding (unfair, and grows
+fast); a per-expense switch by the payer (confusing; the user chose a
+group setting); a weekly flat fee.
+
+**Consequences:**
+
+- A day the API is down isn't charged later.
+- A part partly paid is charged on what's left, and its cap counts
+  days, so it can end up below the full cap in money -- in the
+  debtor's favour.
+- The INTEREST split type can't be dropped from Postgres's enum; the
+  down migration rewrites fees as EXACT expenses (same balances).
+
+---
+
+## ADR-025: Whose turn to pay -- a derived next-payer line per group
+
+**Status:** Accepted (user request, 2026-10-16).
+
+**Context:** A week of real use showed one friend paying every group
+bill while the others let their debt grow and never paid first. The
+user wanted the app to say who pays next once someone has covered
+"around 5,000", with a runner-up if that person doesn't come.
+
+**Decision (chosen with the user):**
+
+- **The line is derived, never stored:** the active members who owe the
+  group, the most first; on a tie, whoever has owed the longest
+  (`OwingSince`, ADR-023). `GET /balances/groups/{id}/next-payers`.
+  Whoever actually pays is credited like any payer, so the line
+  re-orders by itself -- the runner-up is just the next name -- and a
+  member who owes and pays the next bill pays off their debt with it.
+- **Notification, per-group limit:** `groups.next_payer_threshold`
+  (migration 0021, minor units, default 5,000.00, `0` = off), set by an
+  admin (`PATCH /groups/{id}`). When a new group expense takes its
+  payer's net across the limit, every active member gets a
+  `NEXT_PAYER` notification: "Abel is covering 6,000.00 ETB in
+  "Lunch". Next to pay: Kidus, then Sara, then Dawit." Only on
+  crossing, so it isn't repeated on every expense after; opt-out-able
+  like every type.
+- Wired as `expenses.GroupExpenseHook` (balances.NextPayerNotifier): it
+  can't fail the expense -- an error is logged.
+
+**Alternatives considered:** notifying after every expense (noisy);
+showing the line with no notification (the user wanted the nudge);
+a fixed rota (ignores who actually owes).
+
+**Consequences:** edits and deletes don't re-send it; recurring
+expenses do (they go through `expenses.Create`). Settlements don't
+(they aren't new spending). Late fees on debt left unpaid are ADR-026.
+
+---
+
+## ADR-024: Ekub — rotating savings groups, with derived pairwise payments
+
+**Status:** Accepted (user request, 2026-10-10).
+
+**Context:** The user wants ekub (an Ethiopian rotating savings group) in
+ABRO: everyone puts in every round and one turn takes the pot, in an order
+the admin sets. Turns can be shared (two people at 20k each make one 40k
+turn and take the pot together). People can join mid-way and leave once
+they've cleared what they owe.
+
+**Decision:**
+
+- Its own section and tables (`ekubs`, `ekub_members`, `ekub_payments`,
+  migration 0019), apart from groups and expenses. An ekub never changes a
+  friend or group balance. The app records payments; it never moves money.
+- A **slot** is one turn. Each member has an `amount` and a
+  `slot_position`; a slot's amounts add up to the ekub's `slot_amount`
+  (any number of people, any split; checked at create and at start).
+  Round n's pot goes to slot n. Due dates: `start_date` plus one week or
+  one calendar month per round.
+- **Who pays whom is derived, not stored.** Two members in different slots
+  pay into each other's pots if both were in by the earlier of their two
+  turns (`joined_round`). Payer P puts `amount_P × amount_R / slot_amount`
+  into R's pot (rounded half up). The formula is symmetric, so every pair
+  evens out exactly over a cycle. Example: 3 × 40k plus 20k + 20k → a full
+  turn takes 120k from the others, each half 60k (80k with their own part).
+  Someone who joins after a member's turn neither pays nor is paid by them.
+- **Payments** follow ADR-019: the payer's record is a claim the person
+  paid confirms or turns down; the person paid can record it directly. The
+  request says PAID or RECEIVED, because two members pay into each other's
+  pots and "a payment with D" would be ambiguous. One live payment per
+  pair (partial unique index). Paying ahead of the round is allowed.
+- **Lifecycle:** DRAFT (admin invites friends, arranges the turns) →
+  start (no open invitations, every turn adds up, at least two turns) →
+  ACTIVE. After the start, only turns still to come can move, and only as
+  whole turns. Amounts are fixed. Someone joining after the start takes a
+  full turn of their own, puts in from the round then collecting, and is
+  placed when they accept; later turns move back one.
+- **Entering an ekub that was already running:** before the start, each
+  person can have the round they joined in (`joined_round`, never later
+  than their own turn). Starting with a past date makes the rounds before
+  today "over"; `pastPaid` records all their payments as confirmed (by the
+  admin entering the history), so tracking picks up from the round now
+  collecting. A friend invited after the start can be put at any turn from
+  the round now collecting.
+- **Missed payments in that history** (`ekub_missed_payments`, migration
+  0020): at the start the admin can mark payments of past rounds that were
+  never made. If the payer's own turn was still to come, the two skip each
+  other for the whole cycle, as with a late joiner: "Z didn't pay Y, so Y
+  won't pay Z" (user's choice, over keeping it as a debt). Stored once per
+  pair; derived obligations leave the pair out both ways. If the payer had
+  already taken their pot (with the recipient's money in it), skipping
+  would let them off, so that payment just stays owed (left out of
+  `pastPaid`).
+- **Leaving:** before the start, any time. After it, only once every
+  payment into and out of your pot is confirmed, so not before your turn
+  (user's choice). The admin can't leave. Leavers keep their place in the
+  record.
+
+**Alternatives:** Ekub mode inside a group (mixes pot money into shared
+expenses and balances). Storing each round's dues as rows (they would go
+stale whenever the order changes or someone joins). Letting an early
+leaver be refunded (the user chose "wait for your turn").
+
+**Consequences:** No automatic reminders for ekub dues yet. Someone
+invited after the start takes a full turn of their own (sharing works
+when the history is entered before the start). Handing over the admin
+role isn't supported yet. Rounding can leave a pot a minor unit away from the exact share, but
+each pair still evens out.
+
+---
+
+## ADR-023: Overdue debts — debt age, friend reminders, daily automatic reminders
+
+**Status:** Accepted (user request, 2026-10-09).
+
+**Context:** Trial users asked what happens to "people who don't pay
+after a month". Only a group admin could remind, by hand (ADR-018); a
+friend owed money had no way to, nobody could see how old a debt was,
+and nothing in the API ran on a schedule (recurring expenses still
+don't generate on their own, ADR-005).
+
+**Decision (chosen with the user):**
+
+- **Debt age, derived.** `money.OwingSince` is when the oldest unpaid
+  part of a balance was added: payments pay off the oldest debt first
+  (FIFO), so someone who keeps paying part of it never looks overdue for
+  debt they've covered. Movements are ordered by when expenses were
+  **added** (`created_at`), not their date, so back-dating an expense
+  doesn't make it overdue at once. `GET /balances/friends/{id}` and
+  `GET /balances/groups/{id}` return `owingSince`; nothing is stored.
+- **Overdue after 30 days** (`balances.OverdueAfter`, mirrored by the
+  web). In a group, **every member sees** who is overdue (the user's
+  choice) -- the group balances already show who owes.
+- **Friend reminders:** `POST /friends/{id}/remind`, by the person owed,
+  once per 24 hours per pair (as in groups); `GET /friends/{id}/reminder`
+  is the latest, for the button.
+- **Automatic reminders:** once a day from 10:00 Addis Ababa time the
+  API reminds each active member whose group debt, and each friend whose
+  personal debt, is overdue -- then again every **14 days** while it
+  stays open. Any reminder, manual too, restarts the 14 days. Private
+  to the debtor (a `PAYMENT_REMINDER` notification, which they can turn
+  off, ADR-018); admins see "automatic" on the dashboard.
+- **On by default, switchable by the side owed:** a group admin per
+  group (`groups.auto_remind`, `PATCH /groups/{id}`), and each person
+  for the friends who owe them (`profiles.auto_remind_friends`,
+  `GET/PATCH /reminders/settings`).
+- **Storage:** `payment_reminders` (migration 0018) now also holds
+  friend reminders (`group_id` NULL, `creditor_id` = the person owed)
+  and automatic ones (`kind` AUTO, no sender). Still no amounts.
+- **Scheduler: in-process** (`reminders.RunDaily`): every 15 minutes it
+  checks the clock (no database), and runs the sweep once a day. The
+  API is kept awake (keep-awake), so this needs no new service; a
+  restart re-runs that day's sweep, which sends nothing twice.
+
+**Alternatives considered:** a cron service calling a secret endpoint
+(another secret and service to keep working, for the same result);
+dating debts from the balance last being zero (someone who never quite
+pays off looks overdue forever); showing overdue only to admins (the
+user wanted the group to see it).
+
+**Consequences:**
+
+- Tiny leftovers count too: 0.33 ETB 30 days old gets a reminder.
+- The daily job is where recurring-expense generation (ADR-005) can run
+  once that's decided.
+- With several API instances each would sweep at the same time and
+  could send a reminder twice (the insert has no lock, as in ADR-018);
+  only one instance runs today.
+
+---
+
+## ADR-022: Screens show saved data at once and refresh quietly
+
+**Status:** Accepted (user request, 2026-10-08).
+
+**Context:** "Make it smoother, like a Flutter app": every open started
+empty and waited for the network, the 30 s read cache was thrown away on
+every return to the app, and a tab older than 30 s blanked to a skeleton
+while it refetched. With no connection the app showed only the offline
+page.
+
+**Decision (chosen with the user):** The read cache in
+`apps/web/src/lib/api-client.ts` is **stale-while-revalidate and saved
+on the device** (localStorage). Viewing screens (`useApiRefresh`) are
+answered at once from the last data seen -- across restarts and offline
+-- and anything older than 30 s is fetched again in the background; when
+the answer differs, the screen re-runs its load and swaps it in without
+a skeleton. Coming back to the app, pull-to-refresh and reconnecting all
+mark the cache old the same way. **Offline is view-only:** an "Offline.
+Showing your saved data." bar shows, and changing anything fails with
+"You're offline".
+
+Guards, because this is money and the device may be shared:
+
+- Any write that reaches the server wipes the cache (memory and device),
+  so no screen shows a pre-change balance after you add, edit or settle.
+  A write that fails offline wipes nothing.
+- Money flows (settle up, edit expense, record a payment) don't use
+  `useApiRefresh`, so they never pre-fill from old data; they wait for
+  the server as before.
+- Signing out, or any 401 for an expired session, wipes the saved data,
+  so the next person on that device sees nothing.
+
+**Alternatives considered:** memory-only with a longer TTL (no device
+storage, but no instant open and no offline); queueing new expenses
+offline (nicer, but duplicates and conflicts in a money app need more
+care -- later, if wanted); a Flutter/native rewrite (the smoothness is
+the caching, not the toolkit).
+
+**Consequences:**
+
+- Saved data lives only in that browser on that device; it costs no
+  server or database storage and means fewer requests.
+- A screen can show data that is a few seconds (or, offline, days) old
+  until the refresh lands; it is replaced as soon as the server answers.
+- New screens should use `useApiRefresh(load)` and must not reset their
+  data to null at the start of `load`.
+
+---
+
+## ADR-021: Phone notifications are Web Push of the in-app ones
+
+**Status:** Accepted (user request, 2026-10-08).
+
+**Context:** People only learned about a new expense, a payment to
+confirm or a friend request by opening ABRO. ABRO_PRD.md lists web push
+as Phase 2; the trial made it the next thing people wanted.
+
+**Decision (chosen with the user):** Standard **Web Push** with VAPID
+keys, sent by the API itself (`internal/push`, `webpush-go`) -- no
+Firebase project or other paid service. Every notification the API
+stores is also pushed to the recipient's devices, after the row is
+written, in the background; a failed push never fails the action and the
+notification is still in the app. **Which types arrive is the same list
+as in-app** (the Settings switches); push is one extra on/off switch per
+device, not a second switch per type. Permission is only asked after a
+tap -- the switch in Settings -> Notifications, or a one-time, dismissible
+card on Home -- never as an automatic popup. Tapping a push marks it read
+and opens its `link` (or the notifications list).
+
+Devices live in `push_subscriptions` (already in migration 0007, unused
+until now). An endpoint belongs to one browser profile: subscribing it
+again moves it to whoever is signed in, and signing out switches push off
+on that device first, so the next person never gets someone else's
+notifications. Endpoints the push service reports gone (404/410) are
+deleted. The API only accepts endpoints on the browsers' push services
+(FCM, Mozilla, Apple, Windows), so it can't be told to post elsewhere.
+
+**Alternatives considered:** a separate push switch per type (more
+control, a busier screen); asking for permission right after sign-in
+(more reach, but many people tap Block and browsers penalise it);
+Telegram bot messages (popular here, but needs everyone to link a
+Telegram account; still possible later); Firebase Cloud Messaging SDK
+(a Google project and SDK for what the browser already does).
+
+**Consequences:**
+
+- iPhone only gets push in the installed app (iOS 16.4+); Safari itself
+  can't. The switch says so and points to Install.
+- The service worker only runs in production builds, so push can't be
+  tried under `pnpm dev`; use `pnpm build && pnpm start`.
+- `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` must stay the same for the
+  life of an environment: new keys silently orphan every device until
+  people switch it on again. Without them the API answers 501 on
+  `/push/public-key` and the app hides the switch.
+- `NotifyMany` gained a link too (`NotifyManyLink`): new/edited and
+  recurring expenses open the expense, group changes open the group.
+  Deleted expenses, deleted groups and invitations have no screen of
+  their own and open the notifications list.
+
+---
+
 ## ADR-020: Expense disputes flag a share; only the payer changes it
 
 **Status:** Accepted (phone-trial feedback, 2026-10-07).

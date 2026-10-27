@@ -42,6 +42,9 @@ type env struct {
 	balances    *balances.Service
 	expenses    *expenses.Service
 	groups      *groups.Service
+	q           db.Querier
+	notify      *notifications.Service
+	pool        *pgxpool.Pool
 	makeProfile func(t *testing.T, label string) db.Profile
 	makeFriends func(t *testing.T, a, b pgtype.UUID)
 }
@@ -100,6 +103,7 @@ func setup(t *testing.T) env {
 
 	return env{
 		balances: balancesSvc, expenses: expensesSvc, groups: groupsSvc,
+		q: queries, notify: notifySvc, pool: pool,
 		makeProfile: makeProfile, makeFriends: makeFriendsFn,
 	}
 }

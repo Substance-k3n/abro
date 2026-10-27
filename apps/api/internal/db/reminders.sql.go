@@ -11,6 +11,110 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createAutoFriendReminderIfDue = `-- name: CreateAutoFriendReminderIfDue :one
+INSERT INTO payment_reminders (creditor_id, recipient_id, kind)
+SELECT $1, $2, 'AUTO'
+WHERE NOT EXISTS (
+    SELECT 1 FROM payment_reminders r
+    WHERE r.group_id IS NULL AND r.creditor_id = $1
+      AND r.recipient_id = $2
+      AND r.created_at > $3
+)
+RETURNING id, group_id, sender_id, recipient_id, created_at, creditor_id, kind
+`
+
+type CreateAutoFriendReminderIfDueParams struct {
+	CreditorID  pgtype.UUID        `json:"creditor_id"`
+	RecipientID pgtype.UUID        `json:"recipient_id"`
+	NotSince    pgtype.Timestamptz `json:"not_since"`
+}
+
+// CreateAutoGroupReminderIfDue for a friend debt.
+func (q *Queries) CreateAutoFriendReminderIfDue(ctx context.Context, arg CreateAutoFriendReminderIfDueParams) (PaymentReminder, error) {
+	row := q.db.QueryRow(ctx, createAutoFriendReminderIfDue, arg.CreditorID, arg.RecipientID, arg.NotSince)
+	var i PaymentReminder
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.SenderID,
+		&i.RecipientID,
+		&i.CreatedAt,
+		&i.CreditorID,
+		&i.Kind,
+	)
+	return i, err
+}
+
+const createAutoGroupReminderIfDue = `-- name: CreateAutoGroupReminderIfDue :one
+INSERT INTO payment_reminders (group_id, recipient_id, kind)
+SELECT $1, $2, 'AUTO'
+WHERE NOT EXISTS (
+    SELECT 1 FROM payment_reminders r
+    WHERE r.group_id = $1 AND r.recipient_id = $2
+      AND r.created_at > $3
+)
+RETURNING id, group_id, sender_id, recipient_id, created_at, creditor_id, kind
+`
+
+type CreateAutoGroupReminderIfDueParams struct {
+	GroupID     pgtype.UUID        `json:"group_id"`
+	RecipientID pgtype.UUID        `json:"recipient_id"`
+	NotSince    pgtype.Timestamptz `json:"not_since"`
+}
+
+// The daily job's reminder for a group debt (ADR-023). Skipped when the
+// member had any reminder in this group after not_since (14 days back),
+// so a recent manual nudge counts too.
+func (q *Queries) CreateAutoGroupReminderIfDue(ctx context.Context, arg CreateAutoGroupReminderIfDueParams) (PaymentReminder, error) {
+	row := q.db.QueryRow(ctx, createAutoGroupReminderIfDue, arg.GroupID, arg.RecipientID, arg.NotSince)
+	var i PaymentReminder
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.SenderID,
+		&i.RecipientID,
+		&i.CreatedAt,
+		&i.CreditorID,
+		&i.Kind,
+	)
+	return i, err
+}
+
+const createFriendReminderIfDue = `-- name: CreateFriendReminderIfDue :one
+INSERT INTO payment_reminders (creditor_id, sender_id, recipient_id)
+SELECT $1, $1, $2
+WHERE NOT EXISTS (
+    SELECT 1 FROM payment_reminders r
+    WHERE r.group_id IS NULL AND r.creditor_id = $1
+      AND r.recipient_id = $2
+      AND r.created_at > now() - interval '24 hours'
+)
+RETURNING id, group_id, sender_id, recipient_id, created_at, creditor_id, kind
+`
+
+type CreateFriendReminderIfDueParams struct {
+	CreditorID  pgtype.UUID `json:"creditor_id"`
+	RecipientID pgtype.UUID `json:"recipient_id"`
+}
+
+// A friend's nudge to a friend who owes them (ADR-023): like
+// CreatePaymentReminderIfDue, at most once per 24 hours per pair, counting
+// automatic reminders too.
+func (q *Queries) CreateFriendReminderIfDue(ctx context.Context, arg CreateFriendReminderIfDueParams) (PaymentReminder, error) {
+	row := q.db.QueryRow(ctx, createFriendReminderIfDue, arg.CreditorID, arg.RecipientID)
+	var i PaymentReminder
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.SenderID,
+		&i.RecipientID,
+		&i.CreatedAt,
+		&i.CreditorID,
+		&i.Kind,
+	)
+	return i, err
+}
+
 const createPaymentReminderIfDue = `-- name: CreatePaymentReminderIfDue :one
 INSERT INTO payment_reminders (group_id, sender_id, recipient_id)
 SELECT $1, $2, $3
@@ -19,7 +123,7 @@ WHERE NOT EXISTS (
     WHERE r.group_id = $1 AND r.recipient_id = $3
       AND r.created_at > now() - interval '24 hours'
 )
-RETURNING id, group_id, sender_id, recipient_id, created_at
+RETURNING id, group_id, sender_id, recipient_id, created_at, creditor_id, kind
 `
 
 type CreatePaymentReminderIfDueParams struct {
@@ -41,12 +145,52 @@ func (q *Queries) CreatePaymentReminderIfDue(ctx context.Context, arg CreatePaym
 		&i.SenderID,
 		&i.RecipientID,
 		&i.CreatedAt,
+		&i.CreditorID,
+		&i.Kind,
+	)
+	return i, err
+}
+
+const getAutoRemindFriends = `-- name: GetAutoRemindFriends :one
+SELECT auto_remind_friends FROM profiles WHERE id = $1
+`
+
+func (q *Queries) GetAutoRemindFriends(ctx context.Context, id pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, getAutoRemindFriends, id)
+	var auto_remind_friends bool
+	err := row.Scan(&auto_remind_friends)
+	return auto_remind_friends, err
+}
+
+const getLatestFriendReminder = `-- name: GetLatestFriendReminder :one
+SELECT id, group_id, sender_id, recipient_id, created_at, creditor_id, kind FROM payment_reminders
+WHERE group_id IS NULL AND creditor_id = $1 AND recipient_id = $2
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetLatestFriendReminderParams struct {
+	CreditorID  pgtype.UUID `json:"creditor_id"`
+	RecipientID pgtype.UUID `json:"recipient_id"`
+}
+
+func (q *Queries) GetLatestFriendReminder(ctx context.Context, arg GetLatestFriendReminderParams) (PaymentReminder, error) {
+	row := q.db.QueryRow(ctx, getLatestFriendReminder, arg.CreditorID, arg.RecipientID)
+	var i PaymentReminder
+	err := row.Scan(
+		&i.ID,
+		&i.GroupID,
+		&i.SenderID,
+		&i.RecipientID,
+		&i.CreatedAt,
+		&i.CreditorID,
+		&i.Kind,
 	)
 	return i, err
 }
 
 const getLatestPaymentReminder = `-- name: GetLatestPaymentReminder :one
-SELECT id, group_id, sender_id, recipient_id, created_at FROM payment_reminders
+SELECT id, group_id, sender_id, recipient_id, created_at, creditor_id, kind FROM payment_reminders
 WHERE group_id = $1 AND recipient_id = $2
 ORDER BY created_at DESC
 LIMIT 1
@@ -66,12 +210,114 @@ func (q *Queries) GetLatestPaymentReminder(ctx context.Context, arg GetLatestPay
 		&i.SenderID,
 		&i.RecipientID,
 		&i.CreatedAt,
+		&i.CreditorID,
+		&i.Kind,
 	)
 	return i, err
 }
 
+const listAcceptedFriendPairs = `-- name: ListAcceptedFriendPairs :many
+SELECT f.user_id, f.friend_id,
+       u.auto_remind_friends AS user_auto_remind,
+       fr.auto_remind_friends AS friend_auto_remind
+FROM friendships f
+JOIN profiles u ON u.id = f.user_id
+JOIN profiles fr ON fr.id = f.friend_id
+WHERE f.status = 'ACCEPTED'
+`
+
+type ListAcceptedFriendPairsRow struct {
+	UserID           pgtype.UUID `json:"user_id"`
+	FriendID         pgtype.UUID `json:"friend_id"`
+	UserAutoRemind   bool        `json:"user_auto_remind"`
+	FriendAutoRemind bool        `json:"friend_auto_remind"`
+}
+
+// Every friendship, with whether each side wants the friends who owe
+// them reminded automatically.
+func (q *Queries) ListAcceptedFriendPairs(ctx context.Context) ([]ListAcceptedFriendPairsRow, error) {
+	rows, err := q.db.Query(ctx, listAcceptedFriendPairs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAcceptedFriendPairsRow
+	for rows.Next() {
+		var i ListAcceptedFriendPairsRow
+		if err := rows.Scan(
+			&i.UserID,
+			&i.FriendID,
+			&i.UserAutoRemind,
+			&i.FriendAutoRemind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listActiveMemberIDs = `-- name: ListActiveMemberIDs :many
+SELECT user_id FROM group_members
+WHERE group_id = $1 AND status = 'ACTIVE'
+`
+
+func (q *Queries) ListActiveMemberIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listActiveMemberIDs, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []pgtype.UUID
+	for rows.Next() {
+		var user_id pgtype.UUID
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAutoRemindGroups = `-- name: ListAutoRemindGroups :many
+SELECT id, name, currency FROM groups
+WHERE deleted_at IS NULL AND auto_remind
+`
+
+type ListAutoRemindGroupsRow struct {
+	ID       pgtype.UUID `json:"id"`
+	Name     string      `json:"name"`
+	Currency string      `json:"currency"`
+}
+
+func (q *Queries) ListAutoRemindGroups(ctx context.Context) ([]ListAutoRemindGroupsRow, error) {
+	rows, err := q.db.Query(ctx, listAutoRemindGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAutoRemindGroupsRow
+	for rows.Next() {
+		var i ListAutoRemindGroupsRow
+		if err := rows.Scan(&i.ID, &i.Name, &i.Currency); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listLatestPaymentReminders = `-- name: ListLatestPaymentReminders :many
-SELECT DISTINCT ON (recipient_id) id, group_id, sender_id, recipient_id, created_at
+SELECT DISTINCT ON (recipient_id) id, group_id, sender_id, recipient_id, created_at, creditor_id, kind
 FROM payment_reminders
 WHERE group_id = $1
 ORDER BY recipient_id, created_at DESC
@@ -93,6 +339,8 @@ func (q *Queries) ListLatestPaymentReminders(ctx context.Context, groupID pgtype
 			&i.SenderID,
 			&i.RecipientID,
 			&i.CreatedAt,
+			&i.CreditorID,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}
@@ -102,4 +350,22 @@ func (q *Queries) ListLatestPaymentReminders(ctx context.Context, groupID pgtype
 		return nil, err
 	}
 	return items, nil
+}
+
+const setAutoRemindFriends = `-- name: SetAutoRemindFriends :one
+UPDATE profiles SET auto_remind_friends = $2, updated_at = now()
+WHERE id = $1
+RETURNING auto_remind_friends
+`
+
+type SetAutoRemindFriendsParams struct {
+	ID                pgtype.UUID `json:"id"`
+	AutoRemindFriends bool        `json:"auto_remind_friends"`
+}
+
+func (q *Queries) SetAutoRemindFriends(ctx context.Context, arg SetAutoRemindFriendsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, setAutoRemindFriends, arg.ID, arg.AutoRemindFriends)
+	var auto_remind_friends bool
+	err := row.Scan(&auto_remind_friends)
+	return auto_remind_friends, err
 }

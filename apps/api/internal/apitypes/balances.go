@@ -1,13 +1,22 @@
 package apitypes
 
+import "time"
+
 type FriendBalance struct {
 	FriendID   string `json:"friendId"`
 	NetBalance string `json:"netBalance"`
+	// OwingSince is when the oldest unpaid part of the balance was added,
+	// whichever way it runs (ADR-023). Only GET /balances/friends/{id}
+	// fills it; absent when settled up, and in the summary.
+	OwingSince *time.Time `json:"owingSince,omitempty"`
 }
 
 type GroupBalanceEntry struct {
 	UserID     string `json:"userId"`
 	NetBalance string `json:"netBalance"`
+	// OwingSince is set for a member who owes the group: when the oldest
+	// unpaid part of it was added (ADR-023). Every member sees it.
+	OwingSince *time.Time `json:"owingSince"`
 }
 
 type SimplifiedTransaction struct {
@@ -33,4 +42,19 @@ type GroupBalance struct {
 type BalancesSummary struct {
 	Friends []FriendBalance `json:"friends"`
 	Groups  []GroupBalance  `json:"groups"`
+}
+
+// NextPayers is GET /balances/groups/{id}/next-payers: who should pay the
+// group's next bill, in order (ADR-025).
+type NextPayers struct {
+	// Threshold is the group's next_payer_threshold ("0" = no
+	// notifications; the line is still shown).
+	Threshold string           `json:"threshold"`
+	Payers    []NextPayerEntry `json:"payers"`
+}
+
+type NextPayerEntry struct {
+	UserID     string     `json:"userId"`
+	Owes       string     `json:"owes"`
+	OwingSince *time.Time `json:"owingSince"`
 }

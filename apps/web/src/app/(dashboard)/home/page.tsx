@@ -59,6 +59,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { InstallApp } from '~/components/InstallApp';
+import { PushNotifications } from '~/components/PushNotifications';
 import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
@@ -82,6 +83,7 @@ import { listNotifications } from '~/lib/notifications-api';
 import { photoSrc } from '~/lib/photos';
 import { type SettlementRequest, listSettlementRequests } from '~/lib/settlements-api';
 import { GroupPicture } from '~/components/GroupPicture';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 const QUICK_ACTIONS = [
   { label: 'Add Expense', href: '/expenses/new', icon: Plus, accent: true },
@@ -108,7 +110,6 @@ export default function HomePage() {
 
   const load = () => {
     setError(null);
-    setData(null);
     Promise.all([
       me(),
       listFriends(),
@@ -141,6 +142,8 @@ export default function HomePage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   if (error) {
     return <ErrorState message={error} onRetry={load} minHeight="60vh" />;
@@ -221,6 +224,7 @@ export default function HomePage() {
       </div>
 
       <InstallApp variant="banner" />
+      <PushNotifications variant="banner" />
 
       {toConfirm.length > 0 && (
         <Link

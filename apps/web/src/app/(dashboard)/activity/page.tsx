@@ -47,6 +47,7 @@ import {
   toActivityDisplay,
 } from '~/lib/expenses-api';
 import { listGroups } from '~/lib/groups-api';
+import { useApiRefresh } from '~/lib/use-api-refresh';
 
 const PAGE_SIZE = ACTIVITY_PAGE_SIZE;
 
@@ -90,7 +91,6 @@ export default function ActivityPage() {
 
   const load = () => {
     setError(null);
-    setData(null);
     Promise.all([me(), listGroups(), listExpenses({ limit: PAGE_SIZE })])
       .then(([profile, groups, expenses]) => {
         setData({
@@ -106,6 +106,8 @@ export default function ActivityPage() {
   };
 
   useEffect(load, []);
+
+  useApiRefresh(load);
 
   const loadMore = () => {
     if (!data || loadingMore) {

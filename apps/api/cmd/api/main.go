@@ -17,17 +17,22 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/config"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/dbpool"
+	"github.com/Substance-k3n/abro/apps/api/internal/ekubs"
 	"github.com/Substance-k3n/abro/apps/api/internal/expenses"
 	"github.com/Substance-k3n/abro/apps/api/internal/friends"
 	"github.com/Substance-k3n/abro/apps/api/internal/groups"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idempotency"
+	"github.com/Substance-k3n/abro/apps/api/internal/latefees"
 	"github.com/Substance-k3n/abro/apps/api/internal/notifications"
 	"github.com/Substance-k3n/abro/apps/api/internal/photos"
+	"github.com/Substance-k3n/abro/apps/api/internal/push"
 	"github.com/Substance-k3n/abro/apps/api/internal/recurring"
+	"github.com/Substance-k3n/abro/apps/api/internal/reminders"
 	"github.com/Substance-k3n/abro/apps/api/internal/settlements"
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
 	"github.com/Substance-k3n/abro/apps/api/internal/users"
+	"github.com/Substance-k3n/abro/apps/api/internal/voice"
 )
 
 func main() {
@@ -75,6 +80,17 @@ func main() {
 	notificationsSvc := notifications.NewService(queries)
 	notificationsHandler := notifications.NewHandler(notificationsSvc, queries)
 
+	// Phone/browser push (ADR-021): every stored notification is also
+	// pushed to the recipient's devices, when VAPID keys are set.
+	pushSvc := push.NewService(queries, cfg.VAPIDPublicKey, cfg.VAPIDPrivateKey, cfg.VAPIDSubject)
+	pushHandler := push.NewHandler(pushSvc, queries)
+	if pushSvc.IsConfigured() {
+		notificationsSvc.SetPusher(pushSvc)
+		log.Println("Push notifications: on")
+	} else {
+		log.Println("No VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY -- notifications stay in-app only")
+	}
+
 	friendsSvc := friends.NewService(queries, notificationsSvc)
 	friendsHandler := friends.NewHandler(friendsSvc, queries)
 
@@ -93,6 +109,8 @@ func main() {
 
 	balancesSvc := balances.NewService(queries, friendsSvc, groupsSvc)
 	balancesHandler := balances.NewHandler(balancesSvc, groupsSvc, queries)
+	// Tell a group whose turn it is to pay (ADR-025).
+	expensesSvc.SetGroupExpenseHook(balances.NewNextPayerNotifier(queries, balancesSvc, notificationsSvc))
 
 	settlementsSvc := settlements.NewService(queries, balancesSvc, groupsSvc, notificationsSvc, expensesSvc)
 	settlementsHandler := settlements.NewHandler(settlementsSvc, idempotencySvc, queries)
@@ -100,8 +118,22 @@ func main() {
 	analyticsSvc := analytics.NewService(queries)
 	analyticsHandler := analytics.NewHandler(analyticsSvc, groupsSvc, queries)
 
+	// Overdue reminders (ADR-023): the friend Remind button, and the
+	// daily automatic reminders, sent from this process.
+	remindersSvc := reminders.NewService(queries, friendsSvc, balancesSvc, notificationsSvc)
+	remindersHandler := reminders.NewHandler(remindersSvc, queries)
+	// Late fees (ADR-026) are charged in the same daily run.
+	lateFeesSvc := latefees.NewService(queries, balancesSvc, notificationsSvc)
+	go remindersSvc.RunDaily(ctx, lateFeesSvc.ChargeDue)
+
+	// Ekub, the rotating savings group (ADR-024).
+	ekubsHandler := ekubs.NewHandler(ekubs.NewService(queries, friendsSvc, notificationsSvc), queries)
+
 	recurringSvc := recurring.NewService(queries, expensesSvc, notificationsSvc)
 	recurringHandler := recurring.NewHandler(recurringSvc, queries)
+
+	// Voice commands through Tezaz (ADR-027): tokens for testers only.
+	voiceHandler := voice.NewHandler(voice.NewService(cfg.TezazRelayURL, cfg.TezazSecretKey, cfg.WebOrigin, cfg.VoiceTesters), queries)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -122,8 +154,13 @@ func main() {
 		usersHandler.Mount(r)
 		photosHandler.MountUsers(r)
 	})
-	r.Route("/friends", friendsHandler.Mount)
+	r.Route("/friends", func(r chi.Router) {
+		friendsHandler.Mount(r)
+		remindersHandler.MountFriends(r)
+	})
+	r.Route("/reminders", remindersHandler.Mount)
 	r.Route("/notifications", notificationsHandler.Mount)
+	r.Route("/push", pushHandler.Mount)
 	r.Route("/groups", func(r chi.Router) {
 		groupsHandler.Mount(r)
 		photosHandler.MountGroups(r)
@@ -133,6 +170,8 @@ func main() {
 	r.Route("/settlements", settlementsHandler.Mount)
 	r.Route("/analytics", analyticsHandler.Mount)
 	r.Route("/recurring", recurringHandler.Mount)
+	r.Route("/ekubs", ekubsHandler.Mount)
+	r.Route("/voice", voiceHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -153,4 +192,6 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("listen: %v", err)
 	}
+	// Let pushes for the last requests go out before exiting.
+	pushSvc.Wait()
 }

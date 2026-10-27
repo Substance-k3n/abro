@@ -15,9 +15,23 @@ type Querier interface {
 	AddNotificationOptOut(ctx context.Context, arg AddNotificationOptOutParams) error
 	ConsumeOtpCode(ctx context.Context, id pgtype.UUID) error
 	CountActiveAdminsExcept(ctx context.Context, arg CountActiveAdminsExceptParams) (int64, error)
+	// CreateAutoGroupReminderIfDue for a friend debt.
+	CreateAutoFriendReminderIfDue(ctx context.Context, arg CreateAutoFriendReminderIfDueParams) (PaymentReminder, error)
+	// The daily job's reminder for a group debt (ADR-023). Skipped when the
+	// member had any reminder in this group after not_since (14 days back),
+	// so a recent manual nudge counts too.
+	CreateAutoGroupReminderIfDue(ctx context.Context, arg CreateAutoGroupReminderIfDueParams) (PaymentReminder, error)
+	CreateEkub(ctx context.Context, arg CreateEkubParams) (Ekub, error)
+	CreateEkubMember(ctx context.Context, arg CreateEkubMemberParams) (EkubMember, error)
+	CreateEkubMissedPayment(ctx context.Context, arg CreateEkubMissedPaymentParams) error
+	CreateEkubPayment(ctx context.Context, arg CreateEkubPaymentParams) (EkubPayment, error)
 	CreateExpense(ctx context.Context, arg CreateExpenseParams) (Expense, error)
 	CreateExpenseNote(ctx context.Context, arg CreateExpenseNoteParams) (ExpenseNote, error)
 	CreateExpenseParticipant(ctx context.Context, arg CreateExpenseParticipantParams) (ExpenseParticipant, error)
+	// A friend's nudge to a friend who owes them (ADR-023): like
+	// CreatePaymentReminderIfDue, at most once per 24 hours per pair, counting
+	// automatic reminders too.
+	CreateFriendReminderIfDue(ctx context.Context, arg CreateFriendReminderIfDueParams) (PaymentReminder, error)
 	CreateFriendship(ctx context.Context, arg CreateFriendshipParams) (Friendship, error)
 	CreateGroup(ctx context.Context, arg CreateGroupParams) (Group, error)
 	CreateGroupMember(ctx context.Context, arg CreateGroupMemberParams) (GroupMember, error)
@@ -39,11 +53,21 @@ type Querier interface {
 	CreateRecurringExpense(ctx context.Context, arg CreateRecurringExpenseParams) (RecurringExpense, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateSettlementRequest(ctx context.Context, arg CreateSettlementRequestParams) (SettlementRequest, error)
+	DeleteEkub(ctx context.Context, id pgtype.UUID) error
+	DeleteEkubMember(ctx context.Context, id pgtype.UUID) error
 	DeleteExpenseParticipants(ctx context.Context, expenseID pgtype.UUID) error
 	DeleteFriendship(ctx context.Context, id pgtype.UUID) error
 	DeleteIdempotencyKey(ctx context.Context, id pgtype.UUID) error
+	DeletePushSubscription(ctx context.Context, arg DeletePushSubscriptionParams) error
+	// The push service said this endpoint is gone, whoever it belonged to.
+	DeletePushSubscriptionByEndpoint(ctx context.Context, endpoint string) error
 	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
+	GetAutoRemindFriends(ctx context.Context, id pgtype.UUID) (bool, error)
 	GetCategoryBreakdown(ctx context.Context, arg GetCategoryBreakdownParams) ([]GetCategoryBreakdownRow, error)
+	GetEkub(ctx context.Context, id pgtype.UUID) (Ekub, error)
+	GetEkubMember(ctx context.Context, arg GetEkubMemberParams) (EkubMember, error)
+	GetEkubMemberByUser(ctx context.Context, arg GetEkubMemberByUserParams) (EkubMember, error)
+	GetEkubPayment(ctx context.Context, arg GetEkubPaymentParams) (EkubPayment, error)
 	GetExpenseByID(ctx context.Context, id pgtype.UUID) (Expense, error)
 	GetExpenseParticipant(ctx context.Context, arg GetExpenseParticipantParams) (ExpenseParticipant, error)
 	GetFriendshipByID(ctx context.Context, id pgtype.UUID) (Friendship, error)
@@ -73,6 +97,7 @@ type Querier interface {
 	// rows are reported only as settled_total, never as spending.
 	GetGroupStatsTotals(ctx context.Context, groupID pgtype.UUID) (GetGroupStatsTotalsRow, error)
 	GetIdempotencyKeyByUserKeyEndpoint(ctx context.Context, arg GetIdempotencyKeyByUserKeyEndpointParams) (IdempotencyKey, error)
+	GetLatestFriendReminder(ctx context.Context, arg GetLatestFriendReminderParams) (PaymentReminder, error)
 	GetLatestPaymentReminder(ctx context.Context, arg GetLatestPaymentReminderParams) (PaymentReminder, error)
 	GetLatestUnconsumedOtpCode(ctx context.Context, email string) (OtpCode, error)
 	// Only months with matching spending are returned; the caller fills the
@@ -108,13 +133,26 @@ type Querier interface {
 	// GRP-07: the currency can't change once the group has any expense
 	// (including settlements) -- it would relabel every stored amount.
 	GroupHasExpenses(ctx context.Context, groupID pgtype.UUID) (bool, error)
+	HasLateFeeDay(ctx context.Context, arg HasLateFeeDayParams) (bool, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	IsNotificationOptedOut(ctx context.Context, arg IsNotificationOptedOutParams) (bool, error)
+	// Someone invited after the start accepts: their slot goes in at
+	// `slot_position` and every taking-part slot from there moves one round
+	// later, in the same statement.
+	JoinStartedEkub(ctx context.Context, arg JoinStartedEkubParams) (EkubMember, error)
 	LinkSettlementRequest(ctx context.Context, arg LinkSettlementRequestParams) (SettlementRequest, error)
+	// Every friendship, with whether each side wants the friends who owe
+	// them reminded automatically.
+	ListAcceptedFriendPairs(ctx context.Context) ([]ListAcceptedFriendPairsRow, error)
+	ListActiveMemberIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
 	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
+	ListAutoRemindGroups(ctx context.Context) ([]ListAutoRemindGroupsRow, error)
 	// Skips templates in a deleted group: generating one would fail with
 	// GROUP_NOT_FOUND, and GenerateDue stops at its first error.
 	ListDueRecurringExpenses(ctx context.Context, nextRunAt pgtype.Timestamptz) ([]RecurringExpense, error)
+	ListEkubMembers(ctx context.Context, ekubID pgtype.UUID) ([]ListEkubMembersRow, error)
+	ListEkubMissedPayments(ctx context.Context, ekubID pgtype.UUID) ([]EkubMissedPayment, error)
+	ListEkubPayments(ctx context.Context, ekubID pgtype.UUID) ([]EkubPayment, error)
 	ListExpenseNotesWithAuthor(ctx context.Context, expenseID pgtype.UUID) ([]ListExpenseNotesWithAuthorRow, error)
 	ListExpenseParticipantsForExpenseIDs(ctx context.Context, expenseIds []pgtype.UUID) ([]ListExpenseParticipantsForExpenseIDsRow, error)
 	ListExpensesByGroup(ctx context.Context, arg ListExpensesByGroupParams) ([]Expense, error)
@@ -123,7 +161,12 @@ type Querier interface {
 	ListExpensesWithFriend(ctx context.Context, arg ListExpensesWithFriendParams) ([]Expense, error)
 	ListFriendships(ctx context.Context, userID pgtype.UUID) ([]ListFriendshipsRow, error)
 	ListGroupMembersWithProfiles(ctx context.Context, groupID pgtype.UUID) ([]ListGroupMembersWithProfilesRow, error)
+	// Every share of every live expense in a group, in the order the
+	// expenses were added -- each member's movements in the group (ADR-023).
+	ListGroupShareRows(ctx context.Context, groupID pgtype.UUID) ([]ListGroupShareRowsRow, error)
 	ListIncomingFriendRequests(ctx context.Context, friendID pgtype.UUID) ([]ListIncomingFriendRequestsRow, error)
+	// Groups with late fees on (ADR-026).
+	ListLateFeeGroups(ctx context.Context) ([]ListLateFeeGroupsRow, error)
 	// The most recent reminder per recipient in a group.
 	ListLatestPaymentReminders(ctx context.Context, groupID pgtype.UUID) ([]PaymentReminder, error)
 	ListMyActiveGroups(ctx context.Context, userID pgtype.UUID) ([]Group, error)
@@ -135,6 +178,9 @@ type Querier interface {
 	// created_at for a group with no expenses yet. Correlated subqueries
 	// rather than a GROUP BY so the embedded groups row stays intact.
 	ListMyActiveGroupsWithStats(ctx context.Context, userID pgtype.UUID) ([]ListMyActiveGroupsWithStatsRow, error)
+	// Every ekub the user is in or invited to (not ones they left), with
+	// their own membership and the number of people taking part.
+	ListMyEkubs(ctx context.Context, userID pgtype.UUID) ([]ListMyEkubsRow, error)
 	// All three expense list queries order by (expense_date, created_at, id)
 	// DESC: expense_date alone isn't unique (same-day expenses are common),
 	// and LIMIT/OFFSET paging over a non-total order can skip or repeat rows
@@ -158,10 +204,18 @@ type Querier interface {
 	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
 	// true, and a no-op (all rows) when false, in one query.
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
+	// GetPairwiseParticipantsPersonal in the order the expenses were added,
+	// for how long a debt has been open (ADR-023). Added, not dated: an
+	// expense back-dated today is new debt today.
+	ListPairwiseMovementsPersonal(ctx context.Context, arg ListPairwiseMovementsPersonalParams) ([]ListPairwiseMovementsPersonalRow, error)
+	ListPushSubscriptionsForUsers(ctx context.Context, userIds []pgtype.UUID) ([]PushSubscription, error)
 	// Pending requests where the user is the payer or the recipient, plus
 	// those resolved in the last 30 days, newest first.
 	ListSettlementRequestsForUser(ctx context.Context, payerID pgtype.UUID) ([]SettlementRequest, error)
 	MarkAllNotificationsRead(ctx context.Context, userID pgtype.UUID) error
+	// Claims today's charge for a member; no row back means it was already
+	// charged today (a restart re-running the daily job).
+	MarkLateFeeDay(ctx context.Context, arg MarkLateFeeDayParams) (pgtype.Date, error)
 	// Preserves the original read_at if already read, rather than bumping it to
 	// now() on every call -- matches the "no-op if already read" behavior.
 	MarkNotificationRead(ctx context.Context, id pgtype.UUID) (Notification, error)
@@ -177,6 +231,9 @@ type Querier interface {
 	// it isn't a pending invite, or was sent too recently. Bumping joined_at
 	// also moves it to the top of the invitee's invites list.
 	ResendGroupInvite(ctx context.Context, id pgtype.UUID) (GroupMember, error)
+	// Only a payment still waiting can be confirmed or turned down; no row
+	// back means someone else got there first.
+	ResolveEkubPayment(ctx context.Context, arg ResolveEkubPaymentParams) (EkubPayment, error)
 	// Only a PENDING request can be resolved, in one atomic step: no row back
 	// means someone got there first (it was already confirmed, rejected or
 	// cancelled). Confirming claims the request this way before the
@@ -193,6 +250,10 @@ type Querier interface {
 	// LIKE's wildcards ('_' is a legal username character). An exact match
 	// sorts first.
 	SearchProfilesByUsernamePrefix(ctx context.Context, arg SearchProfilesByUsernamePrefixParams) ([]Profile, error)
+	SetAutoRemindFriends(ctx context.Context, arg SetAutoRemindFriendsParams) (bool, error)
+	SetEkubMemberStatus(ctx context.Context, arg SetEkubMemberStatusParams) (EkubMember, error)
+	// The admin's new arrangement, in one statement so it lands whole.
+	SetEkubSlots(ctx context.Context, arg SetEkubSlotsParams) error
 	SetGroupPhoto(ctx context.Context, arg SetGroupPhotoParams) (Group, error)
 	SetIdempotencyKeyResponse(ctx context.Context, arg SetIdempotencyKeyResponseParams) error
 	// disputed_at = NULL clears it (withdrawn, or the payer kept the expense).
@@ -202,6 +263,7 @@ type Querier interface {
 	SetProfileAvatar(ctx context.Context, arg SetProfileAvatarParams) (Profile, error)
 	SoftDeleteExpense(ctx context.Context, arg SoftDeleteExpenseParams) error
 	SoftDeleteGroup(ctx context.Context, arg SoftDeleteGroupParams) error
+	StartEkub(ctx context.Context, arg StartEkubParams) (Ekub, error)
 	// What the payer has already claimed to have paid this recipient in the
 	// same scope (personal = group_id NULL) and is still waiting on, so a
 	// new claim can't add up past what they owe.
@@ -225,6 +287,13 @@ type Querier interface {
 	// Same no-op-on-conflict semantics as UpsertProfileByEmail, but also seeds
 	// avatar_url on first insert (Google sign-in path).
 	UpsertProfileByEmailWithNameAvatar(ctx context.Context, arg UpsertProfileByEmailWithNameAvatarParams) (Profile, error)
+	// Phone/browser push (ADR-021). push_subscriptions has existed since
+	// 0007 (ported from the Prisma schema) but nothing used it until now.
+	// keys is the browser's {"p256dh": ..., "auth": ...} as-is.
+	// An endpoint belongs to one browser profile: the same endpoint
+	// re-subscribing (keys rotated, or another account signed in on that
+	// device) replaces the row rather than adding a second one.
+	UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error)
 }
 
 var _ Querier = (*Queries)(nil)

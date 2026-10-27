@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
+	"github.com/Substance-k3n/abro/apps/api/internal/money"
 )
 
 var validGroupTypes = map[string]bool{
@@ -50,7 +51,25 @@ type UpdateGroupInput struct {
 	Currency      *string `json:"currency"`
 	Description   *string `json:"description"`
 	SimplifyDebts *bool   `json:"simplifyDebts"`
+	AutoRemind    *bool   `json:"autoRemind"`
+	// NextPayerThreshold: minor units; "0" turns the next-payer
+	// notification off (ADR-025).
+	NextPayerThreshold       *string `json:"nextPayerThreshold"`
+	ParsedNextPayerThreshold *int64  `json:"-"`
+	// Late fees (ADR-026): a day's fee in basis points of the overdue
+	// amount (0 = off), the days' grace, and the most a debt can grow by.
+	InterestRateBP    *int32 `json:"interestRateBp"`
+	InterestGraceDays *int32 `json:"interestGraceDays"`
+	InterestCapBP     *int32 `json:"interestCapBp"`
 }
+
+// Late-fee limits, matching migration 0022's checks.
+const (
+	MaxInterestRateBP    = 500
+	MaxInterestGraceDays = 60
+	MinInterestCapBP     = 100
+	MaxInterestCapBP     = 10000
+)
 
 func (in *UpdateGroupInput) Validate() error {
 	if in.Name != nil {
@@ -68,6 +87,22 @@ func (in *UpdateGroupInput) Validate() error {
 	}
 	if in.Description != nil && len(*in.Description) > 280 {
 		return httpx.BadRequest("VALIDATION_ERROR", "description must be at most 280 characters")
+	}
+	if in.NextPayerThreshold != nil {
+		parsed, err := money.ParseAmount(*in.NextPayerThreshold)
+		if err != nil {
+			return httpx.BadRequest("VALIDATION_ERROR", "nextPayerThreshold must be a non-negative amount in minor units")
+		}
+		in.ParsedNextPayerThreshold = &parsed
+	}
+	if in.InterestRateBP != nil && (*in.InterestRateBP < 0 || *in.InterestRateBP > MaxInterestRateBP) {
+		return httpx.BadRequest("VALIDATION_ERROR", "the late fee must be between 0% and 5% a day")
+	}
+	if in.InterestGraceDays != nil && (*in.InterestGraceDays < 0 || *in.InterestGraceDays > MaxInterestGraceDays) {
+		return httpx.BadRequest("VALIDATION_ERROR", "the grace period must be 0 to 60 days")
+	}
+	if in.InterestCapBP != nil && (*in.InterestCapBP < MinInterestCapBP || *in.InterestCapBP > MaxInterestCapBP) {
+		return httpx.BadRequest("VALIDATION_ERROR", "the most a debt can grow by must be between 1% and 100%")
 	}
 	return nil
 }
@@ -104,17 +139,31 @@ type GroupMember struct {
 }
 
 type AuthGroup struct {
-	ID            string        `json:"id"`
-	Name          string        `json:"name"`
-	Type          string        `json:"type"`
-	Currency      string        `json:"currency"`
-	Description   *string       `json:"description"`
-	PhotoURL      *string       `json:"photoUrl"`
-	SimplifyDebts bool          `json:"simplifyDebts"`
-	CreatedByID   string        `json:"createdById"`
-	CreatedAt     time.Time     `json:"createdAt"`
-	UpdatedAt     time.Time     `json:"updatedAt"`
-	Members       []GroupMember `json:"members"`
+	ID            string  `json:"id"`
+	Name          string  `json:"name"`
+	Type          string  `json:"type"`
+	Currency      string  `json:"currency"`
+	Description   *string `json:"description"`
+	PhotoURL      *string `json:"photoUrl"`
+	SimplifyDebts bool    `json:"simplifyDebts"`
+	// AutoRemind: the daily job reminds members whose debt to the group
+	// is overdue (ADR-023). Admins switch it.
+	AutoRemind bool `json:"autoRemind"`
+	// NextPayerThreshold: when an expense leaves its payer covering at
+	// least this much, the group is told who pays next; "0" is off
+	// (ADR-025). Minor units, as a string like every amount.
+	NextPayerThreshold string `json:"nextPayerThreshold"`
+	// Late fees (ADR-026): basis points a day of the overdue amount (0 =
+	// off), days' grace, the most a debt grows by in basis points, and
+	// when they were turned on (debt from before never gets one).
+	InterestRateBP    int32         `json:"interestRateBp"`
+	InterestGraceDays int32         `json:"interestGraceDays"`
+	InterestCapBP     int32         `json:"interestCapBp"`
+	InterestSince     *time.Time    `json:"interestSince"`
+	CreatedByID       string        `json:"createdById"`
+	CreatedAt         time.Time     `json:"createdAt"`
+	UpdatedAt         time.Time     `json:"updatedAt"`
+	Members           []GroupMember `json:"members"`
 }
 
 // GroupListItem is GET /groups/'s element shape: an AuthGroup (members
@@ -140,14 +189,32 @@ type GroupMembershipResult struct {
 	Status  string `json:"status"`
 }
 
-// PaymentReminder is one payment reminder a group admin sent (roadmap
+// PaymentReminder is one payment reminder a group member got (roadmap
 // P6): POST /groups/{id}/members/{userId}/remind returns the new one,
 // GET /groups/{id}/reminders the latest per member. NextAllowedAt is
-// when that member can be reminded in this group again.
+// when that member can be reminded in this group again. An automatic
+// reminder from the daily job (ADR-023) has no sender.
 type PaymentReminder struct {
 	GroupID       string    `json:"groupId"`
 	RecipientID   string    `json:"recipientId"`
-	SenderID      string    `json:"senderId"`
+	SenderID      *string   `json:"senderId"`
+	Automatic     bool      `json:"automatic"`
 	RemindedAt    time.Time `json:"remindedAt"`
 	NextAllowedAt time.Time `json:"nextAllowedAt"`
+}
+
+// FriendReminder is the latest reminder a friend got for what they owe
+// you (ADR-023): POST /friends/{id}/remind returns the new one, GET
+// /friends/{id}/reminder the latest (or null). NextAllowedAt is when you
+// can remind them again.
+type FriendReminder struct {
+	FriendID      string    `json:"friendId"`
+	Automatic     bool      `json:"automatic"`
+	RemindedAt    time.Time `json:"remindedAt"`
+	NextAllowedAt time.Time `json:"nextAllowedAt"`
+}
+
+// ReminderSettings is GET/PATCH /reminders/settings (ADR-023).
+type ReminderSettings struct {
+	AutoRemindFriends bool `json:"autoRemindFriends"`
 }

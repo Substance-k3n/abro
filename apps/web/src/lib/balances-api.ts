@@ -26,6 +26,9 @@ export interface FriendBalance {
   /** Minor-units integer string, apps/api's `money.MinorUnits` wire
    * format -- BigInt(netBalance) directly, no scaling needed. */
   netBalance: string;
+  /** When the oldest unpaid part was added, whichever way it runs
+   * (ADR-023). Only from getFriendBalance, and only when not settled. */
+  owingSince?: string;
 }
 
 export interface GroupBalance {
@@ -40,6 +43,26 @@ export interface BalancesSummary {
 
 export function getBalancesSummary(): Promise<BalancesSummary> {
   return api.get('/balances/summary');
+}
+
+/** GET /balances/friends/{id}: one friend's balance, with how long it
+ * has been owed. */
+export function getFriendBalance(friendId: string): Promise<FriendBalance> {
+  return api.get(`/balances/friends/${friendId}`);
+}
+
+/** A debt open this long is overdue: it's flagged, and the daily job
+ * starts reminding (ADR-023). Must match apps/api's
+ * balances.OverdueAfter. */
+export const OVERDUE_AFTER_DAYS = 30;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** How old a debt is, from its owingSince: whole days, and whether
+ * that's overdue. */
+export function debtAge(owingSince: string, now = Date.now()): { days: number; overdue: boolean } {
+  const days = Math.max(0, Math.floor((now - Date.parse(owingSince)) / DAY_MS));
+  return { days, overdue: days >= OVERDUE_AFTER_DAYS };
 }
 
 /** Splits one friend's signed net balance into the two unsigned
@@ -149,6 +172,9 @@ export function balanceTotals(friendRows: FriendRow[], groupRows: GroupRow[]): B
 export interface GroupBalanceEntry {
   userId: string;
   netBalance: string;
+  /** Set for a member who owes the group: when the oldest unpaid part
+   * was added (ADR-023). */
+  owingSince: string | null;
 }
 
 /** GET /balances/groups/{id}. Anyone with no expenses in the group is
@@ -170,4 +196,27 @@ export async function getSimplifiedPayments(groupId: string): Promise<Simplified
     `/balances/groups/${groupId}/simplified`,
   );
   return rows.map((r) => ({ ...r, amount: BigInt(r.amount) }));
+}
+
+export interface NextPayer {
+  userId: string;
+  /** What they owe the group, positive. */
+  owes: bigint;
+  owingSince: string | null;
+}
+
+/** GET /balances/groups/{id}/next-payers: who should pay the group's
+ * next bill, in order -- most owed first, ties to whoever has owed
+ * longest (ADR-025). threshold is the group's notification limit. */
+export async function getNextPayers(
+  groupId: string,
+): Promise<{ threshold: bigint; payers: NextPayer[] }> {
+  const res: {
+    threshold: string;
+    payers: { userId: string; owes: string; owingSince: string | null }[];
+  } = await api.get(`/balances/groups/${groupId}/next-payers`);
+  return {
+    threshold: BigInt(res.threshold),
+    payers: res.payers.map((p) => ({ ...p, owes: BigInt(p.owes) })),
+  };
 }

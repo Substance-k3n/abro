@@ -1,699 +1,217 @@
 ---
 name: abro-workflow
-description: Professional engineering workflow for ABRO development. Use for any ABRO feature, phase, or backend/frontend task — context-first analysis, written work items, financial data-flow tracing, architecture-boundary checks, design-before-code, invariant definition, small-step implementation, testing discipline, git/PR conventions, and documentation upkeep. Load before starting implementation on any ABRO task, not just when the user says the word "workflow."
+description: How ABRO is built — the full-stack monorepo layout (Go API in apps/api, Next.js PWA in apps/web, shared packages), which layer owns what, the context → plan → small PRs → verify → deploy loop, money rules, docs to keep current, and the checks to run. Load before any ABRO feature, roadmap phase, bug fix, tester feedback, migration, or deploy task — not just when the user says "workflow" or "continue". Pair with abro-git-workflow for anything that commits, pushes, or opens a PR.
 ---
 
-# ABRO — Professional Engineering Workflow
+# ABRO — how we build it
 
-## Purpose
+ABRO is a Splitwise-style shared-expense app (friends, groups, IOUs,
+settlements), ETB-first, live at **abro-pi.vercel.app** and being trialled with
+friends and family. This skill is the project-specific layer on top of the
+user-level `ship-with-care` skill: follow both; where they differ, this one wins
+for ABRO.
 
-This skill defines how ABRO development must be approached and documented.
-
-The goal is not simply to make features work. Every change must be:
-
-- Understandable
-- Traceable
-- Testable
-- Reviewable
-- Reproducible
-- Consistent with the architecture
-- Documented well enough that another developer can continue the work
-
-Never jump directly from an idea to implementation.
+The aim is not just working code. Every change should be understood, planned,
+small, verified for real, documented, and actually deployed.
 
 ---
 
-# 1. Start With Context
-
-Before changing code, establish:
-
-### 1.1 Current state
-
-Determine:
-
-- What already exists?
-- What is incomplete?
-- What branch am I on?
-- What previous work has been merged?
-- What related files/modules already exist?
-- What decisions have already been documented?
-- What assumptions are currently being made?
-
-Do not recreate something that already exists.
-
-Do not replace existing architecture without first understanding why it exists.
-
-### 1.2 Source of truth
-
-Use this priority:
-
-1. Existing code
-2. Architecture/decision documentation
-3. Database/schema definitions
-4. Tests
-5. PRD/specification
-6. Design/prototype
-7. Personal assumptions
-
-If two sources disagree, stop and identify the conflict before implementing.
-
----
-
-# 2. Define the Work
-
-Every feature or phase must have a written work item before implementation.
-
-Use:
-
-## Feature
-
-What are we building?
-
-## Why
-
-What problem does it solve?
-
-## Scope
-
-What is included?
-
-## Out of scope
-
-What explicitly is NOT being built?
-
-## Dependencies
-
-What must already exist?
-
-## Inputs
-
-What data does the feature receive?
-
-## Outputs
-
-What does it produce?
-
-## Business rules
-
-What must always be true?
-
-## Failure cases
-
-What can go wrong?
-
-## Acceptance criteria
-
-How do we know the work is complete?
-
----
-
-# 3. Trace the Data Flow
-
-ABRO is a financial system.
-
-Never implement financial behavior without explicitly tracing the data.
-
-The canonical ABRO flow is:
-
-Expense
-→ Participants
-→ Shares
-→ Ledger Effect
-→ Net Balance
-→ Debt Simplification
-→ Settlement
-→ History
-
-The fundamental rule is:
-
-> Expenses are facts. Balances are derived projections.
-
-Never introduce a stored "trust-me" balance when the value can be deterministically derived from expense/participant data.
-
-For every financial feature, document:
-
-- Source fact
-- Transformation
-- Result
-- Persistence
-- Query
-- Derived values
-- Reversal/edit behavior
-- Settlement behavior
-
----
-
-# 4. Check Architectural Boundaries
-
-Before implementation, identify which layer owns the behavior.
-
-ABRO should maintain clear separation between:
-
-### Frontend
-
-Responsible for:
-
-- UI
-- User interaction
-- Client-side validation
-- Presentation
-- API consumption
-
-### API / NestJS
-
-Responsible for:
-
-- Authentication
-- Authorization
-- Business rules
-- Validation
-- Financial calculations
-- Persistence orchestration
-- API contracts
-
-### Database
-
-Responsible for:
-
-- Persisting facts
-- Referential integrity
-- Constraints
-- Indexes
-- Transactions
-
-### Shared packages
-
-Responsible for:
-
-- Shared types
-- Enums
-- Schemas
-- Contracts
-- Pure reusable logic where appropriate
-
-Do not place business-critical financial logic only in the frontend.
-
-The backend must remain authoritative.
-
----
-
-# 5. Design Before Coding
-
-For non-trivial work, produce a short implementation design before writing code.
-
-Document:
-
-### API
-
-- Endpoint
-- HTTP method
-- Request
-- Response
-- Validation
-- Authentication requirement
-- Authorization requirement
-- Error cases
-
-### Database
-
-- Tables/models affected
-- Relations
-- Constraints
-- Indexes
-- Migration requirements
-
-### Domain logic
-
-- Rules
-- Calculations
-- Invariants
-- Edge cases
-
-### Frontend
-
-- Route
-- Components
-- State
-- API calls
-- Loading state
-- Error state
-- Empty state
-
----
-
-# 6. Define Invariants
-
-Every important domain feature must identify its invariants.
-
-Examples:
-
-### Expense
-
-- Total shares must equal the expense total.
-- Participants must be valid users.
-- Split rules must produce deterministic shares.
-- Currency must be explicitly defined.
-- The creator/payer relationships must be valid according to the business rules.
-
-### Settlement
-
-A settlement is an expense:
-
-`splitType = SETTLEMENT`
-
-Its participant shares must sum to zero.
-
-Never create a second financial system just for settlements.
-
-### Balance
-
-Balances are derived from financial facts.
-
-Never manually update a balance merely because an expense or settlement occurred unless there is an explicitly documented projection/cache strategy.
-
----
-
-# 7. Implement in Small Steps
-
-Do not make a giant change.
-
-Prefer:
-
-1. Schema/model
-2. Migration
-3. Domain logic
-4. Service
-5. Controller/API
-6. Tests
-7. Frontend integration
-8. UI states
-9. Documentation
-
-After each meaningful step:
-
-- Run the relevant tests
-- Check types
-- Check linting
-- Inspect the diff
-- Confirm behavior
-
-Do not accumulate many unverified changes.
-
----
-
-# 8. Testing Is Part of Implementation
-
-A feature is not complete when the code compiles.
-
-Test at the appropriate levels:
-
-### Unit tests
-
-For:
-
-- Split calculations
-- Balance calculations
-- Debt simplification
-- Validation
-- Domain rules
-
-### Integration tests
-
-For:
-
-- Database interactions
-- Services
-- API behavior
-- Transactions
-
-### E2E tests
-
-For important user flows:
-
-Example:
-
-Create expense
-→ assign participants
-→ calculate shares
-→ save expense
-→ retrieve balances
-→ simplify debts
-→ record settlement
-→ verify history
-
-Test both normal and failure paths.
-
----
-
-# 9. Verify Financial Mathematics
-
-For any financial calculation, manually verify representative examples.
-
-At minimum include:
-
-- Equal split
-- Unequal split
-- Multiple participants
-- Decimal amounts
-- Rounding
-- Someone owing someone else
-- Circular debts
-- Multiple expenses
-- Settlement
-- Settlement followed by another expense
-- Zero/invalid values
-
-Never trust a calculation simply because the code "looks right."
-
----
-
-# 10. Git Workflow
-
-Every meaningful piece of work should have a clear branch.
-
-Use feature-oriented branches.
-
-Example:
-
-`feature/auth-screens`
-
-`feature/add-expense`
-
-`feature/expense-split-validation`
-
-`feature/balance-engine`
-
-`feature/settlement`
-
-Before creating a PR:
-
-1. Check current branch
-2. Inspect changed files
-3. Review diff
-4. Run tests
-5. Run type checking
-6. Run linting
-7. Confirm documentation
-8. Confirm no accidental files
-9. Write a clear commit message
-10. Open PR
-
-Never force-push destructive history or rewrite unrelated work unless explicitly required.
-
----
-
-# 11. Pull Request Documentation
-
-Every PR should explain:
-
-## What
-
-What changed?
-
-## Why
-
-Why was it needed?
-
-## How
-
-How was it implemented?
-
-## Data changes
-
-Did schema/database behavior change?
-
-## API changes
-
-Did contracts change?
-
-## Tests
-
-What was tested?
-
-## Known limitations
-
-What remains unfinished?
-
-## Verification
-
-What commands/checks were run?
-
-A reviewer should be able to understand the change without opening every file.
-
----
-
-# 12. Documentation Must Follow the Code
-
-Whenever architecture or behavior changes, update the relevant documentation.
-
-Potential documentation includes:
-
-- `README.md`
-- `docs/DECISIONS.md`
-- `docs/ARCHITECTURE.md`
-- `docs/WIRING_PLAN.md`
-- API documentation
-- Database documentation
-- Feature documentation
-
-Do not allow documentation to describe an architecture that no longer exists.
-
-If a decision is significant, record:
-
-### Decision
-
-What was chosen?
-
-### Alternatives
-
-What else was considered?
-
-### Reason
-
-Why was this option chosen?
-
-### Consequences
-
-What does this make easier/harder?
-
-### Status
-
-Proposed / Accepted / Superseded
-
----
-
-# 13. Never Hide Uncertainty
-
-When something is unknown, label it.
-
-Use:
-
-- Confirmed
-- Inferred
-- Assumption
-- Proposed
-- Unknown
-- Needs verification
-
-Never convert an assumption into a documented fact.
-
-For example:
-
-> Auth mechanism: undecided — email OTP vs Google OAuth.
-
-Do not silently choose one during implementation unless the decision is explicitly made.
-
----
-
-# 14. Stop Conditions
-
-Stop implementation and ask for clarification when:
-
-- Two specifications conflict
-- Existing code contradicts documentation
-- A database decision affects multiple services
-- A financial invariant is unclear
-- Authentication/authorization behavior is ambiguous
-- An API contract is unclear
-- A destructive migration is required
-- The correct ownership boundary is unclear
-- A change could invalidate existing financial records
-
-Do not "just pick something" for architectural decisions with long-term consequences.
-
----
-
-# 15. Completion Checklist
-
-A feature is DONE only when:
-
-- [ ] Requirements understood
-- [ ] Scope defined
-- [ ] Dependencies identified
-- [ ] Architecture checked
-- [ ] Data flow documented
-- [ ] Business rules documented
-- [ ] Invariants identified
-- [ ] Implementation completed
-- [ ] Unit tests added where appropriate
-- [ ] Integration tests added where appropriate
-- [ ] E2E coverage added where appropriate
-- [ ] Type checking passes
-- [ ] Linting passes
-- [ ] Relevant manual verification completed
-- [ ] Database migrations verified
-- [ ] API behavior verified
-- [ ] Frontend states verified
-- [ ] Documentation updated
-- [ ] Git diff reviewed
-- [ ] PR description prepared
-- [ ] Known limitations recorded
-
-Only then call the work complete.
-
----
-
-# 16. How the Assistant Should Work With Me
-
-When I give you an ABRO task:
-
-Do NOT immediately start coding.
-
-First determine where the task belongs in the architecture.
-
-Then guide me through:
-
-1. Context
-2. Current state
-3. Requirements
-4. Scope
-5. Dependencies
-6. Data flow
-7. Architecture
-8. Design
-9. Implementation plan
-10. Implementation
-11. Testing
-12. Verification
-13. Documentation
-14. Git/PR
-15. Completion
-
-For each stage:
-
-- Explain what we are doing.
-- Explain why it matters.
-- Tell me exactly what to inspect or change.
-- Wait for the result when verification is required.
-- Check my work rather than assuming it is correct.
-- Point out mistakes directly.
-- Do not skip steps merely because the change appears simple.
-
-Prefer concrete commands, file paths, schemas, examples, and expected results over vague explanations.
-
----
-
-# 17. ABRO-Specific Architectural Rules
-
-These rules take precedence over generic implementation shortcuts.
-
-### Financial truth
-
-Expenses are facts.
-
-Balances are derived.
-
-### Settlement
-
-Settlements are expenses with:
-
-`splitType = SETTLEMENT`
-
-### Backend authority
-
-The frontend may validate for UX, but the backend remains authoritative for business rules.
-
-### Type sharing
-
-Where appropriate, frontend and backend should share:
-
-- TypeScript types
-- Enums
-- Zod schemas
-- API contracts
-
-### Database
-
-PostgreSQL + Prisma is the persistence layer.
-
-Do not introduce Supabase-specific architecture unless explicitly decided.
-
-### Backend
-
-NestJS is the API/service boundary.
-
-Do not move core business logic into Next.js server actions merely for convenience.
-
-### Deployment
-
-Avoid infrastructure decisions that unnecessarily couple ABRO to a single vendor unless the decision is documented.
-
-### Existing history
-
-Preserve meaningful project history.
-
-Do not delete or overwrite previous architectural work simply to make the repository look cleaner.
-
----
-
-# 18. Required Response Format for Future ABRO Work
-
-When I give you a new ABRO task, begin with:
-
-## 1. Current Understanding
-
-What we know.
-
-## 2. What We Need to Verify
-
-Unknowns and assumptions.
-
-## 3. Architecture Impact
-
-Which parts of the system are affected.
-
-## 4. Proposed Plan
-
-Ordered implementation steps.
-
-## 5. Documentation
-
-Which documents need to be created or updated.
-
-## 6. Implementation
-
-Only after the plan is understood.
-
-## 7. Verification
-
-Commands/tests/checks and expected results.
-
-## 8. Git / PR
-
-Branch, commit, and PR preparation.
-
-## 9. Completion
-
-Final checklist and remaining known issues.
-
-Never mark something complete merely because code was written.
-
----
-
-# Core Principle
-
-> Build slowly enough to understand the system, and systematically enough that another developer can reproduce your reasoning.
-
-ABRO should not merely have working code.
-
-It should have **traceable engineering decisions, deterministic financial behavior, tested business rules, and documentation that accurately reflects reality.**
+## 1. The repo at a glance
+
+```
+abro/                          pnpm workspace + Turborepo (pnpm-workspace.yaml, turbo.json)
+├── apps/
+│   ├── api/                   Go 1.23 API (chi router, pgx, sqlc, golang-migrate)
+│   │   ├── cmd/api/main.go    wiring: services, handlers, routes, /health
+│   │   ├── internal/<module>/ one package per domain: router.go (HTTP), service.go
+│   │   │                      (rules), mapper.go, *_integration_test.go
+│   │   │                      modules: auth users friends groups expenses balances
+│   │   │                      settlements analytics notifications recurring photos
+│   │   ├── internal/apitypes/ request validation + response shapes (wire format)
+│   │   ├── internal/db/       sqlc-GENERATED code — never edit by hand
+│   │   ├── internal/money/    minor units, splitting, debt simplification, Format
+│   │   ├── internal/httpx/    error envelope, JSON helpers, CORS, recoverer
+│   │   ├── queries/*.sql      sqlc queries (one file per module)
+│   │   ├── migrations/        NNNN_name.up.sql / .down.sql (golang-migrate)
+│   │   ├── Dockerfile, start.sh   start.sh runs migrations when RUN_MIGRATIONS=true
+│   │   └── sqlc.yaml
+│   └── web/                   Next.js App Router PWA (Tailwind v4)
+│       └── src/
+│           ├── app/           routes; app/(dashboard)/ = signed-in screens with the
+│           │                  bottom bar/sidebar (AppShell); app/settle, app/expenses/new
+│           │                  = multi-step flows with their own layouts
+│           ├── components/    app-level components (AppShell, PaymentRow, PullToRefresh…)
+│           ├── lib/           <module>-api.ts typed API calls (one per API module),
+│           │                  api-client.ts (fetch + 30s read cache), drafts, helpers
+│           └── app/globals.css design tokens, neo-* classes, themes
+├── packages/
+│   ├── types/                 shared TS: money (minor units), split, debt simplification,
+│   │                          notification types, zod schemas (with unit tests)
+│   ├── ui/                    shared React components (Avatar, BalanceCard, PersonRow…)
+│   └── config/                shared tsconfig
+├── infra/docker/{dev,prod}/   local Postgres compose; prod VPS compose + Caddy (ADR-011)
+├── docs/                      PRD, FRONTEND_SPEC, DECISIONS (ADRs), DEPLOY, plans, DEVLOG
+├── render.yaml                Render Blueprint for the API (free plan)
+├── .github/workflows/         ci.yml (web, api, images jobs), keep-awake.yml
+├── .husky/ + commitlint + lint-staged   commit hooks (see abro-git-workflow)
+└── .claude/skills/            this skill + abro-git-workflow
+```
+
+**Hosting (ADR-012):** web on **Vercel** (auto from `dev`), API on **Render**
+free (Docker, from `dev` — check it really auto-deploys), Postgres on **Neon**,
+receipts/photos in a private **Backblaze B2** bucket. The web proxies `/api/*` to
+the API so the session cookie is first-party.
+
+## 2. Which layer owns what
+
+| Concern                                | Owner               | Where                                                         |
+| -------------------------------------- | ------------------- | ------------------------------------------------------------- |
+| Auth, sessions, permissions            | API                 | `internal/auth`, `require…` helpers in each service           |
+| Business rules, validation, money math | API (authoritative) | `internal/<module>/service.go`, `internal/money`              |
+| Wire shapes                            | API                 | `internal/apitypes` ↔ mirrored in `apps/web/src/lib/*-api.ts` |
+| Persistence                            | Postgres            | `migrations/` + `queries/` (sqlc)                             |
+| Shared pure logic & types              | packages            | `packages/types`                                              |
+| Presentation, client checks for UX     | web                 | `apps/web/src`                                                |
+
+The web may pre-check for a nicer UX (e.g. "that's more than they owe"), but the
+API always re-checks. Never put a rule only in the frontend.
+
+## 3. How a full-stack feature flows through the folders
+
+1. **Migration** `apps/api/migrations/00NN_name.{up,down}.sql` — explain _why_
+   in a comment at the top. Round-trip it: `migrate up`, `down 1`, `up`.
+2. **Queries** in `apps/api/queries/<module>.sql`, then `sqlc generate`.
+3. **Service** method in `internal/<module>/service.go` (rules, notifications).
+4. **Types** in `internal/apitypes` (input `Validate()`, response struct).
+5. **Route** in `internal/<module>/router.go` (+ wiring in `cmd/api/main.go`).
+6. **Integration tests** `internal/<module>/*_integration_test.go` against the
+   local Postgres, with hand-checked numbers.
+7. **Web API module** `apps/web/src/lib/<module>-api.ts` (strings → `bigint`).
+8. **Screen/components** under `apps/web/src/app/...` and `components/`.
+9. **Shared types** in `packages/types` if both sides need them (e.g. a new
+   notification type goes in `notificationTypes` + settings labels + icons).
+10. **Docs**: ADR for real decisions; PR description for the rest.
+
+API-only and UI-only changes can be separate PRs. If an API change would make
+the live UI wrong (e.g. "Settled!" for something now pending), ship both in one PR.
+
+## 4. The loop (summary — details in ship-with-care)
+
+1. **Context**: `git status`, branch, open PRs, project memory, plan docs, and
+   the code itself (it's the source of truth over docs and specs).
+2. **Plan reply** (keep it short): Current understanding → What we need to
+   verify / decide → Architecture impact (which folders) → Proposed PRs in order →
+   Docs to update.
+3. **Decisions** go to the user with `AskUserQuestion`, recommended option first —
+   especially money, permissions and privacy rules. Don't ask about conventions.
+4. **Implement** in the order of §3, checking each step.
+5. **Verify** (§7), **PR** (abro-git-workflow), **merge on his say-so**, **confirm
+   it's live**, update memory.
+6. **Report**: what's done (PR #s), what was verified and how, what wasn't, what
+   he needs to do or decide.
+
+If the user says "continue" and a roadmap or plan doc names the next item, do it
+without re-asking.
+
+## 5. Money rules (non-negotiable)
+
+- **Expenses are facts; balances are derived.** Never store or increment a
+  balance. Every figure is computed from expenses + participants.
+- Amounts are integer **minor units**; strings on the wire; `bigint` in the web.
+  Shares must sum to the expense amount (server-checked). Remainders distribute
+  deterministically (100/3 → 33/33/34).
+- **Settlements are expenses** with `split_type = SETTLEMENT` (ADR-003) — the
+  only thing that moves a debt. Only `internal/settlements` writes them.
+- **A payment the payer records is a claim** in `settlement_requests`, not a
+  fact, until the person paid confirms it (ADR-019). Confirm = atomic claim
+  (`UPDATE … WHERE status='PENDING'`), re-check the live debt, then write the
+  SETTLEMENT expense. The receiver can record "they paid me" directly.
+- **Disputes flag a share, never change it** (ADR-020); only the payer/admin
+  edits.
+- Sign conventions: friend balance positive = "I owe them"; group net positive =
+  "the group owes me". Convert through the existing helpers
+  (`friendOweSplit`, balance-breakdown), not ad hoc.
+- Group rules (ADR-009/010): settled-only leave/remove/delete, locked currency
+  once it has expenses, group settlements checked against group nets.
+- Show money with `formatMoney` (web) / `money.Format` (API, also for
+  notification text): `1,234.50 ETB`. Never print raw minor units.
+- For any money feature, write the data flow in the plan (fact → shares → ledger
+  effect → net balance → simplification → settlement → history) and include
+  equal/unequal/remainder/partial/settled/deleted cases in tests.
+
+## 6. Conventions worth knowing
+
+- API errors: `httpx.Conflict/Forbidden/NotFound/BadRequest/TooManyRequests`
+  with a SCREAMING_SNAKE code and a plain-English message the UI can show as-is.
+  Rate limits return 429 with `details.nextAllowedAt`.
+- Notifications: `notifications.Notify` / `NotifyLink` (with an in-app link like
+  `/expenses/<id>`); every type is opt-out-able in settings; don't reveal a
+  recipient's opt-outs to the sender.
+- `/health` must never touch the database (keeps Neon asleep when idle).
+- Web screens: shared max width + `md:mx-auto`, grid lists on desktop, check
+  phone width and both themes. Keep the soft **neumorphic** style (`neo-*`
+  classes), light theme default with a faint purple tint.
+- `.neo-*` component classes live in `@layer components` so Tailwind utilities
+  on an element win (an unlayered class once hid search text under the icon).
+- Comments explain _why_ and link ADRs/roadmap items; match the file's density.
+
+## 7. Verification — commands and checks
+
+Go (needs the local DB: Docker `abro-db` on :5460; if it's down ask the user to
+run `! sudo docker start abro-db`):
+
+```
+export PATH="$HOME/.local/go/bin:$HOME/go/bin:$PATH"
+go -C apps/api vet ./...  &&  (cd apps/api && sqlc diff)
+go -C apps/api test -count=1 ./...
+migrate -database "postgres://abro:password@localhost:5460/abro_go?sslmode=disable" -path apps/api/migrations up
+```
+
+Web / packages:
+
+```
+pnpm typecheck && pnpm lint && pnpm exec prettier --check <changed files>
+pnpm --filter @abro/types test      # when packages/types changed
+pnpm --filter web build             # for big UI changes
+```
+
+Browser (for anything user-facing): run the API binary from the scratchpad
+against the `abro_acceptance` DB (test users alice/bob/carol/dave@abro.test; OTP
+codes appear in the API log), `pnpm dev` in apps/web, then walk the flow as each
+user involved. See ship-with-care's `references/verification.md` for workarounds
+when browser automation is flaky.
+
+After merge: confirm the API really deployed (`curl …/api/health` → 200; routes
+behind auth answer 401 whether or not they exist, so they prove nothing).
+
+## 8. Documentation that must follow the code
+
+| Doc                                             | Update when                                                                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `docs/DECISIONS.md`                             | a real decision (new table/approach, business rule, hosting) — newest ADR first: Context / Decision / Alternatives / Consequences / Status |
+| `docs/DEPLOY.md`, `render.yaml`                 | env vars, hosting, deploy steps change                                                                                                     |
+| plan docs (`WIRING_PLAN.md`, `BACKEND_PLAN.md`) | scope or order changes                                                                                                                     |
+| code comments at the top of a screen/module     | its behaviour or deviations from the spec change                                                                                           |
+| project memory                                  | anything merged/open/next, and gotchas                                                                                                     |
+
+Never let a doc describe something that no longer exists. If a PR description
+turns out wrong, edit it with a visible "Correction:".
+
+## 9. Label uncertainty, and when to stop
+
+Say Confirmed / Inferred / Assumption / Unknown rather than turning a guess into
+a fact. Stop and ask when specs conflict, a money or permission rule is unclear,
+a migration could damage existing data, or a decision has long-term
+consequences.
+
+## 10. Done means
+
+- [ ] Plan agreed; decisions made by the user where needed
+- [ ] Code in the right layers (§2), following §3's order
+- [ ] Tests for rules and money math, with hand-checked numbers
+- [ ] vet / test / sqlc diff / typecheck / lint / format pass; migrations round-trip
+- [ ] Checked in a browser as each user involved; desktop + phone; light + dark
+- [ ] ADR/docs updated; PR written per abro-git-workflow
+- [ ] All CI checks green; merged only when the user said so
+- [ ] Confirmed live (web on Vercel, API `/health` on Render)
+- [ ] Memory updated; known limitations reported
