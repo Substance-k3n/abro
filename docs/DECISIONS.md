@@ -49,10 +49,15 @@ of `@tezaz/core` and `@tezaz/react` in `vendor/tezaz/` (installed as
 `file:` dependencies, with a pnpm override for core). To update them,
 pack them again in the Tezaz repo and replace the two files.
 
-**Actions** (`components/VoiceAssistant.tsx`): open a page, a group or
-a friend by name; read out balances; and add an expense the user paid
-in a group, split equally between its active members, after the user
-confirms the exact amount, group and head count.
+**Actions** (`components/VoiceAssistant.tsx` and `components/voice/`):
+open a page, a group or a friend by name; read out balances; add an
+expense the user paid in a group, split equally between its active
+members; add an expense or a loan with one friend (either one paid,
+halved or owed in full); record a payment made (a claim the other person
+confirms, ADR-019) or received (counts at once), checked against what's
+owed first; remind a friend; send a friend request. Every money action
+is `dangerous` and confirmed with the exact amount and people; reminders
+and friend requests are confirmed too.
 
 ---
 
