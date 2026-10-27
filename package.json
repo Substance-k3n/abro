@@ -2,7 +2,7 @@
   "name": "abro",
   "private": true,
   "version": "0.1.0",
-  "description": "ABRO — a social financial ledger for shared expenses, IOUs, and settlements. ETB-first, built independently (SplitPro studied as reference only).",
+  "description": "ABRO \u2014 a social financial ledger for shared expenses, IOUs, and settlements. ETB-first, built independently (SplitPro studied as reference only).",
   "packageManager": "pnpm@10.11.0",
   "engines": {
     "node": ">=22.16.0"
@@ -32,6 +32,9 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "sharp"
-    ]
+    ],
+    "overrides": {
+      "@tezaz/core": "file:vendor/tezaz/tezaz-core-0.0.0.tgz"
+    }
   }
 }

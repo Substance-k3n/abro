@@ -4,6 +4,7 @@ import { PrefetchTabs } from './PrefetchTabs';
 import { PullToRefresh } from './PullToRefresh';
 import { Sidebar } from './Sidebar';
 import { TabSwipe } from './TabSwipe';
+import { VoiceAssistant } from './VoiceAssistant';
 
 /** Wraps every route under the `(dashboard)` route group: sidebar nav on
  * desktop, fixed bottom nav on mobile, per
@@ -27,6 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <BottomNav />
       <PrefetchTabs />
       <TabSwipe />
+      <VoiceAssistant />
     </div>
   );
 }
