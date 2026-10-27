@@ -44,8 +44,15 @@ Go API owns.
 **Consequences:** What the user says, and the screen state the actions
 return, go to Tezaz and its speech provider; testers should know that.
 Tezaz keeps redacted transcripts for its project's retention period.
-The voice SDK isn't published yet, so the web app will carry a packed
-copy (next PR).
+The voice SDK isn't published yet, so the web app carries packed copies
+of `@tezaz/core` and `@tezaz/react` in `vendor/tezaz/` (installed as
+`file:` dependencies, with a pnpm override for core). To update them,
+pack them again in the Tezaz repo and replace the two files.
+
+**Actions** (`components/VoiceAssistant.tsx`): open a page, a group or
+a friend by name; read out balances; and add an expense the user paid
+in a group, split equally between its active members, after the user
+confirms the exact amount, group and head count.
 
 ---
 
