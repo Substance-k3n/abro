@@ -60,3 +60,10 @@ services:
         sync: false
       - key: VAPID_PRIVATE_KEY
         sync: false
+      # Voice commands through Tezaz (ADR-027). Unset: no voice button.
+      - key: TEZAZ_RELAY_URL
+        sync: false
+      - key: TEZAZ_SECRET_KEY
+        sync: false
+      - key: VOICE_TESTERS
+        sync: false
