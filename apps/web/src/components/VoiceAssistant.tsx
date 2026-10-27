@@ -200,8 +200,8 @@ export function VoiceAssistant() {
       <GroupActions />
       <SearchActions />
       <TezazWidget
-        offset={narrow ? 104 : 48}
-        theme={{ accent: '#89487d', accentInk: '#ffffff' }}
+        offset={narrow ? { x: 16, y: 104 } : 48}
+        theme={{ accent: '#5371ea', accentInk: '#ffffff' }}
         launcher={{ size: 55 }}
         radius={16}
         strings={{ title: 'ABRO' }}
