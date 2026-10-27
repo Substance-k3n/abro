@@ -55,7 +55,9 @@ expense the user paid in a group, split equally between its active
 members; add an expense or a loan with one friend (either one paid,
 halved or owed in full); record a payment made (a claim the other person
 confirms, ADR-019) or received (counts at once), checked against what's
-owed first; remind a friend; send a friend request. Every money action
+owed first; remind a friend; send a friend request; create a group and
+invite friends, or invite one more; read a group's balances, who pays
+next (ADR-025) and where the user stands in an ekub. Every money action
 is `dangerous` and confirmed with the exact amount and people; reminders
 and friend requests are confirmed too.
 

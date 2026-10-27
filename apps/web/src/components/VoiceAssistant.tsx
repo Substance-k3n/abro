@@ -23,6 +23,7 @@ import { CATEGORIES } from '~/lib/reference-data';
 import { type VoiceStatus, getVoiceStatus, getVoiceToken } from '~/lib/voice-api';
 
 import { FriendActions } from './voice/FriendActions';
+import { GroupActions } from './voice/GroupActions';
 import { money, spokenAmount, useDirectory } from './voice/shared';
 
 /** Pages the assistant may open by name. */
@@ -195,6 +196,7 @@ export function VoiceAssistant() {
     >
       <VoiceActions />
       <FriendActions />
+      <GroupActions />
       <TezazWidget offset={narrow ? 104 : 24} strings={{ title: 'ABRO' }} />
     </TezazProvider>
   );
