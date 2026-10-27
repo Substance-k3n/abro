@@ -51,8 +51,8 @@ importers:
         specifier: file:../../vendor/tezaz/tezaz-core-0.0.0.tgz
         version: file:vendor/tezaz/tezaz-core-0.0.0.tgz
       '@tezaz/react':
-        specifier: file:../../vendor/tezaz/tezaz-react-0.0.0.tgz
-        version: file:vendor/tezaz/tezaz-react-0.0.0.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        specifier: file:../../vendor/tezaz/tezaz-react-0.0.0-f80e776.tgz
+        version: file:vendor/tezaz/tezaz-react-0.0.0-f80e776.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       lucide-react:
         specifier: ^1.45.0
         version: 1.46.0(react@19.2.1)
@@ -799,8 +799,8 @@ packages:
     resolution: {integrity: sha512-f3medDtzyLl6Yp9GXPpdH0kdoSokOzfGxALpwrpiXolwzxnxtOs4Mucb7+LXBXAvW6Xnm6vcfb5SrpnJH6T6zg==, tarball: file:vendor/tezaz/tezaz-core-0.0.0.tgz}
     version: 0.0.0
 
-  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0.tgz':
-    resolution: {integrity: sha512-w/CueXEwARsmIhffgEeHRJzKkSApZKdJcxEefJMZ3jgGuEFJQLL7xceF7qja6lhFAOHVQUEmGhdXj6Q8pZSn6w==, tarball: file:vendor/tezaz/tezaz-react-0.0.0.tgz}
+  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0-f80e776.tgz':
+    resolution: {integrity: sha512-w/CueXEwARsmIhffgEeHRJzKkSApZKdJcxEefJMZ3jgGuEFJQLL7xceF7qja6lhFAOHVQUEmGhdXj6Q8pZSn6w==, tarball: file:vendor/tezaz/tezaz-react-0.0.0-f80e776.tgz}
     version: 0.0.0
     peerDependencies:
       react: ^19.0.0
@@ -3185,7 +3185,7 @@ snapshots:
 
   '@tezaz/core@file:vendor/tezaz/tezaz-core-0.0.0.tgz': {}
 
-  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
+  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0-f80e776.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
     dependencies:
       '@tezaz/core': file:vendor/tezaz/tezaz-core-0.0.0.tgz
       react: 19.2.1

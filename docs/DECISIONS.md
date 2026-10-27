@@ -47,7 +47,9 @@ Tezaz keeps redacted transcripts for its project's retention period.
 The voice SDK isn't published yet, so the web app carries packed copies
 of `@tezaz/core` and `@tezaz/react` in `vendor/tezaz/` (installed as
 `file:` dependencies, with a pnpm override for core). To update them,
-pack them again in the Tezaz repo and replace the two files.
+pack them again in the Tezaz repo and replace the files under a new
+name (e.g. `tezaz-react-0.0.0-<tezaz commit>.tgz`), updating
+`package.json` and the lockfile: build caches keep a same-named file.
 
 **Actions** (`components/VoiceAssistant.tsx` and `components/voice/`):
 open a page, a group or a friend by name; read out balances; add an
