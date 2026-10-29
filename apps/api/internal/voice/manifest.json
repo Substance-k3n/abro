@@ -1,0 +1,320 @@
+{
+  "capabilities": [
+    {
+      "name": "open_page",
+      "description": "Open one of the app pages.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "string",
+            "enum": [
+              "home",
+              "groups",
+              "friends",
+              "balances",
+              "activity",
+              "payments",
+              "notifications",
+              "settings",
+              "profile",
+              "add expense"
+            ]
+          }
+        },
+        "required": ["page"]
+      }
+    },
+    {
+      "name": "open_group",
+      "description": "Open a group's page by its name.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "description": "The group name as the user said it."
+          }
+        },
+        "required": ["group"]
+      }
+    },
+    {
+      "name": "open_friend",
+      "description": "Open a friend's page, with what you owe each other, by their name.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "friend": {
+            "type": "string",
+            "description": "The name as the user said it."
+          }
+        },
+        "required": ["friend"]
+      }
+    },
+    {
+      "name": "get_balances",
+      "description": "Who owes the user and whom the user owes: each friend and each group with a balance. Use for \"who owes me\", \"what do I owe\", \"my balance\".",
+      "parameters": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "add_group_expense",
+      "description": "Add an expense the user paid in one of their groups, split equally between all its members. Ask for the amount and what it was for if missing.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "description": "The group name as the user said it."
+          },
+          "amount": {
+            "type": "number",
+            "description": "In the group currency, e.g. 300 or 45.50."
+          },
+          "description": {
+            "type": "string",
+            "description": "What it was for, e.g. \"lunch\"."
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Food",
+              "Coffee",
+              "Transport",
+              "Groceries",
+              "Rent",
+              "Utilities",
+              "Entertainment",
+              "Shopping",
+              "Travel",
+              "Other"
+            ]
+          }
+        },
+        "required": ["group", "amount", "description"]
+      }
+    },
+    {
+      "name": "add_friend_expense",
+      "description": "Add an expense or a loan with one friend, outside any group. paid_by: who paid. split \"equal\" halves it; \"all\" means the one who did not pay owes the whole amount (a loan, e.g. \"I lent Abebe 500\").",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "friend": {
+            "type": "string",
+            "description": "The name as the user said it."
+          },
+          "amount": {
+            "type": "number",
+            "description": "In birr, e.g. 200 or 45.50."
+          },
+          "description": {
+            "type": "string",
+            "description": "What it was for, e.g. \"taxi\"."
+          },
+          "paid_by": { "type": "string", "enum": ["me", "them"] },
+          "split": { "type": "string", "enum": ["equal", "all"] },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Food",
+              "Coffee",
+              "Transport",
+              "Groceries",
+              "Rent",
+              "Utilities",
+              "Entertainment",
+              "Shopping",
+              "Travel",
+              "Other"
+            ]
+          }
+        },
+        "required": ["friend", "amount", "description", "paid_by", "split"]
+      }
+    },
+    {
+      "name": "record_payment",
+      "description": "Record that the user paid someone back. It waits until that person confirms it. Name a group only if the debt is in that group.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "person": {
+            "type": "string",
+            "description": "The name as the user said it."
+          },
+          "amount": { "type": "number", "description": "In birr." },
+          "group": {
+            "type": "string",
+            "description": "Only when the user names a group; omit for a personal payment."
+          }
+        },
+        "required": ["person", "amount"]
+      }
+    },
+    {
+      "name": "record_received",
+      "description": "Record that someone paid the user back. It counts at once. Name a group only if the debt is in that group.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "person": {
+            "type": "string",
+            "description": "The name as the user said it."
+          },
+          "amount": { "type": "number", "description": "In birr." },
+          "group": {
+            "type": "string",
+            "description": "Only when the user names a group; omit for a personal payment."
+          }
+        },
+        "required": ["person", "amount"]
+      }
+    },
+    {
+      "name": "remind_friend",
+      "description": "Send a payment reminder to a friend who owes the user money.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "friend": {
+            "type": "string",
+            "description": "The name as the user said it."
+          }
+        },
+        "required": ["friend"]
+      }
+    },
+    {
+      "name": "send_friend_request",
+      "description": "Send a friend request to someone on ABRO, found by name or username.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Their name or username." }
+        },
+        "required": ["name"]
+      }
+    },
+    {
+      "name": "create_group",
+      "description": "Create a new group and invite friends to it. They join when they accept. Currency is birr.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "The new group name." },
+          "type": {
+            "type": "string",
+            "enum": ["Friends", "Trip", "Household", "Family", "Team", "Other"]
+          },
+          "friends": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Friends to invite, by name."
+          }
+        },
+        "required": ["name"]
+      }
+    },
+    {
+      "name": "add_group_member",
+      "description": "Invite a friend to one of the groups the user is an admin of.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "description": "The group name as the user said it."
+          },
+          "friend": {
+            "type": "string",
+            "description": "The friend to invite, by name."
+          }
+        },
+        "required": ["group", "friend"]
+      }
+    },
+    {
+      "name": "group_balances",
+      "description": "Who is owed and who owes in one group.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "description": "The group name as the user said it."
+          }
+        },
+        "required": ["group"]
+      }
+    },
+    {
+      "name": "who_pays_next",
+      "description": "Whose turn it is to pay the group's next bill, in order.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "string",
+            "description": "The group name as the user said it."
+          }
+        },
+        "required": ["group"]
+      }
+    },
+    {
+      "name": "ekub_status",
+      "description": "Where the user stands in an ekub: this round's turn, what they pay and receive, and when their own turn comes. Name the ekub if they have several.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "ekub": {
+            "type": "string",
+            "description": "The ekub name, if given."
+          }
+        }
+      }
+    },
+    {
+      "name": "search_expenses",
+      "description": "Find expenses by words in their name (e.g. \"fuel\"), and/or in one group, and/or with one friend. Use for \"what did we spend on…\", \"show the taxi expenses\".",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "Words to look for in the expense name."
+          },
+          "group": {
+            "type": "string",
+            "description": "A group name, if the user named one."
+          },
+          "friend": {
+            "type": "string",
+            "description": "A friend name, if the user named one."
+          }
+        }
+      }
+    },
+    {
+      "name": "recent_activity",
+      "description": "The latest expenses and payments the user is part of.",
+      "parameters": { "type": "object", "properties": {} }
+    },
+    {
+      "name": "explain_balance",
+      "description": "Explain where the balance with one friend comes from: the total, and the latest expenses and payments between you.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "friend": {
+            "type": "string",
+            "description": "The name as the user said it."
+          }
+        },
+        "required": ["friend"]
+      }
+    }
+  ]
+}

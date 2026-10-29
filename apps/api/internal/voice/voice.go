@@ -15,6 +15,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -34,6 +35,9 @@ type Service struct {
 	// testers are lower-cased emails, or "*" for everyone. Empty: nobody.
 	testers map[string]bool
 	client  *http.Client
+	// syncedAt is when the relay last had our manifest (see ensurePublished).
+	syncMu   sync.Mutex
+	syncedAt time.Time
 }
 
 func NewService(relayURL, secretKey, origin, testers string) *Service {
@@ -77,6 +81,7 @@ type Token struct {
 // Token asks the relay for a session token for this user. The user id is
 // the visitor id, so Tezaz's per-visitor limits apply per ABRO user.
 func (s *Service) Token(ctx context.Context, userID string) (Token, error) {
+	s.ensurePublished(ctx)
 	body, err := json.Marshal(map[string]string{"origin": s.origin, "visitorId": userID})
 	if err != nil {
 		return Token{}, fmt.Errorf("marshaling voice token request: %w", err)

@@ -132,8 +132,11 @@ func main() {
 	recurringSvc := recurring.NewService(queries, expensesSvc, notificationsSvc)
 	recurringHandler := recurring.NewHandler(recurringSvc, queries)
 
-	// Voice commands through Tezaz (ADR-027): tokens for testers only.
-	voiceHandler := voice.NewHandler(voice.NewService(cfg.TezazRelayURL, cfg.TezazSecretKey, cfg.WebOrigin, cfg.VoiceTesters), queries)
+	// Voice commands through Tezaz (ADR-027): tokens for testers only, and
+	// the voice actions published to the relay on every start.
+	voiceSvc := voice.NewService(cfg.TezazRelayURL, cfg.TezazSecretKey, cfg.WebOrigin, cfg.VoiceTesters)
+	go voiceSvc.PublishActions(ctx)
+	voiceHandler := voice.NewHandler(voiceSvc, queries)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
