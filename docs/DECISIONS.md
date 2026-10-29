@@ -62,8 +62,8 @@ publish from the Tezaz dashboard, an older deploy or a failed start-up
 publish fixes itself on the next voice session. CI fails when the file
 is stale. A development key publishes nothing.
 
-On phones the widget has no panel (`panel="desktop"`): a tap on the
-floating button opens a small voice card and starts listening. It shows
+The widget shows its voice card on phones and computers (Tezaz's
+default): a tap on the floating button opens it and starts listening. It shows
 the status, what was heard and the reply over a line that follows the
 voice, asks confirmations in place, and closes with Done.
 

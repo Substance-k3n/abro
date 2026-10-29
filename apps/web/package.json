@@ -15,7 +15,7 @@
     "@abro/types": "workspace:*",
     "@abro/ui": "workspace:*",
     "@tezaz/core": "file:../../vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz",
-    "@tezaz/react": "file:../../vendor/tezaz/tezaz-react-0.0.0-c4ca87b.tgz",
+    "@tezaz/react": "file:../../vendor/tezaz/tezaz-react-0.0.0-d50d3e1.tgz",
     "lucide-react": "^1.45.0",
     "next": "15.5.18",
     "qrcode": "^1.5.4",
