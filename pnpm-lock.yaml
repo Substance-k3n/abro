@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@tezaz/core': file:vendor/tezaz/tezaz-core-0.0.0.tgz
+  '@tezaz/core': file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz
 
 importers:
 
@@ -48,11 +48,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       '@tezaz/core':
-        specifier: file:../../vendor/tezaz/tezaz-core-0.0.0.tgz
-        version: file:vendor/tezaz/tezaz-core-0.0.0.tgz
+        specifier: file:../../vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz
+        version: file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz
       '@tezaz/react':
-        specifier: file:../../vendor/tezaz/tezaz-react-0.0.0-c68ae40.tgz
-        version: file:vendor/tezaz/tezaz-react-0.0.0-c68ae40.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        specifier: file:../../vendor/tezaz/tezaz-react-0.0.0-c4ca87b.tgz
+        version: file:vendor/tezaz/tezaz-react-0.0.0-c4ca87b.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       lucide-react:
         specifier: ^1.45.0
         version: 1.46.0(react@19.2.1)
@@ -954,12 +954,12 @@ packages:
   '@tailwindcss/postcss@4.3.3':
     resolution: {integrity: sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg==}
 
-  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.0.0.tgz':
-    resolution: {integrity: sha512-f3medDtzyLl6Yp9GXPpdH0kdoSokOzfGxALpwrpiXolwzxnxtOs4Mucb7+LXBXAvW6Xnm6vcfb5SrpnJH6T6zg==, tarball: file:vendor/tezaz/tezaz-core-0.0.0.tgz}
+  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz':
+    resolution: {integrity: sha512-NNSruiFgze1XZCFXvRP+szEDd8Ijv9+tvo2S42e7kbMqd0tPLXX6d3F9XR3f+e8HfFFgwML+id17fwIeCUdMVg==, tarball: file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz}
     version: 0.0.0
 
-  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0-c68ae40.tgz':
-    resolution: {integrity: sha512-zAKfJy8aG99zn25AdKpmglZEc3FXVZnlKFuid9M2RQbQC7ShUazXcnx9jRqMOwgOcT6HyYLvyrUAX6JWYGNLvw==, tarball: file:vendor/tezaz/tezaz-react-0.0.0-c68ae40.tgz}
+  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0-c4ca87b.tgz':
+    resolution: {integrity: sha512-nVv+ZNyDiMsLDDVXddG5oM5EmW83YKueCdlmEicBcc5Dye9MGW1h1ypqMsEK0mrvva5ZcbHMKNsucYKF7QX5BQ==, tarball: file:vendor/tezaz/tezaz-react-0.0.0-c4ca87b.tgz}
     version: 0.0.0
     peerDependencies:
       react: ^19.0.0
@@ -3425,11 +3425,11 @@ snapshots:
       postcss: 8.5.28
       tailwindcss: 4.3.3
 
-  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.0.0.tgz': {}
+  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz': {}
 
-  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0-c68ae40.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
+  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0-c4ca87b.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
     dependencies:
-      '@tezaz/core': file:vendor/tezaz/tezaz-core-0.0.0.tgz
+      '@tezaz/core': file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
 

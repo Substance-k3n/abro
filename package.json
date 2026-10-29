@@ -34,7 +34,7 @@
       "sharp"
     ],
     "overrides": {
-      "@tezaz/core": "file:vendor/tezaz/tezaz-core-0.0.0.tgz"
+      "@tezaz/core": "file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz"
     }
   }
 }
