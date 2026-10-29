@@ -56,8 +56,15 @@ published list. `pnpm --filter @abro/web voice:manifest` writes the
 actions the app declares to `apps/api/internal/voice/manifest.json`, and
 apps/api publishes it with the production key each time it starts
 (retrying while the relay wakes up), so a new or reworded action is live
-with the deploy. CI fails when the file is stale. A development key
-publishes nothing.
+with the deploy. Before each token it also checks the relay's list
+(at most once a minute) and publishes again when it differs, so a
+publish from the Tezaz dashboard, an older deploy or a failed start-up
+publish fixes itself on the next voice session. CI fails when the file
+is stale. A development key publishes nothing.
+
+On phones the widget has no panel (`panel="desktop"`): the floating
+button is the microphone, beats while voice is live, and a second tap
+stops it. Confirmations still show.
 
 **Actions** (`components/VoiceAssistant.tsx` and `components/voice/`):
 open a page, a group or a friend by name; read out balances; add an
