@@ -13,6 +13,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/groups"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
+	"github.com/Substance-k3n/abro/apps/api/internal/money"
 )
 
 type Handler struct {
@@ -31,6 +32,7 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/friends/{friendId}", httpx.Wrap(h.friendBalance))
 	r.Get("/groups/{groupId}", httpx.Wrap(h.groupSummary))
 	r.Get("/groups/{groupId}/simplified", httpx.Wrap(h.simplifiedGroupDebts))
+	r.Get("/groups/{groupId}/raw", httpx.Wrap(h.rawGroupDebts))
 	r.Get("/groups/{groupId}/next-payers", httpx.Wrap(h.nextPayers))
 }
 
@@ -130,12 +132,36 @@ func (h *Handler) simplifiedGroupDebts(w http.ResponseWriter, r *http.Request) e
 	if err != nil {
 		return err
 	}
+	writeTransactions(w, transactions)
+	return nil
+}
+
+// rawGroupDebts is the unsimplified "who owes whom", same wire shape as
+// /simplified so the web shows both with one row component.
+func (h *Handler) rawGroupDebts(w http.ResponseWriter, r *http.Request) error {
+	groupID, err := idutil.Parse(chi.URLParam(r, "groupId"))
+	if err != nil {
+		return httpx.NotFound("GROUP_NOT_FOUND", "No such group.")
+	}
+	user := authpkg.CurrentUser(r.Context())
+	if _, err := h.groups.RequireActiveMembership(r.Context(), groupID, user.ID); err != nil {
+		return err
+	}
+
+	transactions, err := h.svc.GetRawGroupDebts(r.Context(), groupID)
+	if err != nil {
+		return err
+	}
+	writeTransactions(w, transactions)
+	return nil
+}
+
+func writeTransactions(w http.ResponseWriter, transactions []money.SimplifiedTransaction) {
 	out := make([]apitypes.SimplifiedTransaction, len(transactions))
 	for i, t := range transactions {
 		out[i] = apitypes.SimplifiedTransaction{FromUserID: t.FromUserID, ToUserID: t.ToUserID, Amount: strconv.FormatInt(t.Amount, 10)}
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
-	return nil
 }
 
 func (h *Handler) nextPayers(w http.ResponseWriter, r *http.Request) error {

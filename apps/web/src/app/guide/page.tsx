@@ -61,7 +61,7 @@ const FEATURES = [
   {
     icon: '✨',
     title: 'Fewer payments',
-    body: '“Simplify” finds the smallest number of payments that settles a whole group, so nobody pays back and forth.',
+    body: '“Simplify” finds the smallest number of payments that settles a whole group, so nobody pays back and forth. “Who owes whom” still shows each person’s real debts before simplifying.',
   },
   {
     icon: '✅',
