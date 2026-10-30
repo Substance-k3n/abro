@@ -87,6 +87,10 @@ type Querier interface {
 	GetGroupMonthlyTrendRaw(ctx context.Context, arg GetGroupMonthlyTrendRawParams) ([]GetGroupMonthlyTrendRawRow, error)
 	GetGroupOwedSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupOwedSumsRow, error)
 	GetGroupPaidSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupPaidSumsRow, error)
+	// What each participant owes each payer across a group's live expenses
+	// (settlements included: the payer of a settlement is the debtor, so it
+	// nets back). Feeds GetRawGroupDebts' "who owes whom" list.
+	GetGroupPairOwedSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupPairOwedSumsRow, error)
 	// Only groups with actual matching spending appear (an INNER JOIN to
 	// expenses naturally excludes an active membership with zero spend in
 	// the period, same as the original's post-hoc "> 0" filter).

@@ -78,6 +78,7 @@ function SettleChooseForm() {
   const friendId = searchParams.get('friendId');
   const paramGroupId = searchParams.get('groupId');
   const paramToUserId = searchParams.get('toUserId');
+  const paramAmount = searchParams.get('amount');
   const redirecting = !!friendId || (!!paramGroupId && !!paramToUserId);
 
   const load = () => {
@@ -105,7 +106,9 @@ function SettleChooseForm() {
       return;
     }
     if (paramGroupId && paramToUserId) {
-      router.replace(`/settle/amount?toUserId=${paramToUserId}&groupId=${paramGroupId}`);
+      router.replace(
+        `/settle/amount?toUserId=${paramToUserId}&groupId=${paramGroupId}${paramAmount ? `&amount=${paramAmount}` : ''}`,
+      );
       return;
     }
     if (paramGroupId) {

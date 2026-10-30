@@ -198,6 +198,16 @@ export async function getSimplifiedPayments(groupId: string): Promise<Simplified
   return rows.map((r) => ({ ...r, amount: BigInt(r.amount) }));
 }
 
+/** GET /balances/groups/{id}/raw -- the unsimplified "who owes whom":
+ * each pair's own debt from the group's expenses, netted both ways, so
+ * nobody is shown paying someone they never shared a bill with. */
+export async function getRawGroupDebts(groupId: string): Promise<SimplifiedPayment[]> {
+  const rows: { fromUserId: string; toUserId: string; amount: string }[] = await api.get(
+    `/balances/groups/${groupId}/raw`,
+  );
+  return rows.map((r) => ({ ...r, amount: BigInt(r.amount) }));
+}
+
 export interface NextPayer {
   userId: string;
   /** What they owe the group, positive. */

@@ -15,6 +15,16 @@ WHERE e.deleted_at IS NULL AND e.group_id = sqlc.arg('group_id') AND (
     OR (ep.user_id = sqlc.arg('user_a') AND e.paid_by_id = sqlc.arg('user_b'))
 );
 
+-- name: GetGroupPairOwedSums :many
+-- What each participant owes each payer across a group's live expenses
+-- (settlements included: the payer of a settlement is the debtor, so it
+-- nets back). Feeds GetRawGroupDebts' "who owes whom" list.
+SELECT ep.user_id AS debtor_id, e.paid_by_id AS creditor_id, sum(ep.amount)::bigint AS total
+FROM expense_participants ep
+JOIN expenses e ON e.id = ep.expense_id
+WHERE e.group_id = $1 AND e.deleted_at IS NULL AND ep.user_id <> e.paid_by_id
+GROUP BY ep.user_id, e.paid_by_id;
+
 -- name: GetGroupPaidSums :many
 SELECT paid_by_id, sum(amount)::bigint AS total FROM expenses
 WHERE group_id = $1 AND deleted_at IS NULL

@@ -355,3 +355,58 @@ func TestService_GetSimplifiedGroupDebts(t *testing.T) {
 		assert.Equal(t, int64(100), simplified[0].Amount)
 	})
 }
+
+func TestService_GetRawGroupDebts(t *testing.T) {
+	t.Run("keeps each pair's own debt, netted both ways, instead of rerouting it", func(t *testing.T) {
+		e := setup(t)
+		a := e.makeProfile(t, "A")
+		b := e.makeProfile(t, "B")
+		c := e.makeProfile(t, "C")
+		d := e.makeProfile(t, "D")
+		e.makeFriends(t, b.ID, a.ID)
+		e.makeFriends(t, b.ID, c.ID)
+		e.makeFriends(t, b.ID, d.ID)
+
+		simplify := true
+		group, err := e.groups.Create(context.Background(), b.ID, apitypes.CreateGroupInput{
+			Name: "Raw", Type: strPtr("OTHER"), Currency: strPtr("ETB"), SimplifyDebts: &simplify,
+			MemberIDs: []string{idutil.String(a.ID), idutil.String(c.ID), idutil.String(d.ID)},
+		})
+		require.NoError(t, err)
+		for _, m := range []pgtype.UUID{a.ID, c.ID, d.ID} {
+			_, err = e.groups.AcceptInvite(context.Background(), m, group.ID)
+			require.NoError(t, err)
+		}
+
+		// A owes B 1000, C owes B 1000, A owes D 1000 (the user's example),
+		// plus B owes A 300 back, which nets A->B down to 700.
+		_, err = e.expenses.Create(context.Background(), b.ID, expenseInput("EQUAL", "B for A", "1000", &group.ID, equalParticipants(a.ID)))
+		require.NoError(t, err)
+		_, err = e.expenses.Create(context.Background(), b.ID, expenseInput("EQUAL", "B for C", "1000", &group.ID, equalParticipants(c.ID)))
+		require.NoError(t, err)
+		_, err = e.expenses.Create(context.Background(), d.ID, expenseInput("EQUAL", "D for A", "1000", &group.ID, equalParticipants(a.ID)))
+		require.NoError(t, err)
+		_, err = e.expenses.Create(context.Background(), a.ID, expenseInput("EQUAL", "A for B", "300", &group.ID, equalParticipants(b.ID)))
+		require.NoError(t, err)
+
+		raw, err := e.balances.GetRawGroupDebts(context.Background(), group.ID)
+		require.NoError(t, err)
+		got := map[string]int64{}
+		for _, tx := range raw {
+			got[tx.FromUserID+">"+tx.ToUserID] = tx.Amount
+		}
+		assert.Equal(t, map[string]int64{
+			idutil.String(a.ID) + ">" + idutil.String(b.ID): 700,
+			idutil.String(c.ID) + ">" + idutil.String(b.ID): 1000,
+			idutil.String(a.ID) + ">" + idutil.String(d.ID): 1000,
+		}, got)
+		require.Len(t, raw, 3)
+		assert.Equal(t, int64(700), raw[2].Amount, "largest first")
+
+		// The simplified plan for the same group reroutes (C never dealt
+		// with D), which is why the raw list exists.
+		simplified, err := e.balances.GetSimplifiedGroupDebts(context.Background(), group.ID)
+		require.NoError(t, err)
+		assert.Len(t, simplified, 2)
+	})
+}
