@@ -4,7 +4,10 @@
 
 import { api } from './api-client';
 
-export type VoiceStatus = { enabled: false } | { enabled: true; sessionUrl: string };
+export type VoiceStatus =
+  | { enabled: false }
+  /** `project`: the Tezaz public key, set when the API has TEZAZ_PUBLIC_KEY. */
+  | { enabled: true; sessionUrl: string; project?: string };
 
 export function getVoiceStatus(): Promise<VoiceStatus> {
   return api.get('/voice');
