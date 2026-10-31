@@ -53,6 +53,7 @@ type Config struct {
 	// both set turns it on, for the emails in VoiceTesters ("*" = all).
 	TezazRelayURL  string
 	TezazSecretKey string
+	TezazPublicKey string
 	VoiceTesters   string
 }
 
@@ -94,6 +95,7 @@ func Load() Config {
 
 		TezazRelayURL:  os.Getenv("TEZAZ_RELAY_URL"),
 		TezazSecretKey: os.Getenv("TEZAZ_SECRET_KEY"),
+		TezazPublicKey: os.Getenv("TEZAZ_PUBLIC_KEY"),
 		VoiceTesters:   os.Getenv("VOICE_TESTERS"),
 	}
 }

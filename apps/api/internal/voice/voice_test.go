@@ -97,3 +97,16 @@ func TestTokenErrors(t *testing.T) {
 		t.Errorf("relay down: got %v", err)
 	}
 }
+
+func TestWithPublicKeyKeepsOnlyPublicKeys(t *testing.T) {
+	cases := map[string]string{
+		" tz_pub_live_abc ": "tz_pub_live_abc",
+		"":                  "",
+		"tz_sec_live_abc":   "", // a secret in the wrong variable never reaches the browser
+	}
+	for in, want := range cases {
+		if got := NewService("https://relay.test", "k", "o", "*").WithPublicKey(in).publicKey; got != want {
+			t.Errorf("WithPublicKey(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
