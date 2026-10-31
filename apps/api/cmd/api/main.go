@@ -134,7 +134,8 @@ func main() {
 
 	// Voice commands through Tezaz (ADR-027): tokens for testers only, and
 	// the voice actions published to the relay on every start.
-	voiceSvc := voice.NewService(cfg.TezazRelayURL, cfg.TezazSecretKey, cfg.WebOrigin, cfg.VoiceTesters)
+	voiceSvc := voice.NewService(cfg.TezazRelayURL, cfg.TezazSecretKey, cfg.WebOrigin, cfg.VoiceTesters).
+		WithPublicKey(cfg.TezazPublicKey)
 	go voiceSvc.PublishActions(ctx)
 	voiceHandler := voice.NewHandler(voiceSvc, queries)
 

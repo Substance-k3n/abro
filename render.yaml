@@ -65,5 +65,9 @@ services:
         sync: false
       - key: TEZAZ_SECRET_KEY
         sync: false
+      # Optional: the same key's public key; the widget then loads the look
+      # published in the Tezaz dashboard.
+      - key: TEZAZ_PUBLIC_KEY
+        sync: false
       - key: VOICE_TESTERS
         sync: false

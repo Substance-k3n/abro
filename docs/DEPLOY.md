@@ -243,6 +243,10 @@ a Vercel redeploy.
   (declared `sync: false` in `render.yaml`):
   - `TEZAZ_RELAY_URL` -- `https://tezaz.onrender.com`
   - `TEZAZ_SECRET_KEY` -- that production key's secret (`tz_sec_live_…`)
+  - `TEZAZ_PUBLIC_KEY` (optional) -- the same key's public key
+    (`tz_pub_live_…`). With it, the widget loads the look published in the
+    Tezaz dashboard's Widget page on every page load, with no deploy here.
+    Anything that isn't a `tz_pub_` key is ignored.
   - `VOICE_TESTERS` -- comma-separated emails that get the voice button,
     or `*` for everyone.
 

@@ -30,6 +30,9 @@ type Service struct {
 	// RelayURL is the Tezaz relay's address, e.g. https://tezaz.onrender.com.
 	relayURL  string
 	secretKey string
+	// publicKey (tz_pub_…) lets the widget load the look published in the
+	// Tezaz dashboard. Optional; it can't start a session on its own.
+	publicKey string
 	// origin is the web app's address; the token only works on pages from it.
 	origin string
 	// testers are lower-cased emails, or "*" for everyone. Empty: nobody.
@@ -65,6 +68,20 @@ func (s *Service) EnabledFor(email string) bool {
 		return false
 	}
 	return s.testers["*"] || (email != "" && s.testers[strings.ToLower(email)])
+}
+
+// WithPublicKey sets the project's public key. Anything that isn't a public
+// key is ignored, so a secret pasted into the wrong variable never reaches
+// the browser.
+func (s *Service) WithPublicKey(key string) *Service {
+	key = strings.TrimSpace(key)
+	switch {
+	case strings.HasPrefix(key, "tz_pub_"):
+		s.publicKey = key
+	case key != "":
+		log.Printf("voice: TEZAZ_PUBLIC_KEY is not a public key (tz_pub_…); ignoring it")
+	}
+	return s
 }
 
 // SessionURL is where the browser opens the voice session.
@@ -138,15 +155,20 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/token", httpx.Wrap(h.token))
 }
 
-// status: GET /voice -> {"enabled": bool, "sessionUrl"?: "wss://..."}, so
-// the app shows the voice button only to testers.
+// status: GET /voice -> {"enabled": bool, "sessionUrl"?: "wss://...",
+// "project"?: "tz_pub_..."}, so the app shows the voice button only to
+// testers, styled as published in the Tezaz dashboard.
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) error {
 	user := authpkg.CurrentUser(r.Context())
 	if !h.svc.EnabledFor(user.Email.String) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"enabled": false})
 		return nil
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"enabled": true, "sessionUrl": h.svc.SessionURL()})
+	body := map[string]any{"enabled": true, "sessionUrl": h.svc.SessionURL()}
+	if h.svc.publicKey != "" {
+		body["project"] = h.svc.publicKey
+	}
+	httpx.WriteJSON(w, http.StatusOK, body)
 	return nil
 }
 
