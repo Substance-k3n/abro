@@ -97,7 +97,7 @@
     },
     {
       "name": "add_friend_expense",
-      "description": "Add an expense or a loan with one friend, outside any group. paid_by: who paid. split \"equal\" halves it; \"all\" means the one who did not pay owes the whole amount (a loan, e.g. \"I lent Abebe 500\").",
+      "description": "Add an expense or a loan with exactly one friend, outside any group (for two or more friends use add_shared_expense). paid_by: who paid. split \"equal\" halves it; \"all\" means the one who did not pay owes the whole amount (a loan, e.g. \"I lent Abebe 500\").",
       "parameters": {
         "type": "object",
         "properties": {
@@ -132,6 +132,51 @@
           }
         },
         "required": ["friend", "amount", "description", "paid_by", "split"]
+      }
+    },
+    {
+      "name": "add_shared_expense",
+      "description": "Add an expense shared equally between the user and two or more friends, outside any group. paid_by is \"me\" or the name of one of those friends. Ask for anything missing, one question at a time.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "friends": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "The name as the user said it."
+            },
+            "description": "Everyone besides the user, by name as the user said them."
+          },
+          "amount": {
+            "type": "number",
+            "description": "The total, in birr, e.g. 600 or 45.50."
+          },
+          "description": {
+            "type": "string",
+            "description": "What it was for, e.g. \"dinner\"."
+          },
+          "paid_by": {
+            "type": "string",
+            "description": "\"me\", or the name of the friend who paid. Ask if the user did not say."
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "Food",
+              "Coffee",
+              "Transport",
+              "Groceries",
+              "Rent",
+              "Utilities",
+              "Entertainment",
+              "Shopping",
+              "Travel",
+              "Other"
+            ]
+          }
+        },
+        "required": ["friends", "amount", "description", "paid_by"]
       }
     },
     {
