@@ -12,7 +12,47 @@ import { parseAmount } from '~/lib/expense-split';
 import { type FriendListItem, listFriends } from '~/lib/friends-api';
 import { type GroupListItem, listGroups } from '~/lib/groups-api';
 
-/** Best match for a spoken name: exact, then starts-with, then contains. */
+/**
+ * Consonants of each row of the Ethiopic block (U+1200, 8 letters a row), in
+ * Latin letters. Vowels are dropped on both sides, so only the consonants
+ * have to agree: «አበበ» and "Abebe" are both "bb", «ቅዱስ» and "Kidus" "kds".
+ */
+// prettier-ignore
+const ETHIOPIC_ROWS = [
+  'h', 'l', 'h', 'm', 's', 'r', 's', 'sh', // ሀ ለ ሐ መ ሠ ረ ሰ ሸ
+  'k', 'k', 'k', 'k', 'b', 'v', 't', 'ch', // ቀ ቈ ቐ ቘ በ ቨ ተ ቸ
+  'h', 'h', 'n', 'n', '', 'k', 'k', 'h', //   ኀ ኈ ነ ኘ አ ከ ኰ ኸ
+  'h', 'w', '', 'z', 'zh', 'y', 'd', 'd', //  ዀ ወ ዐ ዘ ዠ የ ደ ዸ
+  'j', 'g', 'g', 'g', 't', 'ch', 'p', 'ts', // ጀ ገ ጐ ጘ ጠ ጨ ጰ ጸ
+  'ts', 'f', 'p', //                          ፀ ፈ ፐ
+];
+
+/** How a name sounds, as consonants only, the same for Ethiopic and Latin spelling. */
+export function soundKey(name: string): string {
+  let latin = '';
+  // Doubled Latin letters ("Yohannes") are one sound; Ethiopic doesn't write them twice.
+  for (const ch of name.toLowerCase().replace(/([a-z])\1+/g, '$1')) {
+    const cp = ch.codePointAt(0) ?? 0;
+    latin += cp >= 0x1200 && cp < 0x1358 ? (ETHIOPIC_ROWS[(cp - 0x1200) >> 3] ?? '') : ch;
+  }
+  return latin
+    .normalize('NFD')
+    .replace(/[^a-z]/g, '')
+    .replace(/ph/g, 'f')
+    .replace(/th/g, 't')
+    .replace(/q/g, 'k')
+    .replace(/c(?!h)/g, 'k')
+    .replace(/x/g, 'ks')
+    .replace(/[aeiou]/g, '');
+}
+
+/**
+ * Best match for a spoken name: exact, then starts-with, then contains; then
+ * by sound, for the whole name or one of its words, so a name said in Amharic
+ * finds one written in Latin letters and the other way round. A sound match
+ * that fits two different people finds nobody, so the caller lists the names
+ * and the assistant asks.
+ */
 export function pick<T>(items: T[], name: (item: T) => string, spoken: string): T | undefined {
   const s = spoken.trim().toLowerCase();
   const names = items.map((i) => name(i).toLowerCase());
@@ -22,7 +62,20 @@ export function pick<T>(items: T[], name: (item: T) => string, spoken: string): 
       names.findIndex((n) => n.startsWith(s)),
       names.findIndex((n) => n.includes(s)),
     ].find((i) => i >= 0) ?? -1;
-  return items[at];
+  if (at >= 0) {
+    return items[at];
+  }
+  const key = soundKey(spoken);
+  if (!key) {
+    return undefined;
+  }
+  const whole = items.filter((_, i) => soundKey(names[i]!) === key);
+  // One word of a longer name ("Abebe" for "Abebe Kebede") needs two sounds, so a
+  // short word can't stand for anyone.
+  const words = (n: string) => n.split(/\s+/).map(soundKey);
+  const matches =
+    whole.length || key.length < 2 ? whole : items.filter((_, i) => words(names[i]!).includes(key));
+  return matches.length === 1 ? matches[0] : undefined;
 }
 
 export const money = (amount: MinorUnits, currency: string) =>
