@@ -32,12 +32,14 @@
 //    which this screen doesn't read yet (it didn't against mock data
 //    either); Friend Detail already lists that full history itself.
 
-import { ActivityItem, EmptyState } from '@abro/ui';
+import { EmptyState } from '@abro/ui';
 import { Receipt, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { ActivityRow } from '~/components/ActivityRow';
 import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { Panel, SectionHeader } from '~/components/refresh';
 import { ApiError } from '~/lib/api-client';
 import { me } from '~/lib/auth-api';
 import {
@@ -71,6 +73,47 @@ function matchesFilter(e: AuthExpense, filter: FilterKey): boolean {
     default:
       return true;
   }
+}
+
+/** Rows under day headings: "Today", "Yesterday", the weekday for the
+ * last week, then the date (Addis Ababa days), in the order the feed
+ * first reaches each day. */
+function byDay<T extends { date: string }>(rows: T[], now = new Date()) {
+  const dayOf = (d: Date) =>
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Addis_Ababa' }).format(d);
+  const today = dayOf(now);
+  const yesterday = dayOf(new Date(now.getTime() - 86_400_000));
+  const weekAgo = dayOf(new Date(now.getTime() - 6 * 86_400_000));
+  const groups: { key: string; label: string; rows: T[] }[] = [];
+  for (const row of rows) {
+    const d = new Date(row.date);
+    const key = dayOf(d);
+    // A back-dated expense can arrive after later days: it joins its own
+    // day's heading rather than repeating it.
+    let group = groups.find((g) => g.key === key);
+    if (!group) {
+      const label =
+        key === today
+          ? 'Today'
+          : key === yesterday
+            ? 'Yesterday'
+            : key >= weekAgo
+              ? new Intl.DateTimeFormat('en-GB', {
+                  weekday: 'long',
+                  timeZone: 'Africa/Addis_Ababa',
+                }).format(d)
+              : new Intl.DateTimeFormat('en-GB', {
+                  day: 'numeric',
+                  month: 'long',
+                  ...(key.slice(0, 4) === today.slice(0, 4) ? {} : { year: 'numeric' }),
+                  timeZone: 'Africa/Addis_Ababa',
+                }).format(d);
+      group = { key, label, rows: [] };
+      groups.push(group);
+    }
+    group.rows.push(row);
+  }
+  return groups;
 }
 
 interface FeedData {
@@ -143,13 +186,17 @@ export default function ActivityPage() {
   const q = query.trim().toLowerCase();
   const rows = data.expenses
     .filter((e) => matchesFilter(e, filter))
-    .map((e) => ({ id: e.id, ...toActivityDisplay(e, data.meId, data.groupNameById) }))
+    .map((e) => ({
+      id: e.id,
+      date: e.expenseDate,
+      ...toActivityDisplay(e, data.meId, data.groupNameById),
+    }))
     .filter((a) => !q || a.title.toLowerCase().includes(q) || a.sub.toLowerCase().includes(q));
 
   return (
     <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <h2
-        className="font-display mb-5 text-[1.5rem] font-extrabold tracking-tighter"
+        className="font-display mb-5 text-[1.6rem] font-semibold tracking-tight"
         style={{ color: 'var(--t-primary)' }}
       >
         Activity
@@ -195,18 +242,21 @@ export default function ActivityPage() {
           }
         />
       ) : (
-        <div className="flex flex-col gap-2.5">
-          {rows.map((a) => (
-            <ActivityItem
-              key={a.id}
-              category={a.category}
-              title={a.title}
-              sub={a.sub}
-              amount={a.amount}
-              dir={a.dir}
-              time={a.time}
-              onClick={() => router.push(`/expenses/${a.id}`)}
-            />
+        <div className="flex flex-col gap-6">
+          {byDay(rows).map((day) => (
+            <section key={day.key}>
+              <SectionHeader title={day.label} />
+              <Panel>
+                {day.rows.map((a) => (
+                  <ActivityRow
+                    key={a.id}
+                    a={a}
+                    showDate={false}
+                    onClick={() => router.push(`/expenses/${a.id}`)}
+                  />
+                ))}
+              </Panel>
+            </section>
           ))}
         </div>
       )}
@@ -214,7 +264,7 @@ export default function ActivityPage() {
       {data.hasMore && (
         <div className="mt-5 flex flex-col items-center gap-2">
           {moreError && (
-            <p className="text-[0.8rem]" style={{ color: 'var(--c-red)' }}>
+            <p className="text-[0.8rem]" style={{ color: 'var(--owe)' }}>
               {moreError}
             </p>
           )}

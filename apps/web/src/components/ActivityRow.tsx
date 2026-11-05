@@ -11,7 +11,16 @@ import type { ActivityDisplay } from '~/lib/expenses-api';
 
 import { Amount, Row, Tile } from './refresh';
 
-export function ActivityRow({ a, onClick }: { a: ActivityDisplay; onClick: () => void }) {
+export function ActivityRow({
+  a,
+  onClick,
+  showDate = true,
+}: {
+  a: ActivityDisplay;
+  onClick: () => void;
+  /** Off under a day heading (Activity), where the date would repeat it. */
+  showDate?: boolean;
+}) {
   const tone = a.dir === 'receive' ? 'owed' : a.dir === 'owe' ? 'owe' : 'plain';
   return (
     <Row
@@ -24,7 +33,7 @@ export function ActivityRow({ a, onClick }: { a: ActivityDisplay; onClick: () =>
       title={a.title}
       sub={a.sub}
       trailing={<Amount value={a.amount} tone={tone} />}
-      trailingSub={a.time}
+      trailingSub={showDate ? a.time : undefined}
     />
   );
 }
