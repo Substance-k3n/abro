@@ -4,11 +4,13 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/Substance-k3n/abro/apps/api/internal/apitypes"
+	authpkg "github.com/Substance-k3n/abro/apps/api/internal/auth"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
@@ -23,6 +25,10 @@ func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
 func (h *Handler) Mount(r chi.Router) {
 	r.Use(h.svc.RequireAdmin)
 	r.Get("/me", httpx.Wrap(h.me))
+	// Your own sessions (security.go): any admin, about themselves only.
+	r.Get("/me/sessions", httpx.Wrap(h.mySessions))
+	r.Post("/me/sessions/revoke-others", httpx.Wrap(h.endMyOtherSessions))
+	r.Delete("/me/sessions/{sessionId}", httpx.Wrap(h.endMySession))
 
 	r.Get("/users", need(PermUsersView, h.listUsers))
 	r.Get("/users/{id}", need(PermUsersView, h.getUser))
@@ -83,6 +89,12 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) error {
 		Role:        string(a.Role),
 		Owner:       a.Owner,
 		Permissions: a.Permissions(),
+		Session: apitypes.AdminSessionPolicy{
+			IdleMinutes: int(AdminIdleLimit / time.Minute),
+			MaxHours:    int(AdminMaxAge / time.Hour),
+			StartedAt:   authpkg.CurrentSession(r.Context()).CreatedAt.Time,
+			EndsAt:      SessionEndsAt(authpkg.CurrentSession(r.Context())),
+		},
 	})
 	return nil
 }

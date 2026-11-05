@@ -59,6 +59,17 @@ dashboard: check, control and revoke.
   confirmations, group invites, "stale" after 7 days) is whatever is
   open now, whatever the range.
 
+- **Portal sign-ins are short** (part 3). On every `/admin/*` call, a
+  session unused for **30 minutes** or signed in over **12 hours** ago
+  is revoked and answered `401 INVALID_SESSION` with
+  `details.reason = idle | max_age`, so the portal shows sign-in and
+  why. The check reads the session as it was before the request touched
+  it, and runs only for admins, so a non-admin's PWA session is never
+  ended by it. The portal's cookie is its own, so these limits never
+  sign anyone out of the PWA. Admins can see their own sessions (ABRO
+  and portal) and end any but the one in use, or all others at once,
+  each logged.
+
 **Alternatives:** an `is_admin` flag, which is simpler but has no ranks,
 so any admin could remove every other. Admin screens inside the PWA,
 which would ship admin code to every phone and mix two audiences. Logging
@@ -67,7 +78,7 @@ action with no log row.
 
 **Consequences:** the owner must be in `ADMIN_EMAILS` on Render before
 the portal is any use. Viewing a user isn't logged yet, only changes are.
-Admin sessions use the normal 30-day session lifetime.
+Admins sign in to the portal at least twice a day.
 
 ---
 
