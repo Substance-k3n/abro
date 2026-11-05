@@ -128,8 +128,13 @@ func (h *Handler) googleCallback(w http.ResponseWriter, r *http.Request) {
 		log.Printf("ERROR %s %s: %v", r.Method, r.URL.Path, err)
 		reason := "google"
 		var apiErr *httpx.APIError
-		if errors.As(err, &apiErr) && apiErr.Code == "GOOGLE_EMAIL_UNVERIFIED" {
-			reason = "google_unverified"
+		if errors.As(err, &apiErr) {
+			switch apiErr.Code {
+			case "GOOGLE_EMAIL_UNVERIFIED":
+				reason = "google_unverified"
+			case "ACCOUNT_SUSPENDED":
+				reason = "suspended"
+			}
 		}
 		h.redirectSignInError(w, r, reason)
 		return

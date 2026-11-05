@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/Substance-k3n/abro/apps/api/internal/admin"
 	"github.com/Substance-k3n/abro/apps/api/internal/analytics"
 	"github.com/Substance-k3n/abro/apps/api/internal/auth"
 	"github.com/Substance-k3n/abro/apps/api/internal/balances"
@@ -139,6 +140,10 @@ func main() {
 	go voiceSvc.PublishActions(ctx)
 	voiceHandler := voice.NewHandler(voiceSvc, queries)
 
+	// The site admin portal (ADR-028, apps/admin): roles, suspensions and
+	// the audit log. It needs the pool for its action+audit transactions.
+	adminHandler := admin.NewHandler(admin.NewService(pool, cfg.AdminEmails))
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -176,6 +181,7 @@ func main() {
 	r.Route("/recurring", recurringHandler.Mount)
 	r.Route("/ekubs", ekubsHandler.Mount)
 	r.Route("/voice", voiceHandler.Mount)
+	r.Route("/admin", adminHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

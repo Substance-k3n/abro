@@ -173,7 +173,14 @@ func (s *Service) RevokeSession(ctx context.Context, rawToken string) error {
 	return s.q.RevokeSessionsByTokenHash(ctx, HashToken(rawToken))
 }
 
+// ErrSuspended is what sign-in answers for a suspended account (ADR-028).
+// Both sign-in paths end in createSession, so neither can skip it.
+var ErrSuspended = httpx.Forbidden("ACCOUNT_SUSPENDED", "This account is suspended. Contact ABRO support if you think it's a mistake.")
+
 func (s *Service) createSession(ctx context.Context, profile db.Profile, meta SessionMeta) (SessionResult, error) {
+	if profile.SuspendedAt.Valid {
+		return SessionResult{}, ErrSuspended
+	}
 	token, err := GenerateSessionToken()
 	if err != nil {
 		return SessionResult{}, err

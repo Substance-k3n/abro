@@ -11,6 +11,49 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type AdminRole string
+
+const (
+	AdminRoleSUPPORT    AdminRole = "SUPPORT"
+	AdminRoleADMIN      AdminRole = "ADMIN"
+	AdminRoleSUPERADMIN AdminRole = "SUPER_ADMIN"
+)
+
+func (e *AdminRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AdminRole(s)
+	case string:
+		*e = AdminRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AdminRole: %T", src)
+	}
+	return nil
+}
+
+type NullAdminRole struct {
+	AdminRole AdminRole `json:"admin_role"`
+	Valid     bool      `json:"valid"` // Valid is true if AdminRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAdminRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.AdminRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AdminRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAdminRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AdminRole), nil
+}
+
 type EkubCadence string
 
 const (
@@ -487,6 +530,17 @@ func (ns NullSplitType) Value() (driver.Value, error) {
 	return string(ns.SplitType), nil
 }
 
+type AdminAuditLog struct {
+	ID         pgtype.UUID        `json:"id"`
+	ActorID    pgtype.UUID        `json:"actor_id"`
+	Action     string             `json:"action"`
+	TargetType string             `json:"target_type"`
+	TargetID   pgtype.UUID        `json:"target_id"`
+	Details    []byte             `json:"details"`
+	IpAddress  pgtype.Text        `json:"ip_address"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+}
+
 type CurrencyRate struct {
 	ID           pgtype.UUID        `json:"id"`
 	CurrencyFrom string             `json:"currency_from"`
@@ -688,6 +742,8 @@ type Profile struct {
 	Username          pgtype.Text        `json:"username"`
 	AvatarPath        pgtype.Text        `json:"avatar_path"`
 	AutoRemindFriends bool               `json:"auto_remind_friends"`
+	SuspendedAt       pgtype.Timestamptz `json:"suspended_at"`
+	SuspensionReason  pgtype.Text        `json:"suspension_reason"`
 }
 
 type PushSubscription struct {
@@ -733,4 +789,11 @@ type SettlementRequest struct {
 	SettlementID pgtype.UUID             `json:"settlement_id"`
 	CreatedAt    pgtype.Timestamptz      `json:"created_at"`
 	ResolvedAt   pgtype.Timestamptz      `json:"resolved_at"`
+}
+
+type SiteAdmin struct {
+	UserID    pgtype.UUID        `json:"user_id"`
+	Role      AdminRole          `json:"role"`
+	GrantedBy pgtype.UUID        `json:"granted_by"`
+	GrantedAt pgtype.Timestamptz `json:"granted_at"`
 }

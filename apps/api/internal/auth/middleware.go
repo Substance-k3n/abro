@@ -56,6 +56,15 @@ func RequireSession(q db.Querier) func(http.Handler) http.Handler {
 				return
 			}
 
+			// Suspending revokes every session (ADR-028), so this only
+			// catches a request racing the suspension. Same code as an
+			// expired session, so the apps send the person to sign-in, where
+			// they're told the account is suspended.
+			if user.SuspendedAt.Valid {
+				httpx.WriteError(w, r, httpx.Unauthorized("INVALID_SESSION", "Session expired or invalid."))
+				return
+			}
+
 			_ = q.TouchSessionLastUsed(r.Context(), session.ID)
 
 			ctx := context.WithValue(r.Context(), userContextKey, user)
