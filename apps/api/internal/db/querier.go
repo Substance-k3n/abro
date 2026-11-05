@@ -13,6 +13,38 @@ import (
 type Querier interface {
 	AcceptFriendship(ctx context.Context, id pgtype.UUID) (Friendship, error)
 	AddNotificationOptOut(ctx context.Context, arg AddNotificationOptOutParams) error
+	// One row per day from `since` to today, zeros included.
+	AdminDailySeries(ctx context.Context, since pgtype.Timestamptz) ([]AdminDailySeriesRow, error)
+	AdminExpenseCategories(ctx context.Context, since pgtype.Timestamptz) ([]AdminExpenseCategoriesRow, error)
+	AdminGetGroup(ctx context.Context, id pgtype.UUID) (AdminGetGroupRow, error)
+	// Active members first (the enum's own order puts INVITED first), admins
+	// before members.
+	AdminGroupMembers(ctx context.Context, groupID pgtype.UUID) ([]AdminGroupMembersRow, error)
+	AdminGroupTypes(ctx context.Context) ([]AdminGroupTypesRow, error)
+	// `status`: NULL (live groups), 'deleted', or 'all'.
+	AdminListGroups(ctx context.Context, arg AdminListGroupsParams) ([]AdminListGroupsRow, error)
+	// Groups by name, role and size only -- no amounts.
+	AdminListUserGroups(ctx context.Context, userID pgtype.UUID) ([]AdminListUserGroupsRow, error)
+	// Live sessions first, then the most recent ended ones.
+	AdminListUserSessions(ctx context.Context, userID pgtype.UUID) ([]AdminListUserSessionsRow, error)
+	// One page of people, newest first. `search` matches name, email or
+	// username (the caller escapes % and _); `status` is NULL (everyone),
+	// 'active', 'suspended' or 'admins'.
+	AdminListUsers(ctx context.Context, arg AdminListUsersParams) ([]AdminListUsersRow, error)
+	// Admin portal overview, groups and voice (ADR-028). App-wide counts
+	// and totals only: nothing here says what one person owes or spent.
+	// Days are Addis Ababa calendar days, where ABRO's people live.
+	AdminOverviewCounts(ctx context.Context, since pgtype.Timestamptz) (AdminOverviewCountsRow, error)
+	// What one person has in the app, as counts. Settlements are payments,
+	// not expenses, so they're counted apart.
+	AdminUserCounts(ctx context.Context, userID pgtype.UUID) (AdminUserCountsRow, error)
+	AdminUserVoice(ctx context.Context, userID pgtype.UUID) (AdminUserVoiceRow, error)
+	// People voice was turned on for, or who used it in the last 30 days
+	// (e.g. through VOICE_TESTERS), with how much.
+	AdminVoiceUsers(ctx context.Context, testerEmails []string) ([]AdminVoiceUsersRow, error)
+	// App-wide spending per currency in the range (minor units). Never per
+	// person.
+	AdminVolumeByCurrency(ctx context.Context, since pgtype.Timestamptz) ([]AdminVolumeByCurrencyRow, error)
 	ConsumeOtpCode(ctx context.Context, id pgtype.UUID) error
 	CountActiveAdminsExcept(ctx context.Context, arg CountActiveAdminsExceptParams) (int64, error)
 	// CreateAutoGroupReminderIfDue for a friend debt.
@@ -61,7 +93,10 @@ type Querier interface {
 	DeletePushSubscription(ctx context.Context, arg DeletePushSubscriptionParams) error
 	// The push service said this endpoint is gone, whoever it belonged to.
 	DeletePushSubscriptionByEndpoint(ctx context.Context, endpoint string) error
+	DeleteSiteAdmin(ctx context.Context, userID pgtype.UUID) (int64, error)
 	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
+	// Voice access (ADR-027, admin-controlled since ADR-028).
+	GetAppSetting(ctx context.Context, key string) (string, error)
 	GetAutoRemindFriends(ctx context.Context, id pgtype.UUID) (bool, error)
 	GetCategoryBreakdown(ctx context.Context, arg GetCategoryBreakdownParams) ([]GetCategoryBreakdownRow, error)
 	GetEkub(ctx context.Context, id pgtype.UUID) (Ekub, error)
@@ -87,6 +122,10 @@ type Querier interface {
 	GetGroupMonthlyTrendRaw(ctx context.Context, arg GetGroupMonthlyTrendRawParams) ([]GetGroupMonthlyTrendRawRow, error)
 	GetGroupOwedSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupOwedSumsRow, error)
 	GetGroupPaidSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupPaidSumsRow, error)
+	// What each participant owes each payer across a group's live expenses
+	// (settlements included: the payer of a settlement is the debtor, so it
+	// nets back). Feeds GetRawGroupDebts' "who owes whom" list.
+	GetGroupPairOwedSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupPairOwedSumsRow, error)
 	// Only groups with actual matching spending appear (an INNER JOIN to
 	// expenses naturally excludes an active membership with zero spend in
 	// the period, same as the original's post-hoc "> 0" filter).
@@ -123,6 +162,14 @@ type Querier interface {
 	// participant (see settlements.Service -- recipient's amount carries the
 	// settled amount, payer's is always 0).
 	GetSettlementsReceived(ctx context.Context, arg GetSettlementsReceivedParams) (int64, error)
+	// Site admin portal (ADR-028). Everything an admin can see about a person
+	// is counts and account facts -- never balances, expense names or
+	// receipts (user decision 2026-11-05: admins see no one's money).
+	//
+	// owner_emails is ADMIN_EMAILS from config: those people are super
+	// admins without a site_admins row, so the role shown here is the
+	// effective one.
+	GetSiteAdmin(ctx context.Context, userID pgtype.UUID) (SiteAdmin, error)
 	// Read-only aggregation over expenses/expense_participants -- ABRO_PRD.md
 	// §26. All queries exclude soft-deleted expenses and SETTLEMENT-type rows
 	// (settlements are reported separately, to avoid double-counting a debt
@@ -130,11 +177,14 @@ type Querier interface {
 	// Total Spending / Your Contribution / Your Share / amount owed for the
 	// period.
 	GetUserTotals(ctx context.Context, arg GetUserTotalsParams) (GetUserTotalsRow, error)
+	GrantVoiceAccess(ctx context.Context, arg GrantVoiceAccessParams) (int64, error)
 	// GRP-07: the currency can't change once the group has any expense
 	// (including settlements) -- it would relabel every stored amount.
 	GroupHasExpenses(ctx context.Context, groupID pgtype.UUID) (bool, error)
 	HasLateFeeDay(ctx context.Context, arg HasLateFeeDayParams) (bool, error)
+	HasVoiceAccess(ctx context.Context, userID pgtype.UUID) (bool, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
+	InsertAdminAudit(ctx context.Context, arg InsertAdminAuditParams) error
 	IsNotificationOptedOut(ctx context.Context, arg IsNotificationOptedOutParams) (bool, error)
 	// Someone invited after the start accepts: their slot goes in at
 	// `slot_position` and every taking-part slot from there moves one round
@@ -146,6 +196,10 @@ type Querier interface {
 	ListAcceptedFriendPairs(ctx context.Context) ([]ListAcceptedFriendPairsRow, error)
 	ListActiveMemberIDs(ctx context.Context, groupID pgtype.UUID) ([]pgtype.UUID, error)
 	ListActiveMemberIDsExcept(ctx context.Context, arg ListActiveMemberIDsExceptParams) ([]pgtype.UUID, error)
+	// Newest first, keyset-paged on (created_at, id) -- the last row of the
+	// previous page -- so rows sharing a timestamp are never skipped. Every
+	// filter is optional.
+	ListAdminAudit(ctx context.Context, arg ListAdminAuditParams) ([]ListAdminAuditRow, error)
 	ListAutoRemindGroups(ctx context.Context) ([]ListAutoRemindGroupsRow, error)
 	// Skips templates in a deleted group: generating one would fail with
 	// GROUP_NOT_FOUND, and GenerateDue stops at its first error.
@@ -204,6 +258,7 @@ type Querier interface {
 	// (NOT unread_only OR read_at IS NULL) makes unread_only a real filter when
 	// true, and a no-op (all rows) when false, in one query.
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error)
+	ListOwnerProfiles(ctx context.Context, ownerEmails []string) ([]Profile, error)
 	// GetPairwiseParticipantsPersonal in the order the expenses were added,
 	// for how long a debt has been open (ADR-023). Added, not dated: an
 	// expense back-dated today is new debt today.
@@ -212,6 +267,9 @@ type Querier interface {
 	// Pending requests where the user is the payer or the recipient, plus
 	// those resolved in the last 30 days, newest first.
 	ListSettlementRequestsForUser(ctx context.Context, payerID pgtype.UUID) ([]SettlementRequest, error)
+	// Admins with a stored role. Super admins from ADMIN_EMAILS are added by
+	// the service (ListOwnerProfiles).
+	ListSiteAdmins(ctx context.Context) ([]ListSiteAdminsRow, error)
 	MarkAllNotificationsRead(ctx context.Context, userID pgtype.UUID) error
 	// Claims today's charge for a member; no row back means it was already
 	// charged today (a restart re-running the daily job).
@@ -219,6 +277,7 @@ type Querier interface {
 	// Preserves the original read_at if already read, rather than bumping it to
 	// now() on every call -- matches the "no-op if already read" behavior.
 	MarkNotificationRead(ctx context.Context, id pgtype.UUID) (Notification, error)
+	RecordVoiceSession(ctx context.Context, userID pgtype.UUID) error
 	// joined_at doubles as invitedAt for ListMyInvites -- reset it so a
 	// re-invite after leaving shows up as a fresh invite, not the stale
 	// timestamp/ordering from the original membership.
@@ -239,7 +298,14 @@ type Querier interface {
 	// cancelled). Confirming claims the request this way before the
 	// SETTLEMENT expense is written, so it can never be confirmed twice.
 	ResolveSettlementRequest(ctx context.Context, arg ResolveSettlementRequestParams) (SettlementRequest, error)
+	RevokeAllUserSessions(ctx context.Context, userID pgtype.UUID) (int64, error)
+	// "Sign out everywhere else": every live session but the one in use.
+	RevokeOtherUserSessions(ctx context.Context, arg RevokeOtherUserSessionsParams) (int64, error)
+	// One session by id, live only (the admin portal's idle/age limits).
+	RevokeSessionByID(ctx context.Context, id pgtype.UUID) (int64, error)
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
+	RevokeUserSession(ctx context.Context, arg RevokeUserSessionParams) (int64, error)
+	RevokeVoiceAccess(ctx context.Context, userID pgtype.UUID) (int64, error)
 	// Exact match on email or phone (an address or number someone already
 	// knows) -- never a fuzzy search. Emails are stored lowercased, so the
 	// caller passes a lowercased email.
@@ -268,7 +334,10 @@ type Querier interface {
 	// same scope (personal = group_id NULL) and is still waiting on, so a
 	// new claim can't add up past what they owe.
 	SumPendingSettlementRequests(ctx context.Context, arg SumPendingSettlementRequestsParams) (int64, error)
+	// Only an active account: suspending twice is a 409, not a new row.
+	SuspendProfile(ctx context.Context, arg SuspendProfileParams) (Profile, error)
 	TouchSessionLastUsed(ctx context.Context, id pgtype.UUID) error
+	UnsuspendProfile(ctx context.Context, id pgtype.UUID) (Profile, error)
 	// Editing an expense resubmits the whole thing -- a full overwrite, not a
 	// partial COALESCE update (see updateExpenseSchema == createExpenseSchema).
 	UpdateExpense(ctx context.Context, arg UpdateExpenseParams) (Expense, error)
@@ -280,6 +349,7 @@ type Querier interface {
 	UpdateRecurringExpenseEnabled(ctx context.Context, arg UpdateRecurringExpenseEnabledParams) (RecurringExpense, error)
 	UpdateRecurringExpenseNextRunAt(ctx context.Context, arg UpdateRecurringExpenseNextRunAtParams) error
 	UpdateSettlementRequestReceiptPath(ctx context.Context, arg UpdateSettlementRequestReceiptPathParams) (SettlementRequest, error)
+	UpsertAppSetting(ctx context.Context, arg UpsertAppSettingParams) error
 	// Mirrors Prisma's `upsert({ where: { email }, update: {}, create: {...} })`
 	// -- a genuine no-op on conflict (the "id = profiles.id" self-assignment),
 	// so an existing profile's fields are never touched by a repeat OTP sign-in.
@@ -294,6 +364,7 @@ type Querier interface {
 	// re-subscribing (keys rotated, or another account signed in on that
 	// device) replaces the row rather than adding a second one.
 	UpsertPushSubscription(ctx context.Context, arg UpsertPushSubscriptionParams) (PushSubscription, error)
+	UpsertSiteAdmin(ctx context.Context, arg UpsertSiteAdminParams) (SiteAdmin, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -16,12 +16,22 @@ const SessionCookie = "abro_session"
 
 type contextKey string
 
-const userContextKey contextKey = "abro_current_user"
+const (
+	userContextKey    contextKey = "abro_current_user"
+	sessionContextKey contextKey = "abro_current_session"
+)
 
 // CurrentUser reads the Profile RequireSession attached to the request
 // context. Only valid inside a handler behind RequireSession.
 func CurrentUser(ctx context.Context) db.Profile {
 	return ctx.Value(userContextKey).(db.Profile)
+}
+
+// CurrentSession is the session row RequireSession found, as it was
+// before this request touched last_used_at -- so a check like the admin
+// portal's idle limit (ADR-028) sees when it was really last used.
+func CurrentSession(ctx context.Context) db.Session {
+	return ctx.Value(sessionContextKey).(db.Session)
 }
 
 // RequireSession is the Go equivalent of SessionGuard: reads the session
@@ -56,9 +66,19 @@ func RequireSession(q db.Querier) func(http.Handler) http.Handler {
 				return
 			}
 
+			// Suspending revokes every session (ADR-028), so this only
+			// catches a request racing the suspension. Same code as an
+			// expired session, so the apps send the person to sign-in, where
+			// they're told the account is suspended.
+			if user.SuspendedAt.Valid {
+				httpx.WriteError(w, r, httpx.Unauthorized("INVALID_SESSION", "Session expired or invalid."))
+				return
+			}
+
 			_ = q.TouchSessionLastUsed(r.Context(), session.ID)
 
 			ctx := context.WithValue(r.Context(), userContextKey, user)
+			ctx = context.WithValue(ctx, sessionContextKey, session)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

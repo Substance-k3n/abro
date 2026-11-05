@@ -74,6 +74,43 @@ func (q *Queries) GetGroupPaidSums(ctx context.Context, groupID pgtype.UUID) ([]
 	return items, nil
 }
 
+const getGroupPairOwedSums = `-- name: GetGroupPairOwedSums :many
+SELECT ep.user_id AS debtor_id, e.paid_by_id AS creditor_id, sum(ep.amount)::bigint AS total
+FROM expense_participants ep
+JOIN expenses e ON e.id = ep.expense_id
+WHERE e.group_id = $1 AND e.deleted_at IS NULL AND ep.user_id <> e.paid_by_id
+GROUP BY ep.user_id, e.paid_by_id
+`
+
+type GetGroupPairOwedSumsRow struct {
+	DebtorID   pgtype.UUID `json:"debtor_id"`
+	CreditorID pgtype.UUID `json:"creditor_id"`
+	Total      int64       `json:"total"`
+}
+
+// What each participant owes each payer across a group's live expenses
+// (settlements included: the payer of a settlement is the debtor, so it
+// nets back). Feeds GetRawGroupDebts' "who owes whom" list.
+func (q *Queries) GetGroupPairOwedSums(ctx context.Context, groupID pgtype.UUID) ([]GetGroupPairOwedSumsRow, error) {
+	rows, err := q.db.Query(ctx, getGroupPairOwedSums, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGroupPairOwedSumsRow
+	for rows.Next() {
+		var i GetGroupPairOwedSumsRow
+		if err := rows.Scan(&i.DebtorID, &i.CreditorID, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPairwiseParticipantsInGroup = `-- name: GetPairwiseParticipantsInGroup :many
 SELECT ep.user_id, ep.amount FROM expense_participants ep
 JOIN expenses e ON e.id = ep.expense_id

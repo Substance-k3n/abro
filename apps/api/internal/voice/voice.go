@@ -10,15 +10,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	authpkg "github.com/Substance-k3n/abro/apps/api/internal/auth"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
@@ -30,6 +33,9 @@ type Service struct {
 	// RelayURL is the Tezaz relay's address, e.g. https://tezaz.onrender.com.
 	relayURL  string
 	secretKey string
+	// publicKey (tz_pub_…) lets the widget load the look published in the
+	// Tezaz dashboard. Optional; it can't start a session on its own.
+	publicKey string
 	// origin is the web app's address; the token only works on pages from it.
 	origin string
 	// testers are lower-cased emails, or "*" for everyone. Empty: nobody.
@@ -58,13 +64,80 @@ func NewService(relayURL, secretKey, origin, testers string) *Service {
 
 func (s *Service) IsConfigured() bool { return s.relayURL != "" && s.secretKey != "" }
 
-// EnabledFor: voice is opt-in per tester while it's a pilot, so strangers
-// can't spend the speech-provider credit.
+// Voice modes (app_settings.voice_mode, set in the admin portal, ADR-028).
+const (
+	ModeSetting  = "voice_mode"
+	ModeOff      = "off"      // nobody: a kill switch, beats VOICE_TESTERS
+	ModeListed   = "listed"   // VOICE_TESTERS + people an admin turned it on for
+	ModeEveryone = "everyone" // every signed-in person
+)
+
+// Mode is the current voice mode; "listed" until an admin picks one.
+func Mode(ctx context.Context, q db.Querier) (string, error) {
+	v, err := q.GetAppSetting(ctx, ModeSetting)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ModeListed, nil
+	}
+	return v, err
+}
+
+// Allowed: may this person use voice right now? Voice costs speech-provider
+// credit, so it's opt-in per person unless an admin opens it to everyone.
+func (s *Service) Allowed(ctx context.Context, q db.Querier, p db.Profile) (bool, error) {
+	if !s.IsConfigured() {
+		return false, nil
+	}
+	mode, err := Mode(ctx, q)
+	if err != nil {
+		return false, err
+	}
+	switch mode {
+	case ModeOff:
+		return false, nil
+	case ModeEveryone:
+		return true, nil
+	}
+	if s.EnabledFor(p.Email.String) {
+		return true, nil
+	}
+	return q.HasVoiceAccess(ctx, p.ID)
+}
+
+// Testers is VOICE_TESTERS as emails, and whether it holds "*".
+func (s *Service) Testers() (emails []string, everyone bool) {
+	emails = []string{}
+	for t := range s.testers {
+		if t == "*" {
+			everyone = true
+			continue
+		}
+		emails = append(emails, t)
+	}
+	slices.Sort(emails)
+	return emails, everyone
+}
+
+// EnabledFor: is this email in VOICE_TESTERS ("*" = everyone)? Part of
+// "listed" mode; see Allowed.
 func (s *Service) EnabledFor(email string) bool {
 	if !s.IsConfigured() {
 		return false
 	}
 	return s.testers["*"] || (email != "" && s.testers[strings.ToLower(email)])
+}
+
+// WithPublicKey sets the project's public key. Anything that isn't a public
+// key is ignored, so a secret pasted into the wrong variable never reaches
+// the browser.
+func (s *Service) WithPublicKey(key string) *Service {
+	key = strings.TrimSpace(key)
+	switch {
+	case strings.HasPrefix(key, "tz_pub_"):
+		s.publicKey = key
+	case key != "":
+		log.Printf("voice: TEZAZ_PUBLIC_KEY is not a public key (tz_pub_…); ignoring it")
+	}
+	return s
 }
 
 // SessionURL is where the browser opens the voice session.
@@ -138,15 +211,24 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Post("/token", httpx.Wrap(h.token))
 }
 
-// status: GET /voice -> {"enabled": bool, "sessionUrl"?: "wss://..."}, so
-// the app shows the voice button only to testers.
+// status: GET /voice -> {"enabled": bool, "sessionUrl"?: "wss://...",
+// "project"?: "tz_pub_..."}, so the app shows the voice button only to
+// testers, styled as published in the Tezaz dashboard.
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) error {
 	user := authpkg.CurrentUser(r.Context())
-	if !h.svc.EnabledFor(user.Email.String) {
+	ok, err := h.svc.Allowed(r.Context(), h.q, user)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"enabled": false})
 		return nil
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{"enabled": true, "sessionUrl": h.svc.SessionURL()})
+	body := map[string]any{"enabled": true, "sessionUrl": h.svc.SessionURL()}
+	if h.svc.publicKey != "" {
+		body["project"] = h.svc.publicKey
+	}
+	httpx.WriteJSON(w, http.StatusOK, body)
 	return nil
 }
 
@@ -154,12 +236,21 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) error {
 // a fresh one each time it connects (they live two minutes).
 func (h *Handler) token(w http.ResponseWriter, r *http.Request) error {
 	user := authpkg.CurrentUser(r.Context())
-	if !h.svc.EnabledFor(user.Email.String) {
+	ok, err := h.svc.Allowed(r.Context(), h.q, user)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return httpx.Forbidden("VOICE_NOT_ENABLED", "Voice commands aren't turned on for your account.")
 	}
 	t, err := h.svc.Token(r.Context(), idutil.String(user.ID))
 	if err != nil {
 		return err
+	}
+	// Counted for the admin portal; never what was said. A failed count
+	// mustn't cost the person their voice session.
+	if err := h.q.RecordVoiceSession(r.Context(), user.ID); err != nil {
+		log.Printf("voice: recording a session: %v", err)
 	}
 	httpx.WriteJSON(w, http.StatusOK, t)
 	return nil

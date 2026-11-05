@@ -58,7 +58,12 @@ function RecordReceived() {
       .then((t) => {
         setTarget(t);
         if (t && t.outstanding > 0n) {
-          setAmountInput(toInput(t.outstanding));
+          // A "Who owes whom" row passes that pair's debt as `amount`.
+          const raw = searchParams.get('amount');
+          const suggested = raw && /^\d+$/.test(raw) ? BigInt(raw) : 0n;
+          setAmountInput(
+            toInput(suggested > 0n && suggested < t.outstanding ? suggested : t.outstanding),
+          );
         }
       })
       .catch((err) =>

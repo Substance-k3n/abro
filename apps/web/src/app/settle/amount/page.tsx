@@ -49,6 +49,7 @@ function SettleAmountForm() {
 
   const toUserId = searchParams.get('toUserId');
   const groupId = searchParams.get('groupId');
+  const suggested = suggestedAmount(searchParams.get('amount'));
 
   const load = () => {
     setError(null);
@@ -60,7 +61,16 @@ function SettleAmountForm() {
     loadSettleTarget(toUserId, groupId)
       .then((t) => {
         setTarget(t);
-        if (t && (draft.toUserId !== toUserId || draft.groupId !== groupId)) {
+        if (t && suggested && t.outstanding > 0n) {
+          // From a "Who owes whom" row: start at that pair's debt, never
+          // above what the API allows.
+          const value = suggested < t.outstanding ? suggested : t.outstanding;
+          update({
+            toUserId,
+            groupId,
+            amountInput: toDecimal(value, ETB.decimalDigits).toFixed(ETB.decimalDigits),
+          });
+        } else if (t && (draft.toUserId !== toUserId || draft.groupId !== groupId)) {
           update({ toUserId, groupId, amountInput: '' });
         }
       })
@@ -208,4 +218,13 @@ function SettleAmountForm() {
       </button>
     </div>
   );
+}
+
+/** The optional `amount` query param (minor units), or null. */
+function suggestedAmount(raw: string | null): bigint | null {
+  if (!raw || !/^\d+$/.test(raw)) {
+    return null;
+  }
+  const value = BigInt(raw);
+  return value > 0n ? value : null;
 }

@@ -162,6 +162,26 @@ so steps 2 and 3 loop once.
 Both env vars are read at **build** time, so changing either one needs
 a Vercel redeploy.
 
+## 3b. Vercel (admin portal, ADR-028)
+
+A second Vercel project from the same repo. It's a separate site from
+the PWA, so its sign-in is separate too.
+
+1. **Add New → Project**, import this repo again.
+2. **Project name:** e.g. `abro-admin` (the site becomes
+   `abro-admin.vercel.app`). **Root Directory:** `apps/admin`, framework
+   Next.js. `apps/admin/vercel.json` sets the install and build commands.
+3. Environment variable (Production): `API_PROXY_TARGET` = the same
+   Render URL as the web project (no trailing slash). Read at **build**
+   time, so change it with a redeploy. There's no `NEXT_PUBLIC_API_URL`:
+   the portal always calls its own `/api`.
+4. Deploy, then sign in with an email listed in `ADMIN_EMAILS` on Render.
+   Anyone else gets "This account isn't an ABRO admin" and is signed out.
+
+The API needs no change for it: the browser only talks to the admin
+site, which forwards `/api/*` to Render. Sign-in is by email code only
+(Google's callback returns to the PWA).
+
 ## Sign-in on the free tier
 
 - **Email OTP:** with no mailer configured, codes are only printed in the
@@ -243,12 +263,24 @@ a Vercel redeploy.
   (declared `sync: false` in `render.yaml`):
   - `TEZAZ_RELAY_URL` -- `https://tezaz.onrender.com`
   - `TEZAZ_SECRET_KEY` -- that production key's secret (`tz_sec_live_…`)
+  - `TEZAZ_PUBLIC_KEY` (optional) -- the same key's public key
+    (`tz_pub_live_…`). With it, the widget loads the look published in the
+    Tezaz dashboard's Widget page on every page load, with no deploy here.
+    Anything that isn't a `tz_pub_` key is ignored.
   - `VOICE_TESTERS` -- comma-separated emails that get the voice button,
-    or `*` for everyone.
+    or `*` for everyone. Since ADR-028 the admin portal can also turn
+    voice on per person, open it to everyone, or switch it off for
+    everyone (which beats this list), with no deploy.
 
   Unset, `GET /voice` answers `{"enabled": false}` and nobody sees the
   button. Tokens are minted for `WEB_ORIGIN`, so it must be the exact
   web address.
+
+- **Admin portal** (ADR-028): set `ADMIN_EMAILS` on Render to the
+  owner's email (comma-separated for more). Those accounts are super
+  admins with no database row, and nobody can demote or suspend them from
+  inside the app. Every other admin is granted in the portal. Unset, only
+  stored roles count, and on a fresh database that means nobody.
 
 - **Client IPs** in session metadata are whatever Vercel forwards in
   `X-Forwarded-For` (chi's `RealIP`). They're informational only.

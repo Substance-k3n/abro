@@ -7,9 +7,9 @@
 // -- the server computes it, the browser only shows it.
 //
 // Deviations:
-//  - "Payment count: '3 payments instead of 7'" -- the "instead of 7"
-//    half needs the unsimplified pairwise graph, which apps/api doesn't
-//    expose. Shows the real number only: "N payments to settle up".
+//  - "Payment count: '3 payments instead of 7'" -- shows the real number
+//    only: "N payments to settle up". The unsimplified pairs are GRP-05's
+//    "Who owes whom" tab (GET /balances/groups/{id}/raw).
 //  - "Info modal" is an inline panel under the info button, consistent
 //    with this app's inline reveals (EXP-09's actions menu, etc.).
 //  - "Mark as Settled" opens /settle only for payments you make

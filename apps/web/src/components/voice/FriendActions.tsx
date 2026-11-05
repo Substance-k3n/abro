@@ -1,7 +1,7 @@
 'use client';
 
 // Voice actions for friends and paying (ADR-027): expenses and loans with
-// one friend, payments either way, reminders and friend requests. The
+// one friend, expenses shared with several, payments either way, reminders and friend requests. The
 // money rules stay apps/api's: a payment you record is a claim the other
 // person confirms (ADR-019); "they paid me" counts at once; the settle
 // caps are checked here first only to give a clear spoken answer.
@@ -61,7 +61,7 @@ export function FriendActions() {
   }>({
     name: 'add_friend_expense',
     description:
-      'Add an expense or a loan with one friend, outside any group. paid_by: who paid. split "equal" halves it; "all" means the one who did not pay owes the whole amount (a loan, e.g. "I lent Abebe 500").',
+      'Add an expense or a loan with exactly one friend, outside any group (for two or more friends use add_shared_expense). paid_by: who paid. split "equal" halves it; "all" means the one who did not pay owes the whole amount (a loan, e.g. "I lent Abebe 500").',
     parameters: {
       type: 'object',
       properties: {
@@ -109,6 +109,77 @@ export function FriendActions() {
       );
       router.push(`/expenses/${expense.id}`);
       return `Added ${money(minor, 'ETB')} for "${expense.name}" with ${f.displayName}.`;
+    },
+  });
+
+  useCapability<{
+    friends: string[];
+    amount: number;
+    description: string;
+    paid_by: string;
+    category?: string;
+  }>({
+    name: 'add_shared_expense',
+    description:
+      'Add an expense shared equally between the user and two or more friends, outside any group. paid_by is "me" or the name of one of those friends. Ask for anything missing, one question at a time.',
+    parameters: {
+      type: 'object',
+      properties: {
+        friends: {
+          type: 'array',
+          items: PERSON,
+          description: 'Everyone besides the user, by name as the user said them.',
+        },
+        amount: { type: 'number', description: 'The total, in birr, e.g. 600 or 45.50.' },
+        description: { type: 'string', description: 'What it was for, e.g. "dinner".' },
+        paid_by: {
+          type: 'string',
+          description: '"me", or the name of the friend who paid. Ask if the user did not say.',
+        },
+        category: { type: 'string', enum: CATEGORIES.map((c) => c.label) },
+      },
+      required: ['friends', 'amount', 'description', 'paid_by'],
+    },
+    dangerous: true,
+    describe: ({ friends, amount, description, paid_by }) => {
+      const names = friends.map(nameOf);
+      const payer = paid_by.trim().toLowerCase() === 'me' ? 'you paid' : `${nameOf(paid_by)} paid`;
+      return `Add ${money(spokenAmount(amount), 'ETB')} for "${description}" with ${names.join(', ')}: ${payer}, split equally between ${names.length + 1} people?`;
+    },
+    handler: async ({ friends, amount, description, paid_by, category }) => {
+      const [people, profile] = await Promise.all([Promise.all(friends.map(findFriend)), me()]);
+      const unique = [...new Map(people.map((p) => [p.id, p])).values()].filter(
+        (p) => p.id !== profile.id,
+      );
+      if (unique.length === 0) {
+        throw new Error('Name at least one friend to share it with.');
+      }
+      if (unique.length > 10) {
+        throw new Error('At most 10 friends at once; use a group for more.');
+      }
+      let payerId = profile.id;
+      if (paid_by.trim().toLowerCase() !== 'me') {
+        const payer = pick(unique, (p) => p.displayName, paid_by);
+        if (!payer) {
+          throw new Error(`"${paid_by}" isn't one of the people sharing it.`);
+        }
+        payerId = payer.id;
+      }
+      const minor = spokenAmount(amount);
+      const expense = await createExpense(
+        {
+          splitType: 'EQUAL',
+          name: description.trim().slice(0, 100) || 'Expense',
+          category: category ?? 'Other',
+          amount: minor.toString(),
+          paidById: payerId,
+          expenseDate: new Date().toISOString().slice(0, 10),
+          participants: [{ userId: profile.id }, ...unique.map((p) => ({ userId: p.id }))],
+        },
+        crypto.randomUUID(),
+      );
+      router.push(`/expenses/${expense.id}`);
+      return `Added ${money(minor, 'ETB')} for "${expense.name}", split equally between you and ${unique.map((p) => p.displayName).join(', ')}.`;
     },
   });
 

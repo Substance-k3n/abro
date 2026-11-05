@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/Substance-k3n/abro/apps/api/internal/admin"
 	"github.com/Substance-k3n/abro/apps/api/internal/analytics"
 	"github.com/Substance-k3n/abro/apps/api/internal/auth"
 	"github.com/Substance-k3n/abro/apps/api/internal/balances"
@@ -134,9 +135,15 @@ func main() {
 
 	// Voice commands through Tezaz (ADR-027): tokens for testers only, and
 	// the voice actions published to the relay on every start.
-	voiceSvc := voice.NewService(cfg.TezazRelayURL, cfg.TezazSecretKey, cfg.WebOrigin, cfg.VoiceTesters)
+	voiceSvc := voice.NewService(cfg.TezazRelayURL, cfg.TezazSecretKey, cfg.WebOrigin, cfg.VoiceTesters).
+		WithPublicKey(cfg.TezazPublicKey)
 	go voiceSvc.PublishActions(ctx)
 	voiceHandler := voice.NewHandler(voiceSvc, queries)
+
+	// The site admin portal (ADR-028, apps/admin): roles, suspensions,
+	// voice access and the audit log. It needs the pool for its
+	// action+audit transactions.
+	adminHandler := admin.NewHandler(admin.NewService(pool, cfg.AdminEmails, voiceSvc))
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -175,6 +182,7 @@ func main() {
 	r.Route("/recurring", recurringHandler.Mount)
 	r.Route("/ekubs", ekubsHandler.Mount)
 	r.Route("/voice", voiceHandler.Mount)
+	r.Route("/admin", adminHandler.Mount)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

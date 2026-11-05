@@ -7,6 +7,81 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-028: A separate site admin portal -- ranked roles, suspensions, an audit log
+
+**Status:** Accepted (user request, 2026-11-05). API in two PRs
+(roles/suspensions/audit, then overview/groups/voice); the portal app
+(`apps/admin`) follows in its own PRs.
+
+**Context:** ABRO had no site-wide admin. Group admins run their own
+groups. Voice access is an email list in Render, and there was no way to
+stop an abusive account or see who uses the app without SQL. The user
+wants a real admin portal, separate from the PWA, like a back-office
+dashboard: check, control and revoke.
+
+**Decision:**
+
+- A **separate web app** (`apps/admin`, its own Vercel site) calls the
+  same API under `/admin/*`, through its own `/api` proxy, so its session
+  cookie is first-party to the admin site. It is never part of the PWA.
+- **Three ranks**, stored in `site_admins` (one row per admin):
+  `SUPPORT` (look only: users, admins, audit log), `ADMIN` (+ suspend,
+  unsuspend, end sessions), `SUPER_ADMIN` (+ grant and remove roles).
+  **Owners** are the emails in `ADMIN_EMAILS`: super admins with no row,
+  ranked above every stored role.
+- **You only act on someone below you.** Never yourself, never an owner,
+  and only on a lower rank. You can only grant a role below your own, so
+  only owners make or unmake super admins, and no super admin can demote
+  another one.
+- **Suspending** sets `profiles.suspended_at` with a required reason and
+  ends every session in the same transaction. Sign-in (OTP and Google)
+  refuses with `ACCOUNT_SUSPENDED`. The session middleware also refuses a
+  suspended profile, answering like an expired session, so the PWA sends
+  the person to sign-in, where they're told why.
+- **Every change writes an `admin_audit_log` row in the same
+  transaction** (actor, action, target, details, IP). A refused action
+  writes nothing. The log is append-only, and rows outlive deleted
+  people (`ON DELETE SET NULL`).
+- **Privacy:** the admin API returns counts and account facts (groups,
+  friends, expense and settlement counts, sessions, group names and
+  sizes), never balances, expense names, amounts or receipts. The one
+  money figure is app-wide spending per currency on the overview.
+- **Voice access is an admin switch** (part 2). `app_settings.voice_mode`
+  is `off` (a kill switch that beats `VOICE_TESTERS`), `listed` (the
+  default: `VOICE_TESTERS` plus people an admin turned voice on for in
+  `voice_access`) or `everyone`. Each token the API hands out is a row in
+  `voice_sessions` (who and when, never what was said), so admins can
+  see who uses voice. Turning voice on or off for someone isn't a
+  punishment, so any admin may do it for anyone, except turning it on
+  for a suspended account.
+- **Overview days are Addis Ababa days** (UTC+3, fixed). The overview
+  covers 7, 30 or 90 days. Its queue (open disputes, payment
+  confirmations, group invites, "stale" after 7 days) is whatever is
+  open now, whatever the range.
+
+- **Portal sign-ins are short** (part 3). On every `/admin/*` call, a
+  session unused for **30 minutes** or signed in over **12 hours** ago
+  is revoked and answered `401 INVALID_SESSION` with
+  `details.reason = idle | max_age`, so the portal shows sign-in and
+  why. The check reads the session as it was before the request touched
+  it, and runs only for admins, so a non-admin's PWA session is never
+  ended by it. The portal's cookie is its own, so these limits never
+  sign anyone out of the PWA. Admins can see their own sessions (ABRO
+  and portal) and end any but the one in use, or all others at once,
+  each logged.
+
+**Alternatives:** an `is_admin` flag, which is simpler but has no ranks,
+so any admin could remove every other. Admin screens inside the PWA,
+which would ship admin code to every phone and mix two audiences. Logging
+admin actions after the fact, outside the transaction, which can leave an
+action with no log row.
+
+**Consequences:** the owner must be in `ADMIN_EMAILS` on Render before
+the portal is any use. Viewing a user isn't logged yet, only changes are.
+Admins sign in to the portal at least twice a day.
+
+---
+
 ## ADR-027: Voice commands through Tezaz -- testers only, tokens from the API
 
 **Status:** Accepted (user request, 2026-10-27). Pilot.

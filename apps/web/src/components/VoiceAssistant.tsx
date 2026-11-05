@@ -12,6 +12,7 @@
 // remounts the screen underneath.
 
 import { TezazProvider, TezazWidget, useCapability } from '@tezaz/react';
+import type { WidgetAppearance } from '@tezaz/core';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -172,6 +173,15 @@ function VoiceActions() {
   return null;
 }
 
+/** Used while TEZAZ_PUBLIC_KEY isn't set on the API. */
+const FALLBACK_LOOK: WidgetAppearance = {
+  offset: 48,
+  theme: { accent: '#5371ea', accentInk: '#ffffff' },
+  launcher: { size: 55 },
+  radius: 16,
+  strings: { title: 'ABRO' },
+};
+
 export function VoiceAssistant() {
   const [status, setStatus] = useState<VoiceStatus | null>(null);
   const [narrow, setNarrow] = useState(false);
@@ -199,12 +209,12 @@ export function VoiceAssistant() {
       <FriendActions />
       <GroupActions />
       <SearchActions />
+      {/* The look is designed and published in the Tezaz dashboard; only the
+          phone offset stays here, as it depends on our bottom nav. */}
       <TezazWidget
-        offset={narrow ? { x: 16, y: 104 } : 48}
-        theme={{ accent: '#5371ea', accentInk: '#ffffff' }}
-        launcher={{ size: 55 }}
-        radius={16}
-        strings={{ title: 'ABRO' }}
+        project={status.project}
+        appearance={status.project ? undefined : FALLBACK_LOOK}
+        offset={narrow ? { x: 16, y: 104 } : undefined}
       />
     </TezazProvider>
   );

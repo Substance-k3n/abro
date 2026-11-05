@@ -6,6 +6,7 @@ package balances
 
 import (
 	"context"
+	"sort"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -111,6 +112,48 @@ func (s *Service) GetSimplifiedGroupDebts(ctx context.Context, groupID pgtype.UU
 		return nil, err
 	}
 	return money.SimplifyDebts(summary), nil
+}
+
+// GetRawGroupDebts is the unsimplified "who owes whom" in a group: for
+// every pair, what the participant owes the payer across the group's
+// expenses, netted against the other direction (settlements included).
+// Unlike GetSimplifiedGroupDebts it never routes a debt through someone
+// who wasn't on the expense. Sorted largest first, then by user ids, so
+// the list is stable.
+func (s *Service) GetRawGroupDebts(ctx context.Context, groupID pgtype.UUID) ([]money.SimplifiedTransaction, error) {
+	rows, err := s.q.GetGroupPairOwedSums(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+	type pair struct{ a, b string }    // a < b
+	net := map[pair]money.MinorUnits{} // positive => a owes b
+	for _, r := range rows {
+		debtor, creditor := idutil.String(r.DebtorID), idutil.String(r.CreditorID)
+		if debtor < creditor {
+			net[pair{debtor, creditor}] += r.Total
+		} else {
+			net[pair{creditor, debtor}] -= r.Total
+		}
+	}
+	out := make([]money.SimplifiedTransaction, 0, len(net))
+	for p, amount := range net {
+		switch {
+		case amount > 0:
+			out = append(out, money.SimplifiedTransaction{FromUserID: p.a, ToUserID: p.b, Amount: amount})
+		case amount < 0:
+			out = append(out, money.SimplifiedTransaction{FromUserID: p.b, ToUserID: p.a, Amount: -amount})
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Amount != out[j].Amount {
+			return out[i].Amount > out[j].Amount
+		}
+		if out[i].FromUserID != out[j].FromUserID {
+			return out[i].FromUserID < out[j].FromUserID
+		}
+		return out[i].ToUserID < out[j].ToUserID
+	})
+	return out, nil
 }
 
 // FriendNetBalance and GroupNetBalance are GetSummary's per-entity

@@ -1,18 +1,20 @@
 'use client';
 
 // GRP-05 Group Balances -- docs/ABRO_FRONTEND_SPEC.md §5 (lines 1312-
-// 1360). Individual view (net position per member) and Simplified view
-// (who pays whom), toggled. Phase 8 slice 8b: nets from
-// GET /balances/groups/{id} and the plan from its /simplified sibling,
-// both via ~/lib/balances-api.ts -- apps/api computes both, so the
-// browser never re-derives a balance.
+// 1360). Individual view (net position per member), Who owes whom (each
+// pair's own debt) and Simplified view (fewest payments), as tabs.
+// Phase 8 slice 8b: nets from GET /balances/groups/{id}, the pairs from
+// its /raw sibling and the plan from /simplified, all via
+// ~/lib/balances-api.ts -- apps/api computes them, so the browser never
+// re-derives a balance.
 //
 // Deviations:
-//  - "Who owes whom (full network)": apps/api exposes net positions and
-//    the simplified plan, not a raw pairwise graph, so Individual shows
-//    nets only (the spec's own "Individual Balance List" component).
+//  - "Who owes whom (full network)" is its own tab, always there: the
+//    simplified plan can route a debt through someone who never shared a
+//    bill with the payer (A owes B, C owes B, A owes D -> "C pays D"),
+//    and testers needed to see the real pairs.
 //  - The Simplified view is offered only when the group's "Simplify
-//    debts" setting is on (GRP-07); off, only Individual shows.
+//    debts" setting is on (GRP-07).
 //  - "Mark as settled" opens /settle only for payments you make --
 //    apps/api only lets the debtor record a settlement (ADR-003); a
 //    payment owed to you stays disabled.
@@ -29,26 +31,50 @@ import { useState } from 'react';
 
 import { OverdueTag } from '~/components/OverdueTag';
 import { PaymentRow } from '~/components/PaymentRow';
-import { type SimplifiedPayment, getSimplifiedPayments } from '~/lib/balances-api';
+import {
+  type SimplifiedPayment,
+  getRawGroupDebts,
+  getSimplifiedPayments,
+} from '~/lib/balances-api';
 import { type GroupView, GroupViewLoader, PersonAvatar, nameIn } from '~/lib/group-view';
 
-type View = 'individual' | 'simplified';
+type View = 'individual' | 'raw' | 'simplified';
+
+const VIEW_LABELS: Record<View, string> = {
+  individual: 'Individual',
+  raw: 'Who owes whom',
+  simplified: 'Simplified',
+};
 
 export default function GroupBalancesPage() {
   const params = useParams<{ id: string }>();
   const [payments, setPayments] = useState<SimplifiedPayment[]>([]);
+  const [rawDebts, setRawDebts] = useState<SimplifiedPayment[]>([]);
 
   return (
     <GroupViewLoader
       groupId={params.id}
-      extra={() => getSimplifiedPayments(params.id).then(setPayments)}
+      extra={() =>
+        Promise.all([
+          getSimplifiedPayments(params.id).then(setPayments),
+          getRawGroupDebts(params.id).then(setRawDebts),
+        ]).then(() => undefined)
+      }
     >
-      {(view) => <GroupBalances view={view} payments={payments} />}
+      {(view) => <GroupBalances view={view} payments={payments} rawDebts={rawDebts} />}
     </GroupViewLoader>
   );
 }
 
-function GroupBalances({ view, payments }: { view: GroupView; payments: SimplifiedPayment[] }) {
+function GroupBalances({
+  view,
+  payments,
+  rawDebts,
+}: {
+  view: GroupView;
+  payments: SimplifiedPayment[];
+  rawDebts: SimplifiedPayment[];
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<View>('individual');
   const { group, activeMembers, nets, owingSince } = view;
@@ -79,15 +105,18 @@ function GroupBalances({ view, payments }: { view: GroupView; payments: Simplifi
         <div className="w-[60px]" />
       </div>
 
-      {group.simplifyDebts && !allSettled && (
+      {!allSettled && (
         <div className="neo-inset-sm mb-5 flex gap-1 rounded-[14px] p-1">
-          {(['individual', 'simplified'] as const).map((v) => (
+          {(group.simplifyDebts
+            ? (['individual', 'raw', 'simplified'] as const)
+            : (['individual', 'raw'] as const)
+          ).map((v) => (
             <button
               key={v}
               onClick={() => setMode(v)}
-              className={`neo-tab flex-1 border-none capitalize ${mode === v ? 'active' : ''}`}
+              className={`neo-tab flex-1 whitespace-nowrap border-none ${mode === v ? 'active' : ''}`}
             >
-              {v}
+              {VIEW_LABELS[v]}
             </button>
           ))}
         </div>
@@ -138,6 +167,17 @@ function GroupBalances({ view, payments }: { view: GroupView; payments: Simplifi
             );
           })}
         </div>
+      ) : mode === 'raw' ? (
+        <>
+          <p className="mb-4 text-[0.82rem]" style={{ color: 'var(--t-muted)' }}>
+            What each person owes the people who actually paid for them, before any simplifying.
+          </p>
+          <div className="flex flex-col gap-2.5">
+            {rawDebts.map((tx) => (
+              <PaymentRow key={`${tx.fromUserId}-${tx.toUserId}`} view={view} payment={tx} raw />
+            ))}
+          </div>
+        </>
       ) : (
         <div className="flex flex-col gap-2.5">
           {payments.map((tx) => (

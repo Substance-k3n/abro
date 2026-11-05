@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@tezaz/core': file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz
+  '@tezaz/core': file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz
 
 importers:
 
@@ -39,6 +39,43 @@ importers:
         specifier: ^5.7.3
         version: 5.9.3
 
+  apps/admin:
+    dependencies:
+      '@abro/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      lucide-react:
+        specifier: ^1.45.0
+        version: 1.46.0(react@19.2.1)
+      next:
+        specifier: 15.5.18
+        version: 15.5.18(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+      react:
+        specifier: 19.2.1
+        version: 19.2.1
+      react-dom:
+        specifier: 19.2.1
+        version: 19.2.1(react@19.2.1)
+    devDependencies:
+      '@tailwindcss/postcss':
+        specifier: ^4.0.0
+        version: 4.3.3
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.2
+      '@types/react':
+        specifier: ^19.0.2
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.0.2
+        version: 19.3.0(@types/react@19.3.0)
+      tailwindcss:
+        specifier: ^4.0.0
+        version: 4.3.3
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+
   apps/web:
     dependencies:
       '@abro/types':
@@ -48,11 +85,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       '@tezaz/core':
-        specifier: file:../../vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz
-        version: file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz
+        specifier: file:../../vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz
+        version: file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz
       '@tezaz/react':
-        specifier: file:../../vendor/tezaz/tezaz-react-0.0.0-d50d3e1.tgz
-        version: file:vendor/tezaz/tezaz-react-0.0.0-d50d3e1.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
+        specifier: file:../../vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz
+        version: file:vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       lucide-react:
         specifier: ^1.45.0
         version: 1.46.0(react@19.2.1)
@@ -954,13 +991,13 @@ packages:
   '@tailwindcss/postcss@4.3.3':
     resolution: {integrity: sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg==}
 
-  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz':
-    resolution: {integrity: sha512-NNSruiFgze1XZCFXvRP+szEDd8Ijv9+tvo2S42e7kbMqd0tPLXX6d3F9XR3f+e8HfFFgwML+id17fwIeCUdMVg==, tarball: file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz}
-    version: 0.0.0
+  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz':
+    resolution: {integrity: sha512-h1XpXht8GI4MI2SwFFYEJ3xTjrC7fEBr6SsM/WuOht1gsGogOqePqG55pVB1E8OBGOdsp4kEFFp71leVf7QcWw==, tarball: file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz}
+    version: 0.2.1
 
-  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0-d50d3e1.tgz':
-    resolution: {integrity: sha512-jyEBrhfDrUKvgLCmMYhjET+qSl1FcvZEN+VW93cSQz4fT1D1xpIpzVn0L9LmHwfC3nRjiL85PZMb94onZs/4eA==, tarball: file:vendor/tezaz/tezaz-react-0.0.0-d50d3e1.tgz}
-    version: 0.0.0
+  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz':
+    resolution: {integrity: sha512-2ay+BEDEVFpOg5cenCoLArIj1MAI8qw9sKEkZfM6EP7xG+cxnLDaGTbPK6phrUt61Pdyb74K4TGXRJWKoPRjvA==, tarball: file:vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz}
+    version: 0.2.1
     peerDependencies:
       react: ^19.0.0
       react-dom: ^19.0.0
@@ -3425,11 +3462,11 @@ snapshots:
       postcss: 8.5.28
       tailwindcss: 4.3.3
 
-  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz': {}
+  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz': {}
 
-  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.0.0-d50d3e1.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
+  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
     dependencies:
-      '@tezaz/core': file:vendor/tezaz/tezaz-core-0.0.0-c4ca87b.tgz
+      '@tezaz/core': file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz
       react: 19.2.1
       react-dom: 19.2.1(react@19.2.1)
 
