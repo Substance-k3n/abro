@@ -34,26 +34,8 @@
 //    Profile field for it exists (AUTH-06/PRF-01's color picker is
 //    cosmetic-only).
 
-import {
-  ActivityItem,
-  Avatar,
-  BalanceCard,
-  EmptyState,
-  MoneyDisplay,
-  PersonRow,
-  SectionLabel,
-} from '@abro/ui';
-import { ETB, formatMoney } from '@abro/types';
-import {
-  Bell,
-  ChevronRight,
-  Handshake,
-  Plus,
-  Receipt,
-  Settings,
-  Users,
-  Wallet,
-} from 'lucide-react';
+import { Avatar, EmptyState } from '@abro/ui';
+import { Bell, Handshake, Plus, Receipt, Settings, Users, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -83,13 +65,22 @@ import { listNotifications } from '~/lib/notifications-api';
 import { photoSrc } from '~/lib/photos';
 import { type SettlementRequest, listSettlementRequests } from '~/lib/settlements-api';
 import { GroupPicture } from '~/components/GroupPicture';
+import { ActivityRow } from '~/components/ActivityRow';
+import {
+  Amount,
+  HeroBalance,
+  Panel,
+  Row,
+  SectionHeader,
+  Tile,
+  greeting,
+} from '~/components/refresh';
 import { useApiRefresh } from '~/lib/use-api-refresh';
 
-const QUICK_ACTIONS = [
-  { label: 'Add Expense', href: '/expenses/new', icon: Plus, accent: true },
-  { label: 'Settle Up', href: '/settle', icon: Handshake, accent: false },
-  { label: 'Add IOU', href: '/expenses/new?type=iou', icon: Receipt, accent: false },
-  { label: 'Create Group', href: '/groups/new', icon: Users, accent: false },
+const SECONDARY_ACTIONS = [
+  { label: 'Settle up', href: '/settle', icon: Handshake },
+  { label: 'IOU', href: '/expenses/new?type=iou', icon: Receipt },
+  { label: 'New group', href: '/groups/new', icon: Users },
 ];
 
 interface HomeData {
@@ -172,8 +163,14 @@ export default function HomePage() {
     toActivityDisplay(e, profile.id, groupNameById),
   );
 
+  // Friends with a balance, owed-to-you first, then groups with one.
+  const people = [
+    ...owedToYou.map((f) => ({ f, owed: true })),
+    ...youOwe.map((f) => ({ f, owed: false })),
+  ];
+
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:px-8 md:py-8">
+    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-5xl md:px-8 md:py-8">
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -187,11 +184,11 @@ export default function HomePage() {
             />
           </Link>
           <div>
-            <p className="mb-0.5 text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
-              Good morning
+            <p className="text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
+              {greeting()}
             </p>
             <h2
-              className="font-display text-[1.3rem] font-bold tracking-tight"
+              className="font-display text-[1.3rem] font-semibold tracking-tight"
               style={{ color: 'var(--t-primary)' }}
             >
               {profile.displayName}
@@ -201,15 +198,16 @@ export default function HomePage() {
         <div className="flex gap-2.5">
           <Link
             href="/notifications"
+            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
             className="neo-btn relative flex h-[42px] w-[42px] items-center justify-center rounded-2xl"
           >
-            <Bell size={22} strokeWidth={1.75} />
+            <Bell size={20} strokeWidth={1.8} />
             {unreadCount > 0 && (
               <span
-                className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[0.6rem] font-bold text-white"
-                style={{ background: '#ef4444' }}
+                className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[0.62rem] font-bold text-white"
+                style={{ background: 'var(--owe)' }}
               >
-                {unreadCount}
+                {unreadCount > 99 ? '99+' : unreadCount}
               </span>
             )}
           </Link>
@@ -218,7 +216,7 @@ export default function HomePage() {
             aria-label="Settings"
             className="neo-btn flex h-[42px] w-[42px] items-center justify-center rounded-2xl"
           >
-            <Settings size={20} strokeWidth={1.75} />
+            <Settings size={19} strokeWidth={1.8} />
           </Link>
         </div>
       </div>
@@ -227,239 +225,165 @@ export default function HomePage() {
       <PushNotifications variant="banner" />
 
       {toConfirm.length > 0 && (
-        <Link
-          href="/payments"
-          className="neo-raised-sm mb-4 flex items-center gap-3 rounded-2xl px-4 py-3"
-        >
-          <span
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-            style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
-          >
-            <Wallet size={19} strokeWidth={2} />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span
-              className="block text-[0.88rem] font-semibold"
-              style={{ color: 'var(--t-primary)' }}
-            >
-              {toConfirm.length === 1
+        <Panel className="mb-4">
+          <Row
+            href="/payments"
+            leading={
+              <Tile tint="var(--accent-light)" color="var(--accent)">
+                <Wallet size={19} strokeWidth={2} />
+              </Tile>
+            }
+            title={
+              toConfirm.length === 1
                 ? `${toConfirm[0]!.payer.displayName.split(' ')[0]} says they paid you`
-                : `${toConfirm.length} payments to confirm`}
-            </span>
-            <span className="block text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
-              {formatMoney(toConfirmTotal, ETB)} · tap to confirm
-            </span>
-          </span>
-          <ChevronRight size={18} strokeWidth={2} style={{ color: 'var(--t-dim)' }} />
-        </Link>
+                : `${toConfirm.length} payments to confirm`
+            }
+            sub="Confirm once the money has reached you"
+            trailing={<Amount value={toConfirmTotal} tone="owed" />}
+            chevron
+          />
+        </Panel>
       )}
 
-      <div className="md:grid md:grid-cols-[1.4fr_1fr] md:gap-6">
+      <div className="md:grid md:grid-cols-[1.25fr_1fr] md:items-start md:gap-7">
         <div>
-          {/* Balance Summary Card */}
-          <div className="mb-5">
-            <BalanceCard
-              net={net}
-              owedTotal={owedTotal}
-              oweTotal={oweTotal}
-              onOwedClick={() => router.push('/balances/owed')}
-              onOweClick={() => router.push('/balances/owe')}
-            />
+          <HeroBalance
+            net={net}
+            owedTotal={owedTotal}
+            oweTotal={oweTotal}
+            onOwed={() => router.push('/balances/owed')}
+            onOwe={() => router.push('/balances/owe')}
+          />
+
+          {/* Actions: one main one, three quieter ones */}
+          <div className="mb-7 mt-4 grid grid-cols-[1.7fr_1fr_1fr_1fr] gap-2.5">
+            <Link
+              href="/expenses/new"
+              className="neo-btn-accent flex items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl px-2 py-4 text-[0.86rem] font-semibold"
+            >
+              <Plus size={18} strokeWidth={2.2} />
+              Add expense
+            </Link>
+            {SECONDARY_ACTIONS.map((action) => (
+              <Link
+                key={action.label}
+                href={action.href}
+                className="neo-btn flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2.5 text-center"
+                style={{ color: 'var(--t-secondary)' }}
+              >
+                <action.icon size={18} strokeWidth={1.9} />
+                <span className="text-[0.68rem] font-medium leading-tight">{action.label}</span>
+              </Link>
+            ))}
           </div>
 
-          {/* Quick Actions */}
-          <div className="mb-6 grid grid-cols-4 gap-2.5">
-            {QUICK_ACTIONS.map((action) => {
-              const Icon = action.icon;
-              return (
-                <Link
-                  key={action.label}
-                  href={action.href}
-                  className={`flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3.5 text-center ${
-                    action.accent ? 'neo-btn-accent' : 'neo-btn'
-                  }`}
-                >
-                  <Icon size={20} strokeWidth={1.9} />
-                  <span
-                    className="text-[0.66rem] font-medium leading-tight"
-                    style={{ color: action.accent ? 'white' : 'var(--t-secondary)' }}
-                  >
-                    {action.label}
-                  </span>
-                </Link>
-              );
-            })}
+          {/* Recent activity sits under the hero on wide screens */}
+          <div className="hidden md:block">
+            <RecentActivity
+              rows={activityRows}
+              expenses={recentActivity}
+              onOpen={(id) => router.push(`/expenses/${id}`)}
+            />
           </div>
         </div>
 
         <div>
-          {/* Outstanding Balances */}
-          <div className="mb-6">
-            <div className="mb-3.5 flex items-center justify-between">
-              <h3
-                className="font-display text-base font-bold tracking-tight"
-                style={{ color: 'var(--t-primary)' }}
-              >
-                Balances
-              </h3>
-              <Link
-                href="/balances"
-                className="text-[0.78rem] font-medium"
-                style={{ color: 'var(--accent)' }}
-              >
-                See all
-              </Link>
-            </div>
-
-            {owedToYou.length === 0 && youOwe.length === 0 ? (
-              <EmptyState
-                icon={<Handshake size={26} strokeWidth={1.5} />}
-                title="All settled up"
-                description="No outstanding balances with friends right now."
-              />
+          <section className="mb-7">
+            <SectionHeader title="Balances" href="/balances" />
+            {people.length === 0 ? (
+              <Panel>
+                <Row
+                  leading={
+                    <Tile tint="var(--owed-soft)" color="var(--owed)">
+                      <Handshake size={19} strokeWidth={1.9} />
+                    </Tile>
+                  }
+                  title="All settled with friends"
+                  sub="New IOUs and shared bills show up here."
+                />
+              </Panel>
             ) : (
-              <div className="flex flex-col gap-4">
-                {owedToYou.length > 0 && (
-                  <div>
-                    <SectionLabel>People who owe you</SectionLabel>
-                    <div className="flex flex-col gap-2">
-                      {owedToYou.map((f) => (
-                        <PersonRow
-                          key={f.id}
-                          initials={f.initials}
-                          photo={f.photo}
-                          color={f.color}
-                          name={f.name}
-                          right={
-                            <MoneyDisplay
-                              amount={f.owes}
-                              className="font-mono text-sm font-semibold"
-                              style={{ color: 'var(--c-green)' }}
-                            />
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {youOwe.length > 0 && (
-                  <div>
-                    <SectionLabel>People you owe</SectionLabel>
-                    <div className="flex flex-col gap-2">
-                      {youOwe.map((f) => (
-                        <PersonRow
-                          key={f.id}
-                          initials={f.initials}
-                          photo={f.photo}
-                          color={f.color}
-                          name={f.name}
-                          right={
-                            <MoneyDisplay
-                              amount={f.iOwe}
-                              className="font-mono text-sm font-semibold"
-                              style={{ color: 'var(--c-red)' }}
-                            />
-                          }
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <Panel>
+                {people.map(({ f, owed }) => (
+                  <Row
+                    key={f.id}
+                    href={`/friends/${f.id}`}
+                    leading={
+                      <Avatar initials={f.initials} color={f.color} size={40} src={f.photo} />
+                    }
+                    title={f.name}
+                    sub={owed ? 'owes you' : 'you owe'}
+                    subTone={owed ? 'owed' : 'owe'}
+                    trailing={
+                      <Amount value={owed ? f.owes : f.iOwe} tone={owed ? 'owed' : 'owe'} />
+                    }
+                  />
+                ))}
+              </Panel>
             )}
-          </div>
+          </section>
 
-          {/* Group Summary */}
           {groupsWithBalance.length > 0 && (
-            <div className="mb-6">
-              <div className="mb-3.5 flex items-center justify-between">
-                <h3
-                  className="font-display text-base font-bold tracking-tight"
-                  style={{ color: 'var(--t-primary)' }}
-                >
-                  Groups
-                </h3>
-                <Link
-                  href="/groups"
-                  className="text-[0.78rem] font-medium"
-                  style={{ color: 'var(--accent)' }}
-                >
-                  See all
-                </Link>
-              </div>
-              <div className="flex flex-col gap-2">
+            <section className="mb-7">
+              <SectionHeader title="Groups" href="/groups" />
+              <Panel>
                 {groupsWithBalance.map((g) => (
-                  <Link
+                  <Row
                     key={g.id}
                     href={`/groups/${g.id}`}
-                    className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
-                  >
-                    <div
-                      className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[13px]"
-                      style={{ background: g.groupType.tint, color: g.groupType.color }}
-                    >
-                      <GroupPicture photo={g.photo} icon={g.groupType.icon} size={19} />
-                    </div>
-                    <span
-                      className="flex-1 text-[0.88rem] font-semibold"
-                      style={{ color: 'var(--t-primary)' }}
-                    >
-                      {g.name}
-                    </span>
-                    <MoneyDisplay
-                      amount={g.balance < 0n ? -g.balance : g.balance}
-                      className="font-mono text-sm font-semibold"
-                      style={{ color: g.balance > 0n ? 'var(--c-green)' : 'var(--c-red)' }}
-                    />
-                  </Link>
+                    leading={
+                      <Tile tint={g.groupType.tint} color={g.groupType.color}>
+                        <GroupPicture photo={g.photo} icon={g.groupType.icon} size={19} />
+                      </Tile>
+                    }
+                    title={g.name}
+                    sub={g.balance > 0n ? "you're owed" : 'you owe'}
+                    subTone={g.balance > 0n ? 'owed' : 'owe'}
+                    trailing={<Amount value={g.balance} tone={g.balance > 0n ? 'owed' : 'owe'} />}
+                  />
                 ))}
-              </div>
-            </div>
+              </Panel>
+            </section>
           )}
         </div>
       </div>
 
-      {/* Recent Activity */}
-      <div>
-        <div className="mb-3.5 flex items-center justify-between">
-          <h3
-            className="font-display text-base font-bold tracking-tight"
-            style={{ color: 'var(--t-primary)' }}
-          >
-            Recent Activity
-          </h3>
-          <Link
-            href="/activity"
-            className="text-[0.78rem] font-medium"
-            style={{ color: 'var(--accent)' }}
-          >
-            See all
-          </Link>
-        </div>
-        {activityRows.length === 0 ? (
-          <EmptyState
-            icon={<Receipt size={26} strokeWidth={1.5} />}
-            title="No activity yet"
-            description="Expenses and settlements will show up here."
-          />
-        ) : (
-          <div className="flex flex-col gap-2.5">
-            {activityRows.map((a, i) => (
-              <ActivityItem
-                key={recentActivity[i]!.id}
-                category={a.category}
-                title={a.title}
-                sub={a.sub}
-                amount={a.amount}
-                dir={a.dir}
-                time={a.time}
-                currency={ETB}
-                onClick={() => router.push(`/expenses/${recentActivity[i]!.id}`)}
-              />
-            ))}
-          </div>
-        )}
+      <div className="md:hidden">
+        <RecentActivity
+          rows={activityRows}
+          expenses={recentActivity}
+          onOpen={(id) => router.push(`/expenses/${id}`)}
+        />
       </div>
     </div>
+  );
+}
+
+function RecentActivity({
+  rows,
+  expenses,
+  onOpen,
+}: {
+  rows: ActivityDisplay[];
+  expenses: AuthExpense[];
+  onOpen: (id: string) => void;
+}) {
+  return (
+    <section>
+      <SectionHeader title="Recent activity" href="/activity" />
+      {rows.length === 0 ? (
+        <EmptyState
+          icon={<Receipt size={26} strokeWidth={1.5} />}
+          title="No activity yet"
+          description="Expenses and payments will show up here."
+        />
+      ) : (
+        <Panel>
+          {rows.map((a, i) => (
+            <ActivityRow key={expenses[i]!.id} a={a} onClick={() => onOpen(expenses[i]!.id)} />
+          ))}
+        </Panel>
+      )}
+    </section>
   );
 }
