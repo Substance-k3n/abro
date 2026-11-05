@@ -3,7 +3,7 @@
 // STL-02 Settle Up - Enter Amount -- docs/ABRO_FRONTEND_SPEC.md §6
 // (lines 1592-1639). Phase 8 slice 9b: who you're paying and the most
 // you can settle come from ~/lib/settlements-api.ts's loadSettleTarget
-// (apps/api's own rule, ADR-010 for groups); apps/api re-checks on
+// (apps/api's own rule, ADR-029 for groups); apps/api re-checks on
 // submit.
 //
 // Deviations:

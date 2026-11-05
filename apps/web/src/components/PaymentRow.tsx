@@ -10,10 +10,10 @@
 // at once. A payment between two other members has no action for you.
 //
 // `raw` is a row of GRP-05's "Who owes whom" list: the action passes the
-// row's amount along as the suggested figure, and is disabled when the
-// group-net rule (ADR-010) wouldn't allow it -- the payer no longer owes
-// the group, or the receiver is no longer owed (after earlier payments
-// that went the simplified way).
+// row's amount along as the suggested figure. A real debt is always
+// payable by the two people in it, whatever the group totals say
+// (ADR-029: you can pay who you really owe, not only the simplified
+// plan).
 
 import { ETB, formatMoney } from '@abro/types';
 import { ArrowRight } from 'lucide-react';
@@ -35,18 +35,12 @@ export function PaymentRow({
 }) {
   const youPay = payment.fromUserId === view.profile.id;
   const youReceive = payment.toUserId === view.profile.id;
-  const payable =
-    !raw ||
-    ((view.nets.get(payment.fromUserId) ?? 0n) < 0n &&
-      (view.nets.get(payment.toUserId) ?? 0n) > 0n);
   const suggested = raw ? `&amount=${payment.amount}` : '';
   const href = youPay
     ? `/settle?groupId=${view.group.id}&toUserId=${payment.toUserId}${suggested}`
     : `/payments/received?groupId=${view.group.id}&fromUserId=${payment.fromUserId}${suggested}`;
-  const enabled = (youPay || youReceive) && payable;
-  const disabledTitle = payable
-    ? 'Only the two people in this payment can record it'
-    : 'Their group totals are already even -- see the Individual tab';
+  const enabled = youPay || youReceive;
+  const disabledTitle = 'Only the two people in this payment can record it';
   const label = youReceive
     ? large
       ? 'They paid me'
