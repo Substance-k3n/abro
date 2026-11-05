@@ -106,6 +106,7 @@ type AdminUserDetail struct {
 	SettlementCount  int64            `json:"settlementCount"`
 	Sessions         []AdminSession   `json:"sessions"`
 	Groups           []AdminUserGroup `json:"groups"`
+	Voice            AdminUserVoice   `json:"voice"`
 }
 
 func ToAdminSessions(rows []db.AdminListUserSessionsRow) []AdminSession {

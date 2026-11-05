@@ -10,15 +10,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 
 	authpkg "github.com/Substance-k3n/abro/apps/api/internal/auth"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
@@ -61,8 +64,61 @@ func NewService(relayURL, secretKey, origin, testers string) *Service {
 
 func (s *Service) IsConfigured() bool { return s.relayURL != "" && s.secretKey != "" }
 
-// EnabledFor: voice is opt-in per tester while it's a pilot, so strangers
-// can't spend the speech-provider credit.
+// Voice modes (app_settings.voice_mode, set in the admin portal, ADR-028).
+const (
+	ModeSetting  = "voice_mode"
+	ModeOff      = "off"      // nobody: a kill switch, beats VOICE_TESTERS
+	ModeListed   = "listed"   // VOICE_TESTERS + people an admin turned it on for
+	ModeEveryone = "everyone" // every signed-in person
+)
+
+// Mode is the current voice mode; "listed" until an admin picks one.
+func Mode(ctx context.Context, q db.Querier) (string, error) {
+	v, err := q.GetAppSetting(ctx, ModeSetting)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ModeListed, nil
+	}
+	return v, err
+}
+
+// Allowed: may this person use voice right now? Voice costs speech-provider
+// credit, so it's opt-in per person unless an admin opens it to everyone.
+func (s *Service) Allowed(ctx context.Context, q db.Querier, p db.Profile) (bool, error) {
+	if !s.IsConfigured() {
+		return false, nil
+	}
+	mode, err := Mode(ctx, q)
+	if err != nil {
+		return false, err
+	}
+	switch mode {
+	case ModeOff:
+		return false, nil
+	case ModeEveryone:
+		return true, nil
+	}
+	if s.EnabledFor(p.Email.String) {
+		return true, nil
+	}
+	return q.HasVoiceAccess(ctx, p.ID)
+}
+
+// Testers is VOICE_TESTERS as emails, and whether it holds "*".
+func (s *Service) Testers() (emails []string, everyone bool) {
+	emails = []string{}
+	for t := range s.testers {
+		if t == "*" {
+			everyone = true
+			continue
+		}
+		emails = append(emails, t)
+	}
+	slices.Sort(emails)
+	return emails, everyone
+}
+
+// EnabledFor: is this email in VOICE_TESTERS ("*" = everyone)? Part of
+// "listed" mode; see Allowed.
 func (s *Service) EnabledFor(email string) bool {
 	if !s.IsConfigured() {
 		return false
@@ -160,7 +216,11 @@ func (h *Handler) Mount(r chi.Router) {
 // testers, styled as published in the Tezaz dashboard.
 func (h *Handler) status(w http.ResponseWriter, r *http.Request) error {
 	user := authpkg.CurrentUser(r.Context())
-	if !h.svc.EnabledFor(user.Email.String) {
+	ok, err := h.svc.Allowed(r.Context(), h.q, user)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"enabled": false})
 		return nil
 	}
@@ -176,12 +236,21 @@ func (h *Handler) status(w http.ResponseWriter, r *http.Request) error {
 // a fresh one each time it connects (they live two minutes).
 func (h *Handler) token(w http.ResponseWriter, r *http.Request) error {
 	user := authpkg.CurrentUser(r.Context())
-	if !h.svc.EnabledFor(user.Email.String) {
+	ok, err := h.svc.Allowed(r.Context(), h.q, user)
+	if err != nil {
+		return err
+	}
+	if !ok {
 		return httpx.Forbidden("VOICE_NOT_ENABLED", "Voice commands aren't turned on for your account.")
 	}
 	t, err := h.svc.Token(r.Context(), idutil.String(user.ID))
 	if err != nil {
 		return err
+	}
+	// Counted for the admin portal; never what was said. A failed count
+	// mustn't cost the person their voice session.
+	if err := h.q.RecordVoiceSession(r.Context(), user.ID); err != nil {
+		log.Printf("voice: recording a session: %v", err)
 	}
 	httpx.WriteJSON(w, http.StatusOK, t)
 	return nil

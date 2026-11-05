@@ -248,7 +248,9 @@ a Vercel redeploy.
     Tezaz dashboard's Widget page on every page load, with no deploy here.
     Anything that isn't a `tz_pub_` key is ignored.
   - `VOICE_TESTERS` -- comma-separated emails that get the voice button,
-    or `*` for everyone.
+    or `*` for everyone. Since ADR-028 the admin portal can also turn
+    voice on per person, open it to everyone, or switch it off for
+    everyone (which beats this list), with no deploy.
 
   Unset, `GET /voice` answers `{"enabled": false}` and nobody sees the
   button. Tokens are minted for `WEB_ORIGIN`, so it must be the exact

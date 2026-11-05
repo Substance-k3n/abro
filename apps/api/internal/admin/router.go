@@ -36,6 +36,15 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Delete("/admins/{id}", need(PermAdminsManage, h.removeRole))
 
 	r.Get("/audit", need(PermAuditView, h.listAudit))
+
+	r.Get("/overview", need(PermOverview, h.overview))
+	r.Get("/groups", need(PermGroupsView, h.listGroups))
+	r.Get("/groups/{id}", need(PermGroupsView, h.getGroup))
+
+	r.Get("/voice", need(PermOverview, h.voice))
+	r.Put("/voice/mode", need(PermVoiceManage, h.setVoiceMode))
+	r.Put("/users/{id}/voice", need(PermVoiceManage, h.grantVoice))
+	r.Delete("/users/{id}/voice", need(PermVoiceManage, h.revokeVoice))
 }
 
 // clientIP is the caller's address for the audit log (RealIP has already
@@ -226,4 +235,86 @@ func (h *Handler) listAudit(w http.ResponseWriter, r *http.Request) error {
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
+}
+
+func (h *Handler) overview(w http.ResponseWriter, r *http.Request) error {
+	days := 30
+	if v := r.URL.Query().Get("range"); v != "" {
+		var err error
+		if days, err = strconv.Atoi(v); err != nil {
+			return httpx.BadRequest("INVALID_RANGE", "range must be 7, 30 or 90 days.")
+		}
+	}
+	out, err := h.svc.Overview(r.Context(), days)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+func (h *Handler) listGroups(w http.ResponseWriter, r *http.Request) error {
+	q := r.URL.Query()
+	page, _ := strconv.Atoi(q.Get("page"))
+	out, err := h.svc.ListGroups(r.Context(), q.Get("q"), q.Get("status"), page)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+func (h *Handler) getGroup(w http.ResponseWriter, r *http.Request) error {
+	id, err := idutil.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		return httpx.NotFound("GROUP_NOT_FOUND", "No such group.")
+	}
+	out, err := h.svc.GetGroup(r.Context(), id)
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+func (h *Handler) voice(w http.ResponseWriter, r *http.Request) error {
+	out, err := h.svc.Voice(r.Context())
+	if err != nil {
+		return err
+	}
+	httpx.WriteJSON(w, http.StatusOK, out)
+	return nil
+}
+
+func (h *Handler) setVoiceMode(w http.ResponseWriter, r *http.Request) error {
+	var in apitypes.SetVoiceModeInput
+	if err := httpx.DecodeJSON(r, &in); err != nil {
+		return err
+	}
+	if err := h.svc.SetVoiceMode(r.Context(), CurrentAdmin(r.Context()), in.Mode, clientIP(r)); err != nil {
+		return err
+	}
+	return h.voice(w, r)
+}
+
+func (h *Handler) grantVoice(w http.ResponseWriter, r *http.Request) error {
+	id, err := pathID(r, "id")
+	if err != nil {
+		return err
+	}
+	if err := h.svc.GrantVoice(r.Context(), CurrentAdmin(r.Context()), id, clientIP(r)); err != nil {
+		return err
+	}
+	return h.afterAction(w, r, id)
+}
+
+func (h *Handler) revokeVoice(w http.ResponseWriter, r *http.Request) error {
+	id, err := pathID(r, "id")
+	if err != nil {
+		return err
+	}
+	if err := h.svc.RevokeVoice(r.Context(), CurrentAdmin(r.Context()), id, clientIP(r)); err != nil {
+		return err
+	}
+	return h.afterAction(w, r, id)
 }

@@ -25,16 +25,23 @@ const (
 	PermAuditView    Permission = "audit.view"
 	PermAdminsView   Permission = "admins.view"
 	PermAdminsManage Permission = "admins.manage"
+	PermOverview     Permission = "overview.view"
+	PermGroupsView   Permission = "groups.view"
+	PermVoiceManage  Permission = "voice.manage"
 )
 
 // Each rank has everything the rank below has.
-var rolePermissions = map[db.AdminRole][]Permission{
-	db.AdminRoleSUPPORT: {PermUsersView, PermAuditView, PermAdminsView},
-	db.AdminRoleADMIN: {PermUsersView, PermAuditView, PermAdminsView,
-		PermUsersSuspend, PermSessions},
-	db.AdminRoleSUPERADMIN: {PermUsersView, PermAuditView, PermAdminsView,
-		PermUsersSuspend, PermSessions, PermAdminsManage},
-}
+var (
+	lookPerms   = []Permission{PermOverview, PermUsersView, PermGroupsView, PermAuditView, PermAdminsView}
+	actPerms    = []Permission{PermUsersSuspend, PermSessions, PermVoiceManage}
+	managePerms = []Permission{PermAdminsManage}
+
+	rolePermissions = map[db.AdminRole][]Permission{
+		db.AdminRoleSUPPORT:    lookPerms,
+		db.AdminRoleADMIN:      slices.Concat(lookPerms, actPerms),
+		db.AdminRoleSUPERADMIN: slices.Concat(lookPerms, actPerms, managePerms),
+	}
+)
 
 // rank orders roles; 0 is "not an admin".
 func rank(r db.AdminRole) int {
