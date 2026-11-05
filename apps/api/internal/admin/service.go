@@ -16,6 +16,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
+	"github.com/Substance-k3n/abro/apps/api/internal/voice"
 )
 
 // Audit actions. Stable strings: the portal labels them and filters by them.
@@ -37,17 +38,19 @@ type Service struct {
 	pool   *pgxpool.Pool
 	q      *db.Queries
 	owners []string
+	voice  *voice.Service
 }
 
-// NewService: ownerEmails is ADMIN_EMAILS, comma-separated.
-func NewService(pool *pgxpool.Pool, ownerEmails string) *Service {
+// NewService: ownerEmails is ADMIN_EMAILS, comma-separated; voiceSvc
+// answers who has voice and whether it's set up at all.
+func NewService(pool *pgxpool.Pool, ownerEmails string, voiceSvc *voice.Service) *Service {
 	owners := []string{}
 	for _, e := range strings.Split(ownerEmails, ",") {
 		if e = apitypes.NormalizeEmail(e); e != "" {
 			owners = append(owners, e)
 		}
 	}
-	return &Service{pool: pool, q: db.New(pool), owners: owners}
+	return &Service{pool: pool, q: db.New(pool), owners: owners, voice: voiceSvc}
 }
 
 func (s *Service) isOwner(p db.Profile) bool {
@@ -104,6 +107,12 @@ func (s *Service) inTx(ctx context.Context, fn func(q *db.Queries) error) error 
 }
 
 func audit(ctx context.Context, q *db.Queries, actor Admin, action string, target pgtype.UUID, details map[string]any, ip string) error {
+	return auditOn(ctx, q, actor, action, "user", target, details, ip)
+}
+
+// auditOn logs an action on something other than a person (targetType
+// "setting" for app switches, with no target id).
+func auditOn(ctx context.Context, q *db.Queries, actor Admin, action, targetType string, target pgtype.UUID, details map[string]any, ip string) error {
 	if details == nil {
 		details = map[string]any{}
 	}
@@ -114,7 +123,7 @@ func audit(ctx context.Context, q *db.Queries, actor Admin, action string, targe
 	return q.InsertAdminAudit(ctx, db.InsertAdminAuditParams{
 		ActorID:    actor.Profile.ID,
 		Action:     action,
-		TargetType: "user",
+		TargetType: targetType,
 		TargetID:   target,
 		Details:    body,
 		IpAddress:  pgtype.Text{String: ip, Valid: ip != ""},
@@ -208,7 +217,12 @@ func (s *Service) GetUser(ctx context.Context, id pgtype.UUID) (apitypes.AdminUs
 	if err != nil {
 		return apitypes.AdminUserDetail{}, err
 	}
+	v, err := s.userVoice(ctx, p)
+	if err != nil {
+		return apitypes.AdminUserDetail{}, err
+	}
 	d := apitypes.AdminUserDetail{
+		Voice:            v,
 		ID:               idutil.String(p.ID),
 		DisplayName:      p.DisplayName,
 		Email:            optText(p.Email),

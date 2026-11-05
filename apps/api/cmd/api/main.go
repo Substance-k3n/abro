@@ -140,9 +140,10 @@ func main() {
 	go voiceSvc.PublishActions(ctx)
 	voiceHandler := voice.NewHandler(voiceSvc, queries)
 
-	// The site admin portal (ADR-028, apps/admin): roles, suspensions and
-	// the audit log. It needs the pool for its action+audit transactions.
-	adminHandler := admin.NewHandler(admin.NewService(pool, cfg.AdminEmails))
+	// The site admin portal (ADR-028, apps/admin): roles, suspensions,
+	// voice access and the audit log. It needs the pool for its
+	// action+audit transactions.
+	adminHandler := admin.NewHandler(admin.NewService(pool, cfg.AdminEmails, voiceSvc))
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)

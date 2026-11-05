@@ -9,8 +9,9 @@ understand why the repo looks the way it does instead of following
 
 ## ADR-028: A separate site admin portal -- ranked roles, suspensions, an audit log
 
-**Status:** Accepted (user request, 2026-11-05). API foundation first;
-the portal app (`apps/admin`) follows in its own PRs.
+**Status:** Accepted (user request, 2026-11-05). API in two PRs
+(roles/suspensions/audit, then overview/groups/voice); the portal app
+(`apps/admin`) follows in its own PRs.
 
 **Context:** ABRO had no site-wide admin. Group admins run their own
 groups. Voice access is an email list in Render, and there was no way to
@@ -43,7 +44,20 @@ dashboard: check, control and revoke.
   people (`ON DELETE SET NULL`).
 - **Privacy:** the admin API returns counts and account facts (groups,
   friends, expense and settlement counts, sessions, group names and
-  sizes), never balances, expense names, amounts or receipts.
+  sizes), never balances, expense names, amounts or receipts. The one
+  money figure is app-wide spending per currency on the overview.
+- **Voice access is an admin switch** (part 2). `app_settings.voice_mode`
+  is `off` (a kill switch that beats `VOICE_TESTERS`), `listed` (the
+  default: `VOICE_TESTERS` plus people an admin turned voice on for in
+  `voice_access`) or `everyone`. Each token the API hands out is a row in
+  `voice_sessions` (who and when, never what was said), so admins can
+  see who uses voice. Turning voice on or off for someone isn't a
+  punishment, so any admin may do it for anyone, except turning it on
+  for a suspended account.
+- **Overview days are Addis Ababa days** (UTC+3, fixed). The overview
+  covers 7, 30 or 90 days. Its queue (open disputes, payment
+  confirmations, group invites, "stale" after 7 days) is whatever is
+  open now, whatever the range.
 
 **Alternatives:** an `is_admin` flag, which is simpler but has no ranks,
 so any admin could remove every other. Admin screens inside the PWA,

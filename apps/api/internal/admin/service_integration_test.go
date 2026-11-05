@@ -27,6 +27,7 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
+	"github.com/Substance-k3n/abro/apps/api/internal/voice"
 )
 
 func testDatabaseURL() string {
@@ -42,6 +43,7 @@ type fixture struct {
 	pool   *pgxpool.Pool
 	q      *db.Queries
 	svc    *Service
+	voice  *voice.Service
 	tag    string
 	owner  db.Profile
 	people []pgtype.UUID
@@ -58,16 +60,28 @@ func setup(t *testing.T) *fixture {
 		tag: fmt.Sprintf("adm%d%d", time.Now().UnixNano(), rand.Intn(1000))}
 	ownerEmail := f.tag + "-owner@abro.test"
 	// Mixed case and spaces: ADMIN_EMAILS is normalized like sign-in.
-	f.svc = NewService(pool, "  "+strings.ToUpper(ownerEmail)+" , ")
+	// Voice set up (not a live key, so nothing is published), with one
+	// VOICE_TESTERS email.
+	f.voice = voice.NewService("https://relay.test", "tz_sec_test_x", "https://app.test", f.tag+"-tester@abro.test")
+	f.svc = NewService(pool, "  "+strings.ToUpper(ownerEmail)+" , ", f.voice)
 	f.owner = f.person("owner")
 
 	t.Cleanup(func() {
-		for _, id := range f.people {
-			pool.Exec(ctx, `DELETE FROM admin_audit_log WHERE actor_id = $1 OR target_id = $1`, id)
-			pool.Exec(ctx, `DELETE FROM group_members WHERE user_id = $1`, id)
-			pool.Exec(ctx, `DELETE FROM groups WHERE created_by_id = $1`, id)
-			pool.Exec(ctx, `DELETE FROM friendships WHERE user_id = $1 OR friend_id = $1`, id)
-			pool.Exec(ctx, `DELETE FROM profiles WHERE id = $1`, id)
+		// Dependent rows for everyone first, then the profiles, so one
+		// person's rows never block deleting another's profile.
+		ids := f.people
+		for _, q := range []string{
+			`DELETE FROM admin_audit_log WHERE actor_id = ANY($1) OR target_id = ANY($1)`,
+			`DELETE FROM settlement_requests WHERE payer_id = ANY($1) OR recipient_id = ANY($1)`,
+			`DELETE FROM expenses WHERE paid_by_id = ANY($1)`,
+			`DELETE FROM groups WHERE created_by_id = ANY($1)`,
+			`DELETE FROM group_members WHERE user_id = ANY($1)`,
+			`DELETE FROM friendships WHERE user_id = ANY($1) OR friend_id = ANY($1)`,
+			`DELETE FROM profiles WHERE id = ANY($1)`,
+		} {
+			if _, err := pool.Exec(ctx, q, ids); err != nil {
+				t.Errorf("cleanup %q: %v", q, err)
+			}
 		}
 		pool.Close()
 	})
@@ -148,10 +162,12 @@ func TestRoles(t *testing.T) {
 	assert.False(t, support.Owner)
 	assert.True(t, support.Can(PermUsersView))
 	assert.False(t, support.Can(PermUsersSuspend))
-	assert.Equal(t, []string{"users.view", "audit.view", "admins.view"}, support.Permissions())
+	assert.Equal(t, []string{"overview.view", "users.view", "groups.view", "audit.view", "admins.view"}, support.Permissions())
+	assert.False(t, support.Can(PermVoiceManage))
 
 	admin := f.admin(f.withRole("admin", db.AdminRoleADMIN))
 	assert.True(t, admin.Can(PermUsersSuspend))
+	assert.True(t, admin.Can(PermVoiceManage))
 	assert.False(t, admin.Can(PermAdminsManage))
 
 	_, err := f.svc.adminFor(f.ctx, f.person("plain"))
