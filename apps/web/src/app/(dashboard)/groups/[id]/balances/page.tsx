@@ -170,7 +170,8 @@ function GroupBalances({
       ) : mode === 'raw' ? (
         <>
           <p className="mb-4 text-[0.82rem]" style={{ color: 'var(--t-muted)' }}>
-            What each person owes the people who actually paid for them, before any simplifying.
+            What each person owes the people who actually paid for them, before any simplifying. You
+            can pay anyone you owe here directly.
           </p>
           <div className="flex flex-col gap-2.5">
             {rawDebts.map((tx) => (

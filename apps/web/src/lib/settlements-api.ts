@@ -19,7 +19,13 @@
 
 import { api } from './api-client';
 import { type AuthProfile, me } from './auth-api';
-import { getBalancesSummary, getGroupBalances } from './balances-api';
+import {
+  type GroupBalanceEntry,
+  type SimplifiedPayment,
+  getBalancesSummary,
+  getGroupBalances,
+  getRawGroupDebts,
+} from './balances-api';
 import type { AuthExpense } from './expenses-api';
 import { listFriends } from './friends-api';
 import { getGroup } from './groups-api';
@@ -108,27 +114,45 @@ export function getSettlementReceiptUrl(id: string): Promise<{ url: string }> {
   return api.get(`/settlements/requests/${id}/receipt`);
 }
 
+/** The most `payerId` can pay `recipientId` in a group -- apps/api's own
+ * rule (ADR-029, widening ADR-010): the larger of the nets way (payer
+ * owes the group and recipient is owed: the smaller of the two) and the
+ * real way (what the payer really owes the recipient on "who owes
+ * whom"). The API re-checks on submit. */
+export function groupPaymentCap(
+  entries: GroupBalanceEntry[],
+  raw: SimplifiedPayment[],
+  payerId: string,
+  recipientId: string,
+): bigint {
+  const nets = new Map(entries.map((e) => [e.userId, BigInt(e.netBalance)]));
+  const payerNet = nets.get(payerId) ?? 0n;
+  const recipientNet = nets.get(recipientId) ?? 0n;
+  const viaNets =
+    payerNet < 0n && recipientNet > 0n ? (-payerNet < recipientNet ? -payerNet : recipientNet) : 0n;
+  const viaPair =
+    raw.find((d) => d.fromUserId === payerId && d.toUserId === recipientId)?.amount ?? 0n;
+  return viaNets > viaPair ? viaNets : viaPair;
+}
+
 /** What someone owes you (their side of SettleTarget), for "They paid
- * me". Personal: their friend balance; in a group: they owe the group
- * and you're owed, capped by the smaller (ADR-010). */
+ * me". Personal: their friend balance; in a group: groupPaymentCap. */
 export async function loadReceiveTarget(
   fromUserId: string,
   groupId: string | null,
 ): Promise<SettleTarget | null> {
   if (groupId) {
-    const [profile, group, entries] = await Promise.all([
+    const [profile, group, entries, raw] = await Promise.all([
       me(),
       getGroup(groupId),
       getGroupBalances(groupId),
+      getRawGroupDebts(groupId),
     ]);
     const member = group.members.find((m) => m.userId === fromUserId && m.status === 'ACTIVE');
     if (!member) {
       return null;
     }
-    const nets = new Map(entries.map((e) => [e.userId, BigInt(e.netBalance)]));
-    const myNet = nets.get(profile.id) ?? 0n;
-    const theirNet = nets.get(fromUserId) ?? 0n;
-    const outstanding = theirNet < 0n && myNet > 0n ? (-theirNet < myNet ? -theirNet : myNet) : 0n;
+    const outstanding = groupPaymentCap(entries, raw, fromUserId, profile.id);
     return {
       me: profile,
       person: member.user,
@@ -167,19 +191,17 @@ export async function loadSettleTarget(
   groupId: string | null,
 ): Promise<SettleTarget | null> {
   if (groupId) {
-    const [profile, group, entries] = await Promise.all([
+    const [profile, group, entries, raw] = await Promise.all([
       me(),
       getGroup(groupId),
       getGroupBalances(groupId),
+      getRawGroupDebts(groupId),
     ]);
     const member = group.members.find((m) => m.userId === toUserId && m.status === 'ACTIVE');
     if (!member) {
       return null;
     }
-    const nets = new Map(entries.map((e) => [e.userId, BigInt(e.netBalance)]));
-    const myNet = nets.get(profile.id) ?? 0n;
-    const theirNet = nets.get(toUserId) ?? 0n;
-    const outstanding = myNet < 0n && theirNet > 0n ? (-myNet < theirNet ? -myNet : theirNet) : 0n;
+    const outstanding = groupPaymentCap(entries, raw, profile.id, toUserId);
     return {
       me: profile,
       person: member.user,
