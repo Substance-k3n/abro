@@ -1,4 +1,9 @@
 @import 'tailwindcss';
+/* The shared components (packages/ui: BalanceCard, PersonRow,
+   ActivityItem...) reach the app through node_modules, which Tailwind v4
+   doesn't scan -- so classes only they use (the balance card's
+   text-[2.4rem], for one) were never generated and silently fell back. */
+@source '../../../../packages/ui/src';
 
 /*
  * Design tokens, ported from the Figma Make prototype
