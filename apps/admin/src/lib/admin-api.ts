@@ -258,3 +258,34 @@ export interface GroupDetail {
 export const listGroups = (q: string, status: GroupStatus, page: number) =>
   api.get<GroupPage>(`/admin/groups${query({ q, status, page })}`);
 export const getGroup = (id: string) => api.get<GroupDetail>(`/admin/groups/${id}`);
+
+// --- voice ---
+
+export type VoiceMode = 'off' | 'listed' | 'everyone';
+
+export interface VoiceUser {
+  userId: string;
+  displayName: string;
+  email: string | null;
+  username: string | null;
+  avatarUrl: string | null;
+  suspendedAt: string | null;
+  access: VoiceAccess;
+  grantedAt: string | null;
+  grantedByName: string | null;
+  lastUsedAt: string | null;
+  sessions30d: number;
+}
+
+export interface VoiceSettings {
+  configured: boolean;
+  mode: VoiceMode;
+  /** VOICE_TESTERS' emails (Render); testersEveryone = a "*" there. */
+  testers: string[];
+  testersEveryone: boolean;
+  users: VoiceUser[];
+}
+
+export const getVoice = () => api.get<VoiceSettings>('/admin/voice');
+export const setVoiceMode = (mode: VoiceMode) =>
+  api.put<VoiceSettings>('/admin/voice/mode', { mode });
