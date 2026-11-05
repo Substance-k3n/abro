@@ -9,11 +9,13 @@
 //    flow: apps/api only lets the debtor record a settlement (ADR-003),
 //    so "they paid me" has to be recorded from their account. Rows open
 //    Friend Detail instead.
-//  - "Groups" lists the groups you owe in (your net < 0). Selecting one
-//    shows your payments from that group's simplified plan
-//    (GET /balances/groups/{id}/simplified, the same plan GRP-05/08
-//    show) -- each is payable because apps/api checks group
-//    settlements against nets (ADR-010).
+//  - "Groups" lists the groups you owe in: your net < 0, or you really
+//    owe someone there on "who owes whom" (ADR-029 -- A owes B and C
+//    owes A leaves A's net at 0, but A can still pay B). Selecting one
+//    shows your payments two ways: the simplest way (the simplified plan,
+//    GET /balances/groups/{id}/simplified) and who you really owe
+//    (/raw), opening on the group's "Simplify debts" setting. apps/api
+//    allows a payment either way.
 //  - Deep links (?friendId=, ?groupId=, ?groupId=&toUserId=) from Home,
 //    Friends, Friend Detail, Groups and Balances: a friend or a group
 //    payee goes straight to /settle/amount (which checks there's
@@ -38,6 +40,7 @@ import {
   type SimplifiedPayment,
   deriveFriendRows,
   getBalancesSummary,
+  getRawGroupDebts,
   getSimplifiedPayments,
 } from '~/lib/balances-api';
 import { listFriends } from '~/lib/friends-api';
@@ -57,8 +60,10 @@ interface OwedGroup {
   id: string;
   name: string;
   type: string;
-  /** What you owe the group overall (your net, made positive). */
+  /** What you owe the group overall (your net, made positive), or 0. */
   owed: bigint;
+  /** What you really owe people in it on "who owes whom" (ADR-029). */
+  real: bigint;
 }
 
 interface Data {
@@ -85,14 +90,30 @@ function SettleChooseForm() {
     setError(null);
     setData(null);
     Promise.all([me(), listFriends(), getBalancesSummary(), listGroups()])
-      .then(([profile, friends, summary, groups]) => {
+      .then(async ([profile, friends, summary, groups]) => {
         const netByGroup = new Map(summary.groups.map((g) => [g.groupId, BigInt(g.netBalance)]));
+        // A group is listed if you owe by its totals, or really owe
+        // someone in it even though others owe you as much (ADR-029:
+        // A owes B, C owes A -- A's total is 0 but A can still pay B).
+        const realOwed = await Promise.all(
+          groups.map((g) =>
+            getRawGroupDebts(g.id)
+              .then((debts) =>
+                debts.filter((d) => d.fromUserId === profile.id).reduce((t, d) => t + d.amount, 0n),
+              )
+              .catch(() => 0n),
+          ),
+        );
         setData({
           meId: profile.id,
           friends: deriveFriendRows(friends, summary),
           groups: groups
-            .filter((g) => (netByGroup.get(g.id) ?? 0n) < 0n)
-            .map((g) => ({ id: g.id, name: g.name, type: g.type, owed: -netByGroup.get(g.id)! })),
+            .map((g, i) => {
+              const net = netByGroup.get(g.id) ?? 0n;
+              const real = realOwed[i] ?? 0n;
+              return { id: g.id, name: g.name, type: g.type, owed: net < 0n ? -net : 0n, real };
+            })
+            .filter((g) => g.owed > 0n || g.real > 0n),
         });
       })
       .catch((err) => {
@@ -134,8 +155,10 @@ function SettleChooseForm() {
         groupId={openGroupId}
         meId={data.meId}
         onBack={() => setOpenGroupId(null)}
-        onPick={(toUserId) =>
-          router.push(`/settle/amount?toUserId=${toUserId}&groupId=${openGroupId}`)
+        onPick={(toUserId, amount) =>
+          router.push(
+            `/settle/amount?toUserId=${toUserId}&groupId=${openGroupId}${amount ? `&amount=${amount}` : ''}`,
+          )
         }
       />
     );
@@ -228,7 +251,9 @@ function SettleChooseForm() {
                         {g.name}
                       </p>
                       <p className="text-[0.74rem]" style={{ color: 'var(--t-dim)' }}>
-                        You owe {formatMoney(g.owed, ETB)} in this group
+                        {g.owed > 0n
+                          ? `You owe ${formatMoney(g.owed, ETB)} in this group`
+                          : `You owe ${formatMoney(g.real, ETB)} directly to people here`}
                       </p>
                     </div>
                     <ArrowRight size={16} strokeWidth={2} style={{ color: 'var(--t-dim)' }} />
@@ -271,7 +296,10 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** One group's payments you make, from apps/api's simplified plan. */
+/** One group's payments you make, two ways (ADR-029): the simplest way
+ * (apps/api's simplified plan, fewest payments) or who you really owe
+ * ("who owes whom", the people who paid for you). Opens on the group's
+ * "Simplify debts" setting; you can switch. apps/api allows either. */
 function GroupPayments({
   groupId,
   meId,
@@ -281,17 +309,25 @@ function GroupPayments({
   groupId: string;
   meId: string;
   onBack: () => void;
-  onPick: (toUserId: string) => void;
+  onPick: (toUserId: string, amount?: bigint) => void;
 }) {
   const [state, setState] = useState<
-    { group: AuthGroup; payments: SimplifiedPayment[] } | 'loading' | 'notFound' | string
+    | { group: AuthGroup; simplest: SimplifiedPayment[]; real: SimplifiedPayment[] }
+    | 'loading'
+    | 'notFound'
+    | string
   >('loading');
+  const [way, setWay] = useState<'simplest' | 'real' | null>(null);
 
   const load = () => {
     setState('loading');
-    Promise.all([getGroup(groupId), getSimplifiedPayments(groupId)])
-      .then(([group, plan]) =>
-        setState({ group, payments: plan.filter((p) => p.fromUserId === meId) }),
+    Promise.all([getGroup(groupId), getSimplifiedPayments(groupId), getRawGroupDebts(groupId)])
+      .then(([group, plan, raw]) =>
+        setState({
+          group,
+          simplest: plan.filter((p) => p.fromUserId === meId),
+          real: raw.filter((p) => p.fromUserId === meId),
+        }),
       )
       .catch((err) => {
         if (err instanceof ApiError && [400, 403, 404].includes(err.status)) {
@@ -313,11 +349,15 @@ function GroupPayments({
   }
 
   const group = typeof state === 'object' ? state.group : null;
-  const payments = typeof state === 'object' ? state.payments : [];
+  const simplest = typeof state === 'object' ? state.simplest : [];
+  const real = typeof state === 'object' ? state.real : [];
+  const shown: 'simplest' | 'real' = way ?? (group && !group.simplifyDebts ? 'real' : 'simplest');
+  const payments = shown === 'real' ? real : simplest;
   const nameOf = (id: string) =>
     group?.members.find((m) => m.userId === id)?.user.displayName ?? 'Former member';
   const photoOf = (id: string) =>
     photoSrc(group?.members.find((m) => m.userId === id)?.user.avatarUrl);
+  const both = simplest.length > 0 || real.length > 0;
 
   return (
     <div className="flex flex-col gap-5">
@@ -338,13 +378,42 @@ function GroupPayments({
         <div className="w-[70px]" />
       </div>
 
+      {group && both && (
+        <>
+          <div className="neo-inset-sm flex gap-1 rounded-[14px] p-1" role="tablist">
+            {(['simplest', 'real'] as const).map((w) => (
+              <button
+                key={w}
+                role="tab"
+                aria-selected={shown === w}
+                onClick={() => setWay(w)}
+                className={`neo-tab flex-1 whitespace-nowrap border-none ${shown === w ? 'active' : ''}`}
+              >
+                {w === 'simplest' ? 'Simplest way' : 'Who you really owe'}
+              </button>
+            ))}
+          </div>
+          <p className="text-[0.8rem]" style={{ color: 'var(--t-muted)' }}>
+            {shown === 'simplest'
+              ? 'The fewest payments that settle the whole group. They may send your money to someone other than who paid for you.'
+              : "The people who actually paid for you. Pay them directly, for example when someone in the simplest way can't be reached."}
+          </p>
+        </>
+      )}
+
       {payments.length === 0 ? (
         <EmptyState
           icon={<Handshake size={26} strokeWidth={1.5} />}
-          title={group ? 'Nothing to settle' : 'Group not found'}
+          title={
+            group ? (both ? 'Nothing to pay this way' : 'Nothing to settle') : 'Group not found'
+          }
           description={
             group
-              ? "You don't owe anyone in this group right now."
+              ? both
+                ? shown === 'simplest'
+                  ? 'In the simplest way, others pay instead of you. You can still pay who you really owe.'
+                  : "You don't owe anyone here directly. Use the simplest way."
+                : "You don't owe anyone in this group right now."
               : "This group doesn't exist, or you're not a member."
           }
         />
@@ -357,9 +426,9 @@ function GroupPayments({
               color={colorForId(p.toUserId)}
               photo={photoOf(p.toUserId)}
               name={nameOf(p.toUserId)}
-              sub="Suggested payment in this group"
+              sub={shown === 'real' ? 'You really owe them' : 'Suggested payment in this group'}
               right={<AmountBadge amount={p.amount} dir="owe" />}
-              onClick={() => onPick(p.toUserId)}
+              onClick={() => onPick(p.toUserId, shown === 'real' ? p.amount : undefined)}
             />
           ))}
         </div>
