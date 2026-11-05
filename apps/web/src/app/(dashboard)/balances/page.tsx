@@ -47,18 +47,11 @@
 //    case-insensitively against apps/api's UPPERCASE `type` enum -- same
 //    deviation already established on Home.
 
-import {
-  AmountBadge,
-  BalanceCard,
-  EmptyState,
-  MoneyDisplay,
-  PersonRow,
-  SectionLabel,
-} from '@abro/ui';
+import { Avatar, EmptyState } from '@abro/ui';
 import { Handshake } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
 import { ApiError } from '~/lib/api-client';
@@ -72,6 +65,7 @@ import {
 import { type FriendListItem, listFriends } from '~/lib/friends-api';
 import { type AuthGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { GroupPicture } from '~/components/GroupPicture';
+import { Amount, HeroBalance, Panel, Row, SectionHeader, Tile } from '~/components/refresh';
 import { useApiRefresh } from '~/lib/use-api-refresh';
 
 type FilterKey = 'all' | 'friends' | 'groups';
@@ -138,7 +132,7 @@ export default function BalancesPage() {
     <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       {/* Header */}
       <h2
-        className="font-display mb-5 text-[1.5rem] font-extrabold tracking-tighter"
+        className="font-display mb-5 text-[1.6rem] font-semibold tracking-tight"
         style={{ color: 'var(--t-primary)' }}
       >
         Balances
@@ -158,16 +152,14 @@ export default function BalancesPage() {
         ))}
       </div>
 
-      {/* Total Balance Card */}
-      <div className="mb-6">
-        <BalanceCard
-          net={net}
-          owedTotal={owedTotal}
-          oweTotal={oweTotal}
-          onOwedClick={() => router.push('/balances/owed')}
-          onOweClick={() => router.push('/balances/owe')}
-        />
-      </div>
+      <HeroBalance
+        net={net}
+        owedTotal={owedTotal}
+        oweTotal={oweTotal}
+        onOwed={() => router.push('/balances/owed')}
+        onOwe={() => router.push('/balances/owe')}
+      />
+      <div className="mb-7" />
 
       {/* Currency Breakdown: not applicable -- see header comment (ETB-only
           app, nothing to break down or collapse). */}
@@ -179,103 +171,126 @@ export default function BalancesPage() {
           description="No outstanding balances to show for this filter."
         />
       ) : (
-        <div className="flex flex-col gap-6">
-          {showFriends && (owedToYou.length > 0 || youOwe.length > 0) && (
-            <div className="flex flex-col gap-4">
-              {owedToYou.length > 0 && (
-                <div>
-                  <SectionLabel>People who owe you</SectionLabel>
-                  {/* No "Settle" button here: apps/api/internal/settlements/
-                      service.go only lets the debtor record a settlement
-                      (ADR-003) -- there's no valid settle action from this
-                      session for a debt owed *to* you. See settle/page.tsx's
-                      header comment. */}
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    {owedToYou.map((f) => (
-                      <PersonRow
-                        key={f.id}
-                        initials={f.initials}
-                        photo={f.photo}
-                        color={f.color}
-                        name={f.name}
-                        right={<AmountBadge amount={f.owes} dir="receive" />}
-                        onClick={() => router.push(`/friends/${f.id}`)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {youOwe.length > 0 && (
-                <div>
-                  <SectionLabel>People you owe</SectionLabel>
-                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                    {youOwe.map((f) => (
-                      <div key={f.id} className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <PersonRow
-                            initials={f.initials}
-                            photo={f.photo}
-                            color={f.color}
-                            name={f.name}
-                            right={<AmountBadge amount={f.iOwe} dir="owe" />}
-                            onClick={() => router.push(`/friends/${f.id}`)}
-                          />
-                        </div>
-                        <Link
-                          href={`/settle?friendId=${f.id}`}
-                          className="neo-btn shrink-0 rounded-xl px-3 py-2 text-[0.72rem] font-semibold"
-                        >
-                          Settle
-                        </Link>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {showGroups && groupsWithBalance.length > 0 && (
-            <div>
-              <SectionLabel>Groups</SectionLabel>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                {groupsWithBalance.map((g) => (
-                  <div key={g.id} className="flex items-center gap-2">
-                    <Link
-                      href={`/groups/${g.id}`}
-                      className="neo-raised-sm flex flex-1 items-center gap-3 rounded-2xl px-3.5 py-3"
-                    >
-                      <div
-                        className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[13px]"
-                        style={{ background: g.groupType.tint, color: g.groupType.color }}
-                      >
-                        <GroupPicture photo={g.photo} icon={g.groupType.icon} size={19} />
-                      </div>
-                      <span
-                        className="flex-1 text-[0.88rem] font-semibold"
-                        style={{ color: 'var(--t-primary)' }}
-                      >
-                        {g.name}
-                      </span>
-                      <MoneyDisplay
-                        amount={g.balance < 0n ? -g.balance : g.balance}
-                        className="font-mono text-sm font-semibold"
-                        style={{ color: g.balance > 0n ? 'var(--c-green)' : 'var(--c-red)' }}
-                      />
-                    </Link>
-                    <Link
-                      href={`/settle?groupId=${g.id}`}
-                      className="neo-btn shrink-0 rounded-xl px-3 py-2 text-[0.72rem] font-semibold"
-                    >
-                      Settle
-                    </Link>
-                  </div>
+        <div className="grid grid-cols-1 gap-7 md:grid-cols-2 md:items-start">
+          {/* No "Settle" on people who owe you: only the debtor records a
+              payment from here (they can record "they paid me" from the
+              friend's page). See settle/page.tsx's header comment. */}
+          {showFriends && owedToYou.length > 0 && (
+            <section>
+              <SectionHeader title="Owe you" />
+              <Panel>
+                {owedToYou.map((f) => (
+                  <Row
+                    key={f.id}
+                    href={`/friends/${f.id}`}
+                    leading={
+                      <Avatar initials={f.initials} color={f.color} size={40} src={f.photo} />
+                    }
+                    title={f.name}
+                    sub="owes you"
+                    subTone="owed"
+                    trailing={<Amount value={f.owes} tone="owed" />}
+                  />
                 ))}
-              </div>
-            </div>
+              </Panel>
+            </section>
+          )}
+          {showFriends && youOwe.length > 0 && (
+            <section>
+              <SectionHeader title="You owe" />
+              <Panel>
+                {youOwe.map((f) => (
+                  <SettleRow
+                    key={f.id}
+                    href={`/friends/${f.id}`}
+                    settleHref={`/settle?friendId=${f.id}`}
+                    leading={
+                      <Avatar initials={f.initials} color={f.color} size={40} src={f.photo} />
+                    }
+                    title={f.name}
+                    sub="you owe"
+                    tone="owe"
+                    amount={f.iOwe}
+                  />
+                ))}
+              </Panel>
+            </section>
+          )}
+          {showGroups && groupsWithBalance.length > 0 && (
+            <section>
+              <SectionHeader title="Groups" />
+              <Panel>
+                {groupsWithBalance.map((g) => (
+                  <SettleRow
+                    key={g.id}
+                    href={`/groups/${g.id}`}
+                    settleHref={`/settle?groupId=${g.id}`}
+                    leading={
+                      <Tile tint={g.groupType.tint} color={g.groupType.color}>
+                        <GroupPicture photo={g.photo} icon={g.groupType.icon} size={19} />
+                      </Tile>
+                    }
+                    title={g.name}
+                    sub={g.balance > 0n ? "you're owed" : 'you owe'}
+                    tone={g.balance > 0n ? 'owed' : 'owe'}
+                    amount={g.balance}
+                  />
+                ))}
+              </Panel>
+            </section>
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** A Panel row that opens something, with its own Settle button beside
+ * it (two links side by side -- a link can't hold another). */
+function SettleRow({
+  href,
+  settleHref,
+  leading,
+  title,
+  sub,
+  tone,
+  amount,
+}: {
+  href: string;
+  settleHref: string;
+  leading: ReactNode;
+  title: string;
+  sub: string;
+  tone: 'owed' | 'owe';
+  amount: bigint;
+}) {
+  return (
+    <div className="panel-row flex items-center gap-2 pr-3">
+      <Link href={href} className="flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4">
+        <span className="shrink-0">{leading}</span>
+        <span className="min-w-0 flex-1">
+          <span
+            className="block truncate text-[0.92rem] font-semibold"
+            style={{ color: 'var(--t-primary)' }}
+          >
+            {title}
+          </span>
+          <span
+            className="mt-0.5 block text-[0.76rem]"
+            style={{ color: tone === 'owed' ? 'var(--owed)' : 'var(--owe)' }}
+          >
+            {sub}
+          </span>
+        </span>
+        <Amount value={amount} tone={tone} />
+      </Link>
+      <Link
+        href={settleHref}
+        className="neo-btn shrink-0 rounded-xl px-3 py-2 text-[0.74rem] font-semibold"
+        style={{ color: 'var(--accent)' }}
+      >
+        Settle
+      </Link>
     </div>
   );
 }
