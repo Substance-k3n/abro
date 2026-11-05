@@ -23,6 +23,23 @@ type AdminMe struct {
 	Role        string      `json:"role"`
 	Owner       bool        `json:"owner"`
 	Permissions []string    `json:"permissions"`
+	// Session is the portal's limits and when this sign-in ends.
+	Session AdminSessionPolicy `json:"session"`
+}
+
+// AdminSessionPolicy: portal sign-ins end after IdleMinutes unused or
+// MaxHours after signing in, whichever comes first (ADR-028).
+type AdminSessionPolicy struct {
+	IdleMinutes int       `json:"idleMinutes"`
+	MaxHours    int       `json:"maxHours"`
+	StartedAt   time.Time `json:"startedAt"`
+	EndsAt      time.Time `json:"endsAt"`
+}
+
+// AdminOwnSession is one of the signed-in admin's own sessions.
+type AdminOwnSession struct {
+	AdminSession
+	Current bool `json:"current"`
 }
 
 type AdminUserSummary struct {

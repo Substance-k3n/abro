@@ -8,6 +8,7 @@ import (
 	"context"
 	"net/http"
 	"slices"
+	"time"
 
 	authpkg "github.com/Substance-k3n/abro/apps/api/internal/auth"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
@@ -95,6 +96,12 @@ func (s *Service) RequireAdmin(next http.Handler) http.Handler {
 	return authpkg.RequireSession(s.q)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		a, err := s.adminFor(r.Context(), authpkg.CurrentUser(r.Context()))
 		if err != nil {
+			httpx.WriteError(w, r, err)
+			return
+		}
+		// Only for admins: a non-admin's session is none of the portal's
+		// business (and stays NOT_ADMIN, not signed out).
+		if err := s.checkSessionLimits(r.Context(), authpkg.CurrentSession(r.Context()), time.Now()); err != nil {
 			httpx.WriteError(w, r, err)
 			return
 		}

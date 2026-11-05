@@ -139,3 +139,13 @@ WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > now();
 -- name: RevokeUserSession :execrows
 UPDATE sessions SET revoked_at = now()
 WHERE id = @id AND user_id = @user_id AND revoked_at IS NULL AND expires_at > now();
+
+-- name: RevokeSessionByID :execrows
+-- One session by id, live only (the admin portal's idle/age limits).
+UPDATE sessions SET revoked_at = now()
+WHERE id = $1 AND revoked_at IS NULL;
+
+-- name: RevokeOtherUserSessions :execrows
+-- "Sign out everywhere else": every live session but the one in use.
+UPDATE sessions SET revoked_at = now()
+WHERE user_id = @user_id AND id <> @keep_id AND revoked_at IS NULL AND expires_at > now();

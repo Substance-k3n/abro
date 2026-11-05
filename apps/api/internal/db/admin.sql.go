@@ -489,6 +489,39 @@ func (q *Queries) RevokeAllUserSessions(ctx context.Context, userID pgtype.UUID)
 	return result.RowsAffected(), nil
 }
 
+const revokeOtherUserSessions = `-- name: RevokeOtherUserSessions :execrows
+UPDATE sessions SET revoked_at = now()
+WHERE user_id = $1 AND id <> $2 AND revoked_at IS NULL AND expires_at > now()
+`
+
+type RevokeOtherUserSessionsParams struct {
+	UserID pgtype.UUID `json:"user_id"`
+	KeepID pgtype.UUID `json:"keep_id"`
+}
+
+// "Sign out everywhere else": every live session but the one in use.
+func (q *Queries) RevokeOtherUserSessions(ctx context.Context, arg RevokeOtherUserSessionsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeOtherUserSessions, arg.UserID, arg.KeepID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeSessionByID = `-- name: RevokeSessionByID :execrows
+UPDATE sessions SET revoked_at = now()
+WHERE id = $1 AND revoked_at IS NULL
+`
+
+// One session by id, live only (the admin portal's idle/age limits).
+func (q *Queries) RevokeSessionByID(ctx context.Context, id pgtype.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeSessionByID, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const revokeUserSession = `-- name: RevokeUserSession :execrows
 UPDATE sessions SET revoked_at = now()
 WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > now()

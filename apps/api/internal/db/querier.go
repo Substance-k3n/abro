@@ -299,6 +299,10 @@ type Querier interface {
 	// SETTLEMENT expense is written, so it can never be confirmed twice.
 	ResolveSettlementRequest(ctx context.Context, arg ResolveSettlementRequestParams) (SettlementRequest, error)
 	RevokeAllUserSessions(ctx context.Context, userID pgtype.UUID) (int64, error)
+	// "Sign out everywhere else": every live session but the one in use.
+	RevokeOtherUserSessions(ctx context.Context, arg RevokeOtherUserSessionsParams) (int64, error)
+	// One session by id, live only (the admin portal's idle/age limits).
+	RevokeSessionByID(ctx context.Context, id pgtype.UUID) (int64, error)
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
 	RevokeUserSession(ctx context.Context, arg RevokeUserSessionParams) (int64, error)
 	RevokeVoiceAccess(ctx context.Context, userID pgtype.UUID) (int64, error)
