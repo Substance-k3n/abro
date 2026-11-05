@@ -33,7 +33,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       setState({ kind: 'ready', me: await getMe() });
     } catch (err) {
       if (err instanceof ApiError && err.status === 401 && SIGNED_OUT.has(err.code)) {
-        router.replace(`/signin?next=${encodeURIComponent(path.current)}`);
+        const why = (err.details as { reason?: string } | undefined)?.reason;
+        router.replace(
+          `/signin?next=${encodeURIComponent(path.current)}${why ? `&why=${encodeURIComponent(why)}` : ''}`,
+        );
         return;
       }
       if (err instanceof ApiError && err.code === 'NOT_ADMIN') {

@@ -31,6 +31,9 @@ export interface AdminMe {
   /** A super admin from ADMIN_EMAILS (Render), above every stored role. */
   owner: boolean;
   permissions: Permission[];
+  /** Portal sign-ins end after idleMinutes unused or maxHours after
+   * signing in (apps/api/internal/admin/security.go). */
+  session: { idleMinutes: number; maxHours: number; startedAt: string; endsAt: string };
 }
 
 export const getMe = () => api.get<AdminMe>('/admin/me');
@@ -310,3 +313,14 @@ export const setAdminRole = (userId: string, role: AdminRole) =>
   api.put<SiteAdmin[]>(`/admin/admins/${userId}`, { role });
 export const removeAdminRole = (userId: string) =>
   api.delete<SiteAdmin[]>(`/admin/admins/${userId}`);
+
+// --- your own sessions (Security) ---
+
+export interface OwnSession extends AdminSession {
+  /** The one this browser is using. */
+  current: boolean;
+}
+
+export const mySessions = () => api.get<OwnSession[]>('/admin/me/sessions');
+export const endMySession = (id: string) => api.delete<OwnSession[]>(`/admin/me/sessions/${id}`);
+export const endMyOtherSessions = () => api.post<OwnSession[]>('/admin/me/sessions/revoke-others');

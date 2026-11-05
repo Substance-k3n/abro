@@ -16,6 +16,13 @@ import { safeNext } from '~/lib/session';
 
 const RESEND_AFTER_S = 60;
 
+// Why the portal sent you here (?why=, from apps/api's session limits or
+// the portal's own idle lock).
+const WHY: Record<string, string> = {
+  idle: 'You were signed out after 30 minutes without use.',
+  max_age: 'Portal sign-ins last 12 hours. Sign in again to carry on.',
+};
+
 export default function SignInPage() {
   return (
     <Suspense>
@@ -26,7 +33,9 @@ export default function SignInPage() {
 
 function SignIn() {
   const router = useRouter();
-  const next = safeNext(useSearchParams().get('next'));
+  const params = useSearchParams();
+  const next = safeNext(params.get('next'));
+  const why = WHY[params.get('why') ?? ''];
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -109,6 +118,14 @@ function SignIn() {
             >
               <h1 className="font-display text-xl font-semibold">Sign in</h1>
               <p className="text-ink-3 mt-1 text-sm">We&apos;ll email you a 6-digit code.</p>
+              {why && !error && (
+                <p
+                  role="status"
+                  className="bg-warn-soft text-warn mt-4 rounded-lg px-3 py-2 text-sm"
+                >
+                  {why}
+                </p>
+              )}
               <label htmlFor="email" className="label mt-6 block">
                 Email
               </label>
