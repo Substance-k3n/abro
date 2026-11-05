@@ -10,6 +10,7 @@ import {
   LogOut,
   type LucideIcon,
   Mic,
+  ScrollText,
   ShieldCheck,
   Users,
 } from 'lucide-react';
@@ -36,6 +37,7 @@ const NAV: NavItem[] = [
   { href: '/groups', label: 'Groups', icon: Boxes, need: 'groups.view' },
   { href: '/voice', label: 'Voice', icon: Mic, need: 'overview.view' },
   { href: '/roles', label: 'Roles & Permissions', icon: ShieldCheck, need: 'admins.view' },
+  { href: '/audit', label: 'Audit log', icon: ScrollText, need: 'audit.view' },
 ];
 
 const today = () =>
