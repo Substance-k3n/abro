@@ -200,3 +200,61 @@ export const listAudit = (f: {
   action?: string;
   cursor?: string;
 }) => api.get<AuditPage>(`/admin/audit${query(f)}`);
+
+// --- groups ---
+
+export type GroupStatus = '' | 'deleted' | 'all';
+
+export interface GroupSummary {
+  id: string;
+  name: string;
+  type: string;
+  currency: string;
+  createdAt: string;
+  deletedAt: string | null;
+  creatorId: string;
+  creatorName: string;
+  memberCount: number;
+  invitedCount: number;
+  expenseCount: number;
+  lastActivityAt: string | null;
+}
+
+export interface GroupPage {
+  groups: GroupSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface GroupMember {
+  userId: string;
+  displayName: string;
+  email: string | null;
+  username: string | null;
+  avatarUrl: string | null;
+  suspendedAt: string | null;
+  role: 'ADMIN' | 'MEMBER';
+  status: 'INVITED' | 'ACTIVE' | 'LEFT';
+  joinedAt: string;
+}
+
+export interface GroupDetail {
+  id: string;
+  name: string;
+  type: string;
+  currency: string;
+  description: string | null;
+  createdAt: string;
+  deletedAt: string | null;
+  creatorId: string;
+  creatorName: string;
+  expenseCount: number;
+  settlementCount: number;
+  lastActivityAt: string | null;
+  members: GroupMember[];
+}
+
+export const listGroups = (q: string, status: GroupStatus, page: number) =>
+  api.get<GroupPage>(`/admin/groups${query({ q, status, page })}`);
+export const getGroup = (id: string) => api.get<GroupDetail>(`/admin/groups/${id}`);

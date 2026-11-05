@@ -333,7 +333,12 @@ export default function UserPage() {
                     className="border-line flex items-center justify-between gap-4 border-t px-5 py-3 first:border-t-0"
                   >
                     <div className="min-w-0">
-                      <div className="truncate font-medium">{g.name}</div>
+                      <Link
+                        href={`/groups/${g.id}`}
+                        className="block truncate font-medium hover:underline"
+                      >
+                        {g.name}
+                      </Link>
                       <div className="text-ink-3 text-xs">
                         {g.type.charAt(0) + g.type.slice(1).toLowerCase()} · {num(g.memberCount)}{' '}
                         {g.memberCount === 1 ? 'member' : 'members'} · since {dateOnly(g.joinedAt)}
