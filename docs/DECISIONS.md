@@ -7,6 +7,34 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-029: Group payments the simplified way or the real way -- the payer picks
+
+**Status:** Accepted (user request and approval, 2026-11-05). Widens ADR-010.
+
+**Context:** A owes B 1000 and C owes A 1000. The simplified plan says
+"C pays B 1000", so A's net is 0, and ADR-010 refused "A pays B" even
+when C couldn't be reached. Turning "Simplify debts" off only hid a tab.
+
+**Decision:** A group payment is allowed if either rule allows it, and
+it's capped by the larger of the two limits:
+
+- **nets** (ADR-010): payer net < 0 and recipient net > 0, capped at
+  `min(-payerNet, recipientNet)`;
+- **real pair**: the payer really owes the recipient on "who owes whom",
+  capped at that debt.
+
+This applies to recording a payment, "they paid me", and the re-check
+on confirm. "Who owes whom" now cancels debts that go round in a circle
+(`money.CancelCycles`), so a payment made the simplified way leaves no
+A→B→C→A loop. Cancelling keeps every net the same and never adds a new
+pair.
+
+**Consequences:** balances stay derived from expense rows; only the
+validation and the pairs view changed. The PWA's Settle screen still
+offers only the simplified plan until its own PR.
+
+---
+
 ## ADR-028: A separate site admin portal -- ranked roles, suspensions, an audit log
 
 **Status:** Accepted (user request, 2026-11-05). API in two PRs

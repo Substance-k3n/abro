@@ -275,7 +275,7 @@ func TestService_Create(t *testing.T) {
 		assert.Equal(t, int64(0), personal)
 	})
 
-	t.Run("group settlements are checked against group nets, not the pair's shared expenses", func(t *testing.T) {
+	t.Run("group settlements are checked against group nets or the real pair (ADR-010, ADR-029)", func(t *testing.T) {
 		e := setup(t)
 		a := e.makeProfile(t, "A")
 		b := e.makeProfile(t, "B")
@@ -321,11 +321,15 @@ func TestService_Create(t *testing.T) {
 			return apiErr.Code
 		}
 
-		// C owes nothing; B is owed nothing (net < 0); more than A owes.
+		// C owes nothing. B owes A nothing and A isn't owed (net < 0).
+		// A really owes B 33 (ADR-029), but no more: B's net is below 0,
+		// so the nets give A nothing to pay B. More than A owes C.
 		_, err = settle(e, ctx, c.ID, settleInput(a.ID, "10", &group.ID))
 		assert.Equal(t, "NO_OUTSTANDING_DEBT", codeOf(err))
-		_, err = settle(e, ctx, a.ID, settleInput(b.ID, "10", &group.ID))
+		_, err = settle(e, ctx, b.ID, settleInput(a.ID, "10", &group.ID))
 		assert.Equal(t, "RECIPIENT_NOT_OWED", codeOf(err))
+		_, err = e.svc.Create(ctx, a.ID, settleInput(b.ID, "34", &group.ID))
+		assert.Equal(t, "EXCEEDS_OUTSTANDING_DEBT", codeOf(err))
 		_, err = settle(e, ctx, a.ID, settleInput(c.ID, "334", &group.ID))
 		assert.Equal(t, "EXCEEDS_OUTSTANDING_DEBT", codeOf(err))
 
