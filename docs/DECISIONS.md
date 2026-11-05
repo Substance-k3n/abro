@@ -7,6 +7,56 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-028: A separate site admin portal -- ranked roles, suspensions, an audit log
+
+**Status:** Accepted (user request, 2026-11-05). API foundation first;
+the portal app (`apps/admin`) follows in its own PRs.
+
+**Context:** ABRO had no site-wide admin. Group admins run their own
+groups. Voice access is an email list in Render, and there was no way to
+stop an abusive account or see who uses the app without SQL. The user
+wants a real admin portal, separate from the PWA, like a back-office
+dashboard: check, control and revoke.
+
+**Decision:**
+
+- A **separate web app** (`apps/admin`, its own Vercel site) calls the
+  same API under `/admin/*`, through its own `/api` proxy, so its session
+  cookie is first-party to the admin site. It is never part of the PWA.
+- **Three ranks**, stored in `site_admins` (one row per admin):
+  `SUPPORT` (look only: users, admins, audit log), `ADMIN` (+ suspend,
+  unsuspend, end sessions), `SUPER_ADMIN` (+ grant and remove roles).
+  **Owners** are the emails in `ADMIN_EMAILS`: super admins with no row,
+  ranked above every stored role.
+- **You only act on someone below you.** Never yourself, never an owner,
+  and only on a lower rank. You can only grant a role below your own, so
+  only owners make or unmake super admins, and no super admin can demote
+  another one.
+- **Suspending** sets `profiles.suspended_at` with a required reason and
+  ends every session in the same transaction. Sign-in (OTP and Google)
+  refuses with `ACCOUNT_SUSPENDED`. The session middleware also refuses a
+  suspended profile, answering like an expired session, so the PWA sends
+  the person to sign-in, where they're told why.
+- **Every change writes an `admin_audit_log` row in the same
+  transaction** (actor, action, target, details, IP). A refused action
+  writes nothing. The log is append-only, and rows outlive deleted
+  people (`ON DELETE SET NULL`).
+- **Privacy:** the admin API returns counts and account facts (groups,
+  friends, expense and settlement counts, sessions, group names and
+  sizes), never balances, expense names, amounts or receipts.
+
+**Alternatives:** an `is_admin` flag, which is simpler but has no ranks,
+so any admin could remove every other. Admin screens inside the PWA,
+which would ship admin code to every phone and mix two audiences. Logging
+admin actions after the fact, outside the transaction, which can leave an
+action with no log row.
+
+**Consequences:** the owner must be in `ADMIN_EMAILS` on Render before
+the portal is any use. Viewing a user isn't logged yet, only changes are.
+Admin sessions use the normal 30-day session lifetime.
+
+---
+
 ## ADR-027: Voice commands through Tezaz -- testers only, tokens from the API
 
 **Status:** Accepted (user request, 2026-10-27). Pilot.

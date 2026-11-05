@@ -53,7 +53,7 @@ const setProfileAvatar = `-- name: SetProfileAvatar :one
 UPDATE profiles
 SET avatar_url = $1, avatar_path = $2, updated_at = now()
 WHERE id = $3
-RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends
+RETURNING id, display_name, avatar_url, phone, email, preferred_currency, locale, created_at, updated_at, username, avatar_path, auto_remind_friends, suspended_at, suspension_reason
 `
 
 type SetProfileAvatarParams struct {
@@ -80,6 +80,8 @@ func (q *Queries) SetProfileAvatar(ctx context.Context, arg SetProfileAvatarPara
 		&i.Username,
 		&i.AvatarPath,
 		&i.AutoRemindFriends,
+		&i.SuspendedAt,
+		&i.SuspensionReason,
 	)
 	return i, err
 }

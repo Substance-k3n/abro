@@ -21,7 +21,7 @@
 // `?error=<reason>` is apps/api's googleCallback redirecting back here
 // after a failed Google attempt (router.go): oauth_state (state
 // mismatch/expired), google_cancelled (Cancel on Google's screen),
-// google_unverified, or google (anything else). Shown as a plain error
+// google_unverified, suspended (ADR-028), or google (anything else). Shown as a plain error
 // banner, not a toast/modal (no toast system exists yet anywhere in this
 // app).
 
@@ -37,6 +37,7 @@ const OAUTH_ERRORS: Record<string, string> = {
   google_unverified:
     'Your Google account email is not verified. Verify it with Google, or use email sign-in.',
   google: 'Google sign-in failed. Please try again.',
+  suspended: "This account is suspended. Contact ABRO support if you think it's a mistake.",
 };
 
 export default function SignInPage() {

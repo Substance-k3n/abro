@@ -254,5 +254,11 @@ a Vercel redeploy.
   button. Tokens are minted for `WEB_ORIGIN`, so it must be the exact
   web address.
 
+- **Admin portal** (ADR-028): set `ADMIN_EMAILS` on Render to the
+  owner's email (comma-separated for more). Those accounts are super
+  admins with no database row, and nobody can demote or suspend them from
+  inside the app. Every other admin is granted in the portal. Unset, only
+  stored roles count, and on a fresh database that means nobody.
+
 - **Client IPs** in session metadata are whatever Vercel forwards in
   `X-Forwarded-For` (chi's `RealIP`). They're informational only.
