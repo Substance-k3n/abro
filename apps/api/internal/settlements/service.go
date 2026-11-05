@@ -364,13 +364,18 @@ func (s *Service) nameOf(ctx context.Context, userID pgtype.UUID) string {
 // Personal: their pairwise balance (what the actor owes them across
 // shared personal expenses).
 //
-// In a group (ADR-010, decided with the user 2026-09-29): measured
-// against group nets, not the pair's shared expenses -- the actor must
-// owe the group (net < 0), the recipient must be owed (net > 0), and the
-// amount is capped by the smaller of the two. That's what every group
-// screen shows and what the simplified plan routes through, so each of
-// its payments is payable; after one, both nets move toward 0 and no one
-// else's changes.
+// In a group there are two ways to pay, and the payer picks (ADR-029,
+// decided with the user 2026-11-05, widening ADR-010):
+//   - the simplified way (ADR-010): the actor owes the group (net < 0)
+//     and the recipient is owed (net > 0), capped by the smaller of the
+//     two -- every payment in the simplified plan is payable;
+//   - the real way: the actor really owes the recipient on "who owes
+//     whom" (balances.GetRawPairDebt), capped by that debt -- so A can
+//     pay B what A owes B even when the plan routes C's money to B
+//     instead and A's net is 0.
+//
+// The cap is the larger of the two. Either way only the actor's and the
+// recipient's nets move, and every balance stays derived from the rows.
 func (s *Service) outstanding(ctx context.Context, actorID, toUserID, groupID pgtype.UUID) (money.MinorUnits, error) {
 	if !groupID.Valid {
 		owed, err := s.balances.GetPairwiseBalance(ctx, actorID, toUserID, groupID)
@@ -397,13 +402,21 @@ func (s *Service) outstanding(ctx context.Context, actorID, toUserID, groupID pg
 			recipientNet = p.NetBalance
 		}
 	}
+	var viaNets money.MinorUnits
+	if actorNet < 0 && recipientNet > 0 {
+		viaNets = min(-actorNet, recipientNet)
+	}
+	viaPair, err := s.balances.GetRawPairDebt(ctx, groupID, actorID, toUserID)
+	if err != nil {
+		return 0, err
+	}
+	if allowed := max(viaNets, viaPair); allowed > 0 {
+		return allowed, nil
+	}
 	if actorNet >= 0 {
 		return 0, httpx.Conflict("NO_OUTSTANDING_DEBT", "You do not currently owe anything in this group.")
 	}
-	if recipientNet <= 0 {
-		return 0, httpx.Conflict("RECIPIENT_NOT_OWED", "This member isn't owed anything in this group.")
-	}
-	return min(-actorNet, recipientNet), nil
+	return 0, httpx.Conflict("RECIPIENT_NOT_OWED", "You don't owe this member anything, and they aren't owed anything in this group.")
 }
 
 // resolveCurrency also enforces group-membership authorization as a side

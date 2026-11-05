@@ -6,7 +6,6 @@ package balances
 
 import (
 	"context"
-	"sort"
 
 	"github.com/jackc/pgx/v5/pgtype"
 
@@ -116,44 +115,43 @@ func (s *Service) GetSimplifiedGroupDebts(ctx context.Context, groupID pgtype.UU
 
 // GetRawGroupDebts is the unsimplified "who owes whom" in a group: for
 // every pair, what the participant owes the payer across the group's
-// expenses, netted against the other direction (settlements included).
-// Unlike GetSimplifiedGroupDebts it never routes a debt through someone
-// who wasn't on the expense. Sorted largest first, then by user ids, so
-// the list is stable.
+// expenses, netted against the other direction (settlements included),
+// with debts that go round in a circle cancelled (money.CancelCycles,
+// ADR-029) -- so a payment made along the simplified plan doesn't leave
+// a loop behind. Unlike GetSimplifiedGroupDebts it never routes a debt
+// through someone who wasn't on the expense, and every person's net is
+// the same as GetGroupSummary's. Sorted largest first, then by user ids.
 func (s *Service) GetRawGroupDebts(ctx context.Context, groupID pgtype.UUID) ([]money.SimplifiedTransaction, error) {
 	rows, err := s.q.GetGroupPairOwedSums(ctx, groupID)
 	if err != nil {
 		return nil, err
 	}
-	type pair struct{ a, b string }    // a < b
-	net := map[pair]money.MinorUnits{} // positive => a owes b
+	owed := make([]money.SimplifiedTransaction, 0, len(rows))
 	for _, r := range rows {
-		debtor, creditor := idutil.String(r.DebtorID), idutil.String(r.CreditorID)
-		if debtor < creditor {
-			net[pair{debtor, creditor}] += r.Total
-		} else {
-			net[pair{creditor, debtor}] -= r.Total
+		owed = append(owed, money.SimplifiedTransaction{
+			FromUserID: idutil.String(r.DebtorID),
+			ToUserID:   idutil.String(r.CreditorID),
+			Amount:     r.Total,
+		})
+	}
+	return money.CancelCycles(owed), nil
+}
+
+// GetRawPairDebt is what `from` really owes `to` in a group: their row
+// in GetRawGroupDebts, or 0. One of the two ways a group payment can be
+// allowed (ADR-029).
+func (s *Service) GetRawPairDebt(ctx context.Context, groupID, from, to pgtype.UUID) (money.MinorUnits, error) {
+	debts, err := s.GetRawGroupDebts(ctx, groupID)
+	if err != nil {
+		return 0, err
+	}
+	f, t := idutil.String(from), idutil.String(to)
+	for _, d := range debts {
+		if d.FromUserID == f && d.ToUserID == t {
+			return d.Amount, nil
 		}
 	}
-	out := make([]money.SimplifiedTransaction, 0, len(net))
-	for p, amount := range net {
-		switch {
-		case amount > 0:
-			out = append(out, money.SimplifiedTransaction{FromUserID: p.a, ToUserID: p.b, Amount: amount})
-		case amount < 0:
-			out = append(out, money.SimplifiedTransaction{FromUserID: p.b, ToUserID: p.a, Amount: -amount})
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].Amount != out[j].Amount {
-			return out[i].Amount > out[j].Amount
-		}
-		if out[i].FromUserID != out[j].FromUserID {
-			return out[i].FromUserID < out[j].FromUserID
-		}
-		return out[i].ToUserID < out[j].ToUserID
-	})
-	return out, nil
+	return 0, nil
 }
 
 // FriendNetBalance and GroupNetBalance are GetSummary's per-entity
