@@ -16,6 +16,8 @@
 // Error shape mirrors apps/api/internal/httpx/errors.go's APIError JSON
 // envelope: {statusCode, code, message, path, timestamp}.
 
+import { internetReachable, onBackOnline, setConnection } from './connection';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3201';
 
 export class ApiError extends Error {
@@ -27,6 +29,75 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.status = status;
     this.code = code;
+  }
+}
+
+/** What a screen says when there's no internet (ErrorState shows its
+ * own no-internet card for it). */
+export const OFFLINE_MESSAGE =
+  'No internet connection. Check your Wi-Fi or mobile data, then try again.';
+
+/** A read with no answer after this long gets a quick internet check. */
+const SLOW_AFTER_MS = 8_000;
+/** A read still unanswered after this long (internet fine) gives up. */
+const READ_GIVE_UP_MS = 60_000;
+
+/** fetch, telling "no internet" apart from "ABRO is slow or down"
+ * (~/lib/connection.ts). A read that hasn't answered in SLOW_AFTER_MS
+ * checks whether the internet is there at all: if not it stops at once
+ * with OFFLINE instead of leaving the screen loading for minutes; if so
+ * it keeps waiting (the free-tier API may be waking up), up to
+ * READ_GIVE_UP_MS. Writes are never cut off -- one stopped halfway could
+ * still have been saved -- they only report the connection as slow. */
+async function send(url: string, init: RequestInit, isRead: boolean): Promise<Response> {
+  const abort = new AbortController();
+  let done = false;
+  let stoppedBecause: 'offline' | 'timeout' | null = null;
+  const slowCheck = setTimeout(() => {
+    void internetReachable().then((reachable) => {
+      if (done) {
+        return;
+      }
+      if (reachable) {
+        setConnection('slow');
+        return;
+      }
+      setConnection('offline');
+      if (isRead) {
+        stoppedBecause = 'offline';
+        abort.abort();
+      }
+    });
+  }, SLOW_AFTER_MS);
+  const giveUp = isRead
+    ? setTimeout(() => {
+        stoppedBecause = 'timeout';
+        abort.abort();
+      }, READ_GIVE_UP_MS)
+    : null;
+
+  try {
+    const res = await fetch(url, { ...init, signal: abort.signal });
+    done = true;
+    setConnection('online');
+    return res;
+  } catch {
+    done = true;
+    if (stoppedBecause === 'timeout') {
+      throw new ApiError(0, 'TIMEOUT', 'ABRO is taking too long to answer. Try again in a minute.');
+    }
+    if (stoppedBecause === 'offline' || !(await internetReachable())) {
+      setConnection('offline');
+      throw new ApiError(0, 'OFFLINE', OFFLINE_MESSAGE);
+    }
+    // The internet works but the API didn't: down or deploying.
+    setConnection('online');
+    throw new ApiError(0, 'UNREACHABLE', "Can't reach ABRO right now. Try again in a minute.");
+  } finally {
+    clearTimeout(slowCheck);
+    if (giveUp) {
+      clearTimeout(giveUp);
+    }
   }
 }
 
@@ -45,19 +116,19 @@ async function request<T>(
     forgetInFlightReads();
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    credentials: 'include',
-    // FormData sets its own multipart Content-Type (with the boundary).
-    headers:
-      init?.body instanceof FormData
-        ? init.headers
-        : { 'Content-Type': 'application/json', ...init?.headers },
-  }).catch(() => {
-    // No connection (or the server unreachable): say so plainly rather
-    // than a generic failure.
-    throw new ApiError(0, 'OFFLINE', "You're offline. Check your connection and try again.");
-  });
+  const res = await send(
+    `${API_URL}${path}`,
+    {
+      ...init,
+      credentials: 'include',
+      // FormData sets its own multipart Content-Type (with the boundary).
+      headers:
+        init?.body instanceof FormData
+          ? init.headers
+          : { 'Content-Type': 'application/json', ...init?.headers },
+    },
+    isRead,
+  );
 
   if (res.status === 204) {
     return undefined as T;
@@ -245,6 +316,8 @@ export function markApiCacheStale(): void {
 
 if (typeof document !== 'undefined') {
   loadSaved();
+  // Back online: every screen re-checks the server (ADR-022).
+  onBackOnline(markApiCacheStale);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
       markApiCacheStale();
