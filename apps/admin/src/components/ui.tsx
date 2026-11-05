@@ -138,3 +138,115 @@ export function Segmented<T extends string | number>({
     </div>
   );
 }
+
+const fullFmt = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Africa/Addis_Ababa',
+});
+/** "5 Nov 2026, 14:03" in Addis Ababa time. */
+export const fullDate = (iso: string) => fullFmt.format(new Date(iso));
+
+const dateFmt = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'Africa/Addis_Ababa',
+});
+export const dateOnly = (iso: string) => dateFmt.format(new Date(iso));
+
+/** "just now", "5m ago", "3h ago", "2d ago", then the date. */
+export function relTime(iso: string | null, now = Date.now()): string {
+  if (!iso) {
+    return 'never';
+  }
+  const s = Math.round((now - new Date(iso).getTime()) / 1000);
+  if (s < 60) {
+    return 'just now';
+  }
+  if (s < 3600) {
+    return `${Math.floor(s / 60)}m ago`;
+  }
+  if (s < 86400) {
+    return `${Math.floor(s / 3600)}h ago`;
+  }
+  if (s < 30 * 86400) {
+    return `${Math.floor(s / 86400)}d ago`;
+  }
+  return dateOnly(iso);
+}
+
+const TONES = {
+  neutral: 'bg-page text-ink-2 border-line',
+  accent: 'bg-accent-soft text-accent-strong border-transparent',
+  good: 'bg-good-soft text-good border-transparent',
+  warn: 'bg-warn-soft text-warn border-transparent',
+  bad: 'bg-bad-soft text-bad border-transparent',
+  dark: 'bg-side text-white border-transparent',
+} as const;
+
+export function Badge({
+  tone = 'neutral',
+  children,
+  title,
+}: {
+  tone?: keyof typeof TONES;
+  children: React.ReactNode;
+  title?: string;
+}) {
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium ${TONES[tone]}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** "Chrome on Android" from a user-agent string, or "Unknown device". */
+export function deviceName(ua: string | null): string {
+  if (!ua) {
+    return 'Unknown device';
+  }
+  const browser = /Edg\//.test(ua)
+    ? 'Edge'
+    : /OPR\//.test(ua)
+      ? 'Opera'
+      : /Firefox\//.test(ua)
+        ? 'Firefox'
+        : /Chrome\//.test(ua)
+          ? 'Chrome'
+          : /Safari\//.test(ua)
+            ? 'Safari'
+            : 'Browser';
+  const os = /Android/.test(ua)
+    ? 'Android'
+    : /iPhone|iPad|iPod/.test(ua)
+      ? 'iPhone'
+      : /Windows/.test(ua)
+        ? 'Windows'
+        : /Mac OS X/.test(ua)
+          ? 'Mac'
+          : /Linux/.test(ua)
+            ? 'Linux'
+            : 'unknown system';
+  return `${browser} on ${os}`;
+}
+
+/** An IP without the port sign-in stored with it ("[::1]:33838" -> "::1",
+ * "10.0.0.5:4431" -> "10.0.0.5"). */
+export function cleanIp(ip: string | null): string {
+  if (!ip) {
+    return '—';
+  }
+  const v6 = /^\[([^\]]+)\](?::\d+)?$/.exec(ip);
+  if (v6) {
+    return v6[1] ?? ip;
+  }
+  const v4 = /^(\d{1,3}(?:\.\d{1,3}){3}):\d+$/.exec(ip);
+  return v4?.[1] ?? ip;
+}

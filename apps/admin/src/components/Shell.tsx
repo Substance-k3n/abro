@@ -4,7 +4,7 @@
 // a top bar (today in Addis Ababa, who's signed in and their role). Only
 // sections the signed-in role may open are listed.
 
-import { LayoutDashboard, LogOut, type LucideIcon } from 'lucide-react';
+import { LayoutDashboard, LogOut, type LucideIcon, Users } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -24,6 +24,7 @@ interface NavItem {
 // Sections are added here as their pages land (ADR-028's PR plan).
 const NAV: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, need: 'overview.view' },
+  { href: '/users', label: 'Users', icon: Users, need: 'users.view' },
 ];
 
 const today = () =>

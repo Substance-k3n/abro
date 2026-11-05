@@ -83,3 +83,120 @@ export async function getOverview(range: OverviewRange): Promise<Overview> {
   const o = await api.get<OverviewWire>(`/admin/overview${query({ range })}`);
   return { ...o, volume: o.volume.map((v) => ({ ...v, total: BigInt(v.total) })) };
 }
+
+// --- users ---
+
+export type UserStatus = '' | 'active' | 'suspended' | 'admins';
+
+export interface UserSummary {
+  id: string;
+  displayName: string;
+  email: string | null;
+  username: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+  suspendedAt: string | null;
+  adminRole: AdminRole | null;
+  lastActiveAt: string | null;
+  groupCount: number;
+}
+
+export interface UserPage {
+  users: UserSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface AdminSession {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: string;
+  lastUsedAt: string;
+  expiresAt: string;
+  revokedAt: string | null;
+  live: boolean;
+}
+
+export interface UserGroup {
+  id: string;
+  name: string;
+  type: string;
+  role: 'ADMIN' | 'MEMBER';
+  status: 'INVITED' | 'ACTIVE' | 'LEFT';
+  joinedAt: string;
+  deleted: boolean;
+  memberCount: number;
+}
+
+/** Why someone has voice or not (apps/api AdminUserVoice). */
+export type VoiceAccess = 'unavailable' | 'off' | 'everyone' | 'tester' | 'granted' | 'none';
+
+export interface UserDetail {
+  id: string;
+  displayName: string;
+  email: string | null;
+  username: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+  suspendedAt: string | null;
+  suspensionReason: string | null;
+  adminRole: AdminRole | null;
+  owner: boolean;
+  lastActiveAt: string | null;
+  groupCount: number;
+  friendCount: number;
+  expenseCount: number;
+  settlementCount: number;
+  sessions: AdminSession[];
+  groups: UserGroup[];
+  voice: {
+    access: VoiceAccess;
+    grantedAt: string | null;
+    lastUsedAt: string | null;
+    sessions30d: number;
+  };
+}
+
+export const listUsers = (q: string, status: UserStatus, page: number) =>
+  api.get<UserPage>(`/admin/users${query({ q, status, page })}`);
+export const getUser = (id: string) => api.get<UserDetail>(`/admin/users/${id}`);
+export const suspendUser = (id: string, reason: string) =>
+  api.post<UserDetail>(`/admin/users/${id}/suspend`, { reason });
+export const unsuspendUser = (id: string) => api.post<UserDetail>(`/admin/users/${id}/unsuspend`);
+export const endAllSessions = (id: string) =>
+  api.post<UserDetail>(`/admin/users/${id}/sessions/revoke`);
+export const endSession = (id: string, sessionId: string) =>
+  api.delete<UserDetail>(`/admin/users/${id}/sessions/${sessionId}`);
+export const voiceOn = (id: string) => api.put<UserDetail>(`/admin/users/${id}/voice`);
+export const voiceOff = (id: string) => api.delete<UserDetail>(`/admin/users/${id}/voice`);
+
+// --- audit log ---
+
+export interface AuditEntry {
+  id: string;
+  actorId: string | null;
+  actorName: string | null;
+  actorEmail: string | null;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  targetName: string | null;
+  targetEmail: string | null;
+  details: Record<string, unknown>;
+  ipAddress: string | null;
+  createdAt: string;
+}
+
+export interface AuditPage {
+  entries: AuditEntry[];
+  nextCursor: string | null;
+}
+
+export const listAudit = (f: {
+  actor?: string;
+  target?: string;
+  action?: string;
+  cursor?: string;
+}) => api.get<AuditPage>(`/admin/audit${query(f)}`);
