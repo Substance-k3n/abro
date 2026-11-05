@@ -97,7 +97,9 @@ export default function GroupPage() {
           <div className="font-display mt-1 text-2xl font-semibold">
             {g.lastActivityAt ? relTime(g.lastActivityAt) : '—'}
           </div>
-          <div className="text-ink-3 text-xs">{num(g.settlementCount)} payments settled</div>
+          <div className="text-ink-3 text-xs">
+            {num(g.settlementCount)} {g.settlementCount === 1 ? 'payment' : 'payments'} settled
+          </div>
         </div>
       </section>
 
