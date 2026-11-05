@@ -35,3 +35,26 @@ export function safeNext(next: string | null): string {
     ? next
     : '/';
 }
+
+const RANK: Record<AdminRole, number> = { SUPPORT: 1, ADMIN: 2, SUPER_ADMIN: 3 };
+
+/** Mirrors apps/api/internal/admin's target(): never yourself, never an
+ * owner, only someone ranked below you. Returns why not, or null. The API
+ * decides; this only explains a disabled button before anyone clicks. */
+export function whyCantActOn(
+  s: Pick<Session, 'profile' | 'role' | 'owner'>,
+  target: { id: string; owner: boolean; adminRole: AdminRole | null },
+): string | null {
+  if (target.id === s.profile.id) {
+    return "You can't do this to your own account.";
+  }
+  if (target.owner) {
+    return "Set in the server settings (ADMIN_EMAILS); it can't be changed here.";
+  }
+  const mine = s.owner ? 4 : RANK[s.role];
+  const theirs = target.adminRole ? RANK[target.adminRole] : 0;
+  if (theirs >= mine) {
+    return 'Only someone with a higher admin role than theirs can do this.';
+  }
+  return null;
+}
