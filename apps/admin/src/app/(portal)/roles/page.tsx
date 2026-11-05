@@ -146,7 +146,11 @@ export default function RolesPage() {
             <h2 className="font-display flex items-center gap-2 font-semibold">
               <ShieldCheck className="text-ink-3 size-4" aria-hidden /> Admins
             </h2>
-            {admins && <span className="text-ink-3 text-sm">{admins.length} people</span>}
+            {admins && (
+              <span className="text-ink-3 text-sm">
+                {admins.length} {admins.length === 1 ? 'person' : 'people'}
+              </span>
+            )}
           </header>
           {error && !admins && (
             <div className="p-5">
