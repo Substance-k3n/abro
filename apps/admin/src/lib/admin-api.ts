@@ -289,3 +289,24 @@ export interface VoiceSettings {
 export const getVoice = () => api.get<VoiceSettings>('/admin/voice');
 export const setVoiceMode = (mode: VoiceMode) =>
   api.put<VoiceSettings>('/admin/voice/mode', { mode });
+
+// --- site admins (roles) ---
+
+export interface SiteAdmin {
+  userId: string;
+  displayName: string;
+  email: string | null;
+  username: string | null;
+  avatarUrl: string | null;
+  role: AdminRole;
+  /** From ADMIN_EMAILS on Render; can't be changed here. */
+  owner: boolean;
+  grantedAt: string | null;
+  grantedByName: string | null;
+}
+
+export const listAdmins = () => api.get<SiteAdmin[]>('/admin/admins');
+export const setAdminRole = (userId: string, role: AdminRole) =>
+  api.put<SiteAdmin[]>(`/admin/admins/${userId}`, { role });
+export const removeAdminRole = (userId: string) =>
+  api.delete<SiteAdmin[]>(`/admin/admins/${userId}`);

@@ -58,3 +58,10 @@ export function whyCantActOn(
   }
   return null;
 }
+
+/** Roles the signed-in admin may give: only those below their own rank
+ * (owners may make super admins). Mirrors apps/api's SetRole check. */
+export function grantableRoles(s: Pick<Session, 'role' | 'owner'>): AdminRole[] {
+  const mine = s.owner ? 4 : RANK[s.role];
+  return (['SUPPORT', 'ADMIN', 'SUPER_ADMIN'] as const).filter((r) => RANK[r] < mine);
+}

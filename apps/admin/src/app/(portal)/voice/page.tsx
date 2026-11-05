@@ -393,48 +393,7 @@ function VoiceDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  let spec: {
-    title: string;
-    body: string;
-    confirm: string;
-    tone: string;
-    go: () => Promise<{ fresh: VoiceSettings; msg: string }>;
-  };
-  if (dialog.kind === 'mode') {
-    const { mode } = dialog;
-    spec = {
-      ...MODE_DIALOG[mode],
-      tone: mode === 'off' ? 'btn-danger' : 'btn-primary',
-      go: async () => ({
-        fresh: await setVoiceMode(mode),
-        msg: `Voice is now: ${MODES.find((m) => m.value === mode)?.label}.`,
-      }),
-    };
-  } else if (dialog.kind === 'on') {
-    spec = {
-      title: `Turn voice on for ${dialog.name}?`,
-      body: 'They get the voice button the next time ABRO opens (in Listed or Everyone mode).',
-      confirm: 'Turn voice on',
-      tone: 'btn-primary',
-      go: async () => {
-        await voiceOn(dialog.id);
-        return { fresh: await getVoice(), msg: `Voice turned on for ${dialog.name}.` };
-      },
-    };
-  } else {
-    spec = {
-      title: `Turn voice off for ${dialog.name}?`,
-      body: dialog.tester
-        ? 'They stay a tester on Render, so they keep voice in Listed mode.'
-        : 'The voice button goes away the next time ABRO opens.',
-      confirm: 'Turn voice off',
-      tone: 'btn-danger',
-      go: async () => {
-        await voiceOff(dialog.id);
-        return { fresh: await getVoice(), msg: `Voice turned off for ${dialog.name}.` };
-      },
-    };
-  }
+  const spec = voiceDialogSpec(dialog);
 
   const run = async () => {
     setBusy(true);
@@ -476,4 +435,52 @@ function VoiceDialog({
       )}
     </Modal>
   );
+}
+
+interface VoiceSpec {
+  title: string;
+  body: string;
+  confirm: string;
+  tone: string;
+  go: () => Promise<{ fresh: VoiceSettings; msg: string }>;
+}
+
+function voiceDialogSpec(dialog: Dialog): VoiceSpec {
+  if (dialog.kind === 'mode') {
+    const { mode } = dialog;
+    return {
+      ...MODE_DIALOG[mode],
+      tone: mode === 'off' ? 'btn-danger' : 'btn-primary',
+      go: async () => ({
+        fresh: await setVoiceMode(mode),
+        msg: `Voice is now: ${MODES.find((m) => m.value === mode)?.label}.`,
+      }),
+    };
+  }
+  if (dialog.kind === 'on') {
+    const { id, name } = dialog;
+    return {
+      title: `Turn voice on for ${name}?`,
+      body: 'They get the voice button the next time ABRO opens (in Listed or Everyone mode).',
+      confirm: 'Turn voice on',
+      tone: 'btn-primary',
+      go: async () => {
+        await voiceOn(id);
+        return { fresh: await getVoice(), msg: `Voice turned on for ${name}.` };
+      },
+    };
+  }
+  const { id, name, tester } = dialog;
+  return {
+    title: `Turn voice off for ${name}?`,
+    body: tester
+      ? 'They stay a tester on Render, so they keep voice in Listed mode.'
+      : 'The voice button goes away the next time ABRO opens.',
+    confirm: 'Turn voice off',
+    tone: 'btn-danger',
+    go: async () => {
+      await voiceOff(id);
+      return { fresh: await getVoice(), msg: `Voice turned off for ${name}.` };
+    },
+  };
 }
