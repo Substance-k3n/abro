@@ -49,7 +49,7 @@ on staged files), `.husky/commit-msg` runs commitlint (conventional commits).
 - Format: `type(scope): subject` — lowercase subject, says what changes for the
   user, no trailing period.
 - Types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`.
-- Scopes allowed by `commitlint.config.js`: `web`, `api`, `types`, `ui`,
+- Scopes allowed by `commitlint.config.js`: `web`, `admin`, `api`, `types`, `ui`,
   `config`, `infra`, `docs`, `repo` — several allowed: `feat(api,web): …`.
 - Body: why first, then the key how; mention migrations, ADRs, breaking changes.
 - Examples from this repo:

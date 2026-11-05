@@ -27,6 +27,7 @@ abro/                          pnpm workspace + Turborepo (pnpm-workspace.yaml, 
 │   │   │                      (rules), mapper.go, *_integration_test.go
 │   │   │                      modules: auth users friends groups expenses balances
 │   │   │                      settlements analytics notifications recurring photos
+│   │                      voice admin (site admin portal API, ADR-028)
 │   │   ├── internal/apitypes/ request validation + response shapes (wire format)
 │   │   ├── internal/db/       sqlc-GENERATED code — never edit by hand
 │   │   ├── internal/money/    minor units, splitting, debt simplification, Format
@@ -35,6 +36,9 @@ abro/                          pnpm workspace + Turborepo (pnpm-workspace.yaml, 
 │   │   ├── migrations/        NNNN_name.up.sql / .down.sql (golang-migrate)
 │   │   ├── Dockerfile, start.sh   start.sh runs migrations when RUN_MIGRATIONS=true
 │   │   └── sqlc.yaml
+│   ├── admin/                 Next.js site admin portal (ADR-028), its own Vercel project:
+│   │                          app/(portal)/ = signed-in pages behind /admin/me,
+│   │                          app/signin, lib/admin-api.ts; calls /admin/* via its /api proxy
 │   └── web/                   Next.js App Router PWA (Tailwind v4)
 │       └── src/
 │           ├── app/           routes; app/(dashboard)/ = signed-in screens with the
