@@ -7,6 +7,7 @@
 import {
   Boxes,
   LayoutDashboard,
+  Lock,
   LogOut,
   type LucideIcon,
   Mic,
@@ -21,6 +22,7 @@ import { useState } from 'react';
 import { type Permission, signOut } from '~/lib/admin-api';
 import { ROLE_LABEL, useSession } from '~/lib/session';
 
+import { SessionGuard } from './SessionGuard';
 import { Avatar } from './ui';
 
 interface NavItem {
@@ -38,6 +40,7 @@ const NAV: NavItem[] = [
   { href: '/voice', label: 'Voice', icon: Mic, need: 'overview.view' },
   { href: '/roles', label: 'Roles & Permissions', icon: ShieldCheck, need: 'admins.view' },
   { href: '/audit', label: 'Audit log', icon: ScrollText, need: 'audit.view' },
+  { href: '/security', label: 'Security', icon: Lock, need: 'overview.view' },
 ];
 
 const today = () =>
@@ -112,6 +115,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
             <Avatar name={session.profile.displayName} url={session.profile.avatarUrl} size={36} />
           </div>
         </header>
+        <SessionGuard />
         <main className="mx-auto w-full max-w-[1320px] flex-1 px-8 py-8">{children}</main>
       </div>
     </div>

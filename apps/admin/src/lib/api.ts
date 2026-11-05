@@ -43,7 +43,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     // Expired, or ended by another admin: back to sign-in, then here.
     // Never settles, so the page keeps its state while the browser leaves.
     const here = window.location.pathname + window.location.search;
-    window.location.replace(`/signin?next=${encodeURIComponent(here)}`);
+    // The portal's own limits (idle / max_age) say why, for the sign-in page.
+    const why = (body?.details as { reason?: string } | undefined)?.reason;
+    window.location.replace(
+      `/signin?next=${encodeURIComponent(here)}${why ? `&why=${encodeURIComponent(why)}` : ''}`,
+    );
     return new Promise<T>(() => {});
   }
   if (!res.ok) {
