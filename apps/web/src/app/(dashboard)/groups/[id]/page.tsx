@@ -25,10 +25,10 @@
 //  - When late fees are on (ADR-026), the info card says so and on
 //    what terms, so nobody is surprised by one.
 
-import { ETB, abs, formatMoney } from '@abro/types';
-import { ActivityItem, EmptyState } from '@abro/ui';
+import { EmptyState } from '@abro/ui';
 import {
   ArrowLeft,
+  Clock,
   Handshake,
   LayoutDashboard,
   Plus,
@@ -45,7 +45,9 @@ import { type NextPayer, getNextPayers } from '~/lib/balances-api';
 import { type AuthExpense, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
 import { type GroupView, GroupViewLoader, PersonAvatar, nameIn } from '~/lib/group-view';
 import { groupTypeFor, lateFeeTerms } from '~/lib/groups-api';
+import { ActivityRow } from '~/components/ActivityRow';
 import { GroupPicture } from '~/components/GroupPicture';
+import { Amount, Panel, Row, SectionHeader, Tile } from '~/components/refresh';
 import { photoSrc } from '~/lib/photos';
 
 type Tab = 'expenses' | 'balances' | 'members';
@@ -97,6 +99,8 @@ function GroupDetail({
     ...[...nets.keys()].filter((id) => !activeMembers.some((m) => m.userId === id)),
   ];
 
+  const terms = lateFeeTerms(group);
+
   return (
     <div className="fade-in px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <div className="mb-5 flex items-center justify-between">
@@ -107,12 +111,6 @@ function GroupDetail({
         >
           <ArrowLeft size={16} strokeWidth={2} /> Groups
         </button>
-        <h2
-          className="font-display flex-1 truncate px-3 text-center text-[1rem] font-bold"
-          style={{ color: 'var(--t-primary)' }}
-        >
-          {group.name}
-        </h2>
         <Link
           href={`/groups/${group.id}/settings`}
           aria-label="Group settings"
@@ -122,9 +120,9 @@ function GroupDetail({
         </Link>
       </div>
 
-      {/* Group info card */}
-      <div className="neo-raised-lg mb-4 rounded-3xl p-5">
-        <div className="mb-4 flex items-center gap-3.5">
+      {/* The group and where you stand in it */}
+      <section className="neo-raised-lg mb-5 rounded-[28px] p-5">
+        <div className="flex items-center gap-3.5">
           <div
             className="neo-raised-sm relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl"
             style={{ color: type.color }}
@@ -132,119 +130,131 @@ function GroupDetail({
             <GroupPicture photo={photoSrc(group.photoUrl)} icon={type.icon} size={26} />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="mb-1 flex items-center gap-2">
-              <span
-                className="rounded-lg px-2 py-0.5 text-[0.72rem] font-semibold"
-                style={{ background: type.tint, color: type.color }}
-              >
-                {type.label}
-              </span>
-            </div>
-            <p className="text-[0.78rem]" style={{ color: 'var(--t-dim)' }}>
-              {activeMembers.length} member{activeMembers.length !== 1 ? 's' : ''} · Created{' '}
+            <h1
+              className="font-display truncate text-[1.35rem] font-semibold tracking-tight"
+              style={{ color: 'var(--t-primary)' }}
+            >
+              {group.name}
+            </h1>
+            <p className="text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
+              {type.label} · {activeMembers.length} member{activeMembers.length !== 1 ? 's' : ''} ·
+              since{' '}
               {new Date(group.createdAt).toLocaleDateString(undefined, {
-                year: 'numeric',
                 month: 'short',
-                day: 'numeric',
+                year: 'numeric',
               })}
             </p>
-            {group.description && (
-              <p className="mt-1 text-[0.78rem]" style={{ color: 'var(--t-muted)' }}>
-                {group.description}
-              </p>
-            )}
-            {lateFeeTerms(group) && (
-              <p className="mt-1 text-[0.75rem] font-medium" style={{ color: 'var(--c-amber)' }}>
-                ⏰ Late fees on: {lateFeeTerms(group)}.
-              </p>
-            )}
           </div>
         </div>
+        {group.description && (
+          <p className="mt-3 text-[0.84rem]" style={{ color: 'var(--t-muted)' }}>
+            {group.description}
+          </p>
+        )}
+        {terms && (
+          <p
+            className="mt-3 flex items-start gap-2 text-[0.78rem]"
+            style={{ color: 'var(--t-muted)' }}
+          >
+            <Clock
+              size={14}
+              strokeWidth={2}
+              className="mt-0.5 shrink-0"
+              style={{ color: 'var(--c-amber)' }}
+              aria-hidden
+            />
+            <span>Late fees: {terms}.</span>
+          </p>
+        )}
 
-        <div className="neo-inset-sm flex items-center justify-between rounded-2xl px-4 py-3">
+        <div className="neo-inset-sm mt-4 flex items-center justify-between gap-3 rounded-2xl px-4 py-3.5">
           <div>
-            <p className="mb-0.5 text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
-              Your balance in this group
+            <p className="text-[0.76rem]" style={{ color: 'var(--t-dim)' }}>
+              {myNet > 0n ? "You're owed" : myNet < 0n ? 'You owe' : 'Your balance'}
             </p>
-            <p
-              className="font-display text-[1.3rem] font-extrabold tracking-tight"
-              style={{
-                color: myNet < 0n ? 'var(--c-red)' : myNet > 0n ? 'var(--c-green)' : 'var(--t-dim)',
-              }}
-            >
-              {myNet === 0n
-                ? 'Settled'
-                : `${myNet < 0n ? '-' : '+'}${formatMoney(abs(myNet), ETB)}`}
-            </p>
+            {myNet === 0n ? (
+              <p
+                className="font-display mt-0.5 text-[1.3rem] font-semibold"
+                style={{ color: 'var(--t-secondary)' }}
+              >
+                Settled
+              </p>
+            ) : (
+              <p className="mt-0.5">
+                <Amount value={myNet} tone={myNet > 0n ? 'owed' : 'owe'} size="lg" />
+              </p>
+            )}
           </div>
           {owes && (
             <Link
               href={`/settle?groupId=${group.id}`}
-              className="neo-btn-green font-display rounded-xl px-4 py-2.5 text-[0.85rem] font-semibold"
+              className="neo-btn-accent rounded-xl px-4 py-2.5 text-[0.85rem] font-semibold"
             >
-              Settle Up
+              Settle up
             </Link>
           )}
         </div>
-      </div>
+      </section>
 
       {nextPayers.length > 0 && (
         <NextPayersCard view={view} payers={nextPayers.slice(0, NEXT_PAYERS_SHOWN)} />
       )}
 
-      {/* Quick actions */}
-      <div className="mb-5 grid grid-cols-4 gap-2.5">
+      {/* Actions: one main one, three quieter ones */}
+      <div className="mb-6 grid grid-cols-[1.7fr_1fr_1fr_1fr] gap-2.5">
         <Link
           href={`/expenses/new?groupId=${group.id}`}
-          className="neo-btn-accent flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
+          className="neo-btn-accent flex items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl px-2 py-4 text-[0.86rem] font-semibold"
         >
-          <Plus size={18} strokeWidth={2} />
-          <span className="text-[0.68rem] font-medium">Add Expense</span>
+          <Plus size={18} strokeWidth={2.2} />
+          Add expense
         </Link>
         {owes ? (
           <Link
             href={`/settle?groupId=${group.id}`}
-            className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
+            className="neo-btn flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2.5 text-center"
             style={{ color: 'var(--t-secondary)' }}
           >
-            <Handshake size={18} strokeWidth={2} />
-            <span className="text-[0.68rem] font-medium">Settle Up</span>
+            <Handshake size={18} strokeWidth={1.9} />
+            <span className="text-[0.68rem] font-medium">Settle up</span>
           </Link>
         ) : (
           <button
             type="button"
             disabled
             title="You don't owe this group anything"
-            className="neo-flat flex cursor-not-allowed flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center opacity-50"
+            className="neo-flat flex cursor-not-allowed flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2.5 text-center opacity-50"
             style={{ color: 'var(--t-secondary)' }}
           >
-            <Handshake size={18} strokeWidth={2} />
-            <span className="text-[0.68rem] font-medium">Settle Up</span>
+            <Handshake size={18} strokeWidth={1.9} />
+            <span className="text-[0.68rem] font-medium">Settle up</span>
           </button>
         )}
         <Link
           href={`/groups/${group.id}/simplified`}
-          className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
+          className="neo-btn flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2.5 text-center"
           style={{ color: 'var(--t-secondary)' }}
         >
-          <Split size={18} strokeWidth={2} />
+          <Split size={18} strokeWidth={1.9} />
           <span className="text-[0.68rem] font-medium">Simplify</span>
         </Link>
         <Link
           href={`/groups/${group.id}/admin`}
-          className="neo-btn flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-center"
+          className="neo-btn flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2.5 text-center"
           style={{ color: 'var(--t-secondary)' }}
         >
-          <LayoutDashboard size={18} strokeWidth={2} />
+          <LayoutDashboard size={18} strokeWidth={1.9} />
           <span className="text-[0.68rem] font-medium">Dashboard</span>
         </Link>
       </div>
 
       {/* Tabs */}
-      <div className="neo-inset-sm mb-4 flex gap-1 rounded-2xl p-1">
+      <div className="neo-inset-sm mb-4 flex gap-1 rounded-2xl p-1" role="tablist">
         {(['expenses', 'balances', 'members'] as const).map((t) => (
           <button
             key={t}
+            role="tab"
+            aria-selected={tab === t}
             onClick={() => setTab(t)}
             className={`neo-tab flex-1 rounded-xl border-none py-2 text-[0.82rem] font-medium capitalize ${
               tab === t ? 'active' : ''
@@ -263,111 +273,93 @@ function GroupDetail({
             description="Add the first expense for this group."
           />
         ) : (
-          <div className="flex flex-col gap-2.5">
-            {expenses.slice(0, PREVIEW_COUNT).map((e) => (
-              <ActivityItem
-                key={e.id}
-                {...toActivityDisplay(e, profile.id, groupNames)}
-                onClick={() => router.push(`/expenses/${e.id}`)}
-              />
-            ))}
+          <>
+            <Panel>
+              {expenses.slice(0, PREVIEW_COUNT).map((e) => (
+                <ActivityRow
+                  key={e.id}
+                  a={toActivityDisplay(e, profile.id, groupNames)}
+                  onClick={() => router.push(`/expenses/${e.id}`)}
+                />
+              ))}
+            </Panel>
             <Link
               href={`/groups/${group.id}/expenses`}
-              className="py-1 text-center text-[0.82rem] font-semibold"
+              className="mt-3 block py-1 text-center text-[0.84rem] font-semibold"
               style={{ color: 'var(--accent)' }}
             >
               {expenses.length > PREVIEW_COUNT ? 'See all expenses' : 'Filter expenses'}
             </Link>
-          </div>
+          </>
         ))}
 
       {tab === 'balances' && (
-        <div className="flex flex-col gap-2.5">
-          {balanceIds.map((id) => {
-            const bal = nets.get(id) ?? 0n;
-            return (
-              <div
-                key={id}
-                className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
-              >
-                <PersonAvatar view={view} userId={id} size={38} />
-                <span
-                  className="flex-1 text-[0.88rem] font-semibold"
-                  style={{ color: 'var(--t-primary)' }}
-                >
-                  {nameIn(view, id)}
-                  {!activeMembers.some((m) => m.userId === id) && (
-                    <span
-                      className="ml-1.5 text-[0.7rem] font-normal"
-                      style={{ color: 'var(--t-dim)' }}
-                    >
-                      (left)
-                    </span>
-                  )}
-                </span>
-                <span
-                  className="font-mono text-[0.88rem] font-bold"
-                  style={{
-                    color: bal > 0n ? 'var(--c-green)' : bal < 0n ? 'var(--c-red)' : 'var(--t-dim)',
-                  }}
-                >
-                  {bal === 0n ? 'Settled' : `${bal > 0n ? '+' : '-'}${formatMoney(abs(bal), ETB)}`}
-                </span>
-              </div>
-            );
-          })}
+        <>
+          <Panel>
+            {balanceIds.map((id) => {
+              const bal = nets.get(id) ?? 0n;
+              const left = !activeMembers.some((m) => m.userId === id);
+              return (
+                <Row
+                  key={id}
+                  leading={<PersonAvatar view={view} userId={id} size={38} />}
+                  title={
+                    <>
+                      {nameIn(view, id)}
+                      {left && (
+                        <span
+                          className="ml-1.5 text-[0.72rem] font-normal"
+                          style={{ color: 'var(--t-dim)' }}
+                        >
+                          (left)
+                        </span>
+                      )}
+                    </>
+                  }
+                  sub={bal > 0n ? 'is owed' : bal < 0n ? 'owes' : 'settled'}
+                  subTone={bal > 0n ? 'owed' : bal < 0n ? 'owe' : 'plain'}
+                  trailing={
+                    bal === 0n ? undefined : <Amount value={bal} tone={bal > 0n ? 'owed' : 'owe'} />
+                  }
+                />
+              );
+            })}
+          </Panel>
           <Link
             href={`/groups/${group.id}/balances`}
-            className="py-1 text-center text-[0.82rem] font-semibold"
+            className="mt-3 block py-1 text-center text-[0.84rem] font-semibold"
             style={{ color: 'var(--accent)' }}
           >
             Who pays whom
           </Link>
-        </div>
+        </>
       )}
 
       {tab === 'members' && (
-        <div className="flex flex-col gap-2.5">
+        <Panel>
           {activeMembers.map((m) => (
-            <div
+            <Row
               key={m.id}
-              className="neo-raised-sm flex items-center gap-3 rounded-2xl px-3.5 py-3"
-            >
-              <PersonAvatar view={view} userId={m.userId} size={42} />
-              <div className="min-w-0 flex-1">
-                <p
-                  className="mb-0.5 text-[0.88rem] font-semibold"
-                  style={{ color: 'var(--t-primary)' }}
-                >
-                  {nameIn(view, m.userId)}
-                </p>
-                <span
-                  className="rounded-md px-1.5 py-0.5 text-[0.66rem] font-semibold"
-                  style={{
-                    color: m.role === 'ADMIN' ? 'var(--accent)' : 'var(--t-dim)',
-                    background: m.role === 'ADMIN' ? 'var(--accent-light)' : 'transparent',
-                  }}
-                >
-                  {m.role === 'ADMIN' ? 'Admin' : 'Member'}
-                </span>
-              </div>
-            </div>
+              leading={<PersonAvatar view={view} userId={m.userId} size={40} />}
+              title={nameIn(view, m.userId)}
+              sub={m.role === 'ADMIN' ? 'Group admin' : 'Member'}
+            />
           ))}
-          <Link
+          <Row
             href={`/groups/${group.id}/members`}
-            className="neo-btn flex items-center gap-3 rounded-2xl px-3.5 py-3"
-          >
-            <div
-              className="neo-raised-sm flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-2xl"
-              style={{ color: 'var(--accent)' }}
-            >
-              <UserPlus size={19} strokeWidth={1.9} />
-            </div>
-            <span className="text-[0.85rem] font-semibold" style={{ color: 'var(--accent)' }}>
-              {isAdmin ? 'Manage Members' : 'All Members'}
-            </span>
-          </Link>
-        </div>
+            leading={
+              <Tile tint="var(--accent-light)" color="var(--accent)">
+                <UserPlus size={18} strokeWidth={1.9} />
+              </Tile>
+            }
+            title={
+              <span style={{ color: 'var(--accent)' }}>
+                {isAdmin ? 'Manage members' : 'All members'}
+              </span>
+            }
+            chevron
+          />
+        </Panel>
       )}
     </div>
   );
@@ -379,41 +371,22 @@ function GroupDetail({
 function NextPayersCard({ view, payers }: { view: GroupView; payers: NextPayer[] }) {
   const meNext = payers[0]?.userId === view.profile.id;
   return (
-    <section className="neo-raised-sm mb-4 rounded-3xl p-4">
-      <p
-        className="font-display mb-1 text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-        style={{ color: 'var(--t-dim)' }}
-      >
-        Whose turn to pay
-      </p>
-      {meNext && (
-        <p className="mb-1 text-[0.88rem] font-semibold" style={{ color: 'var(--accent)' }}>
-          You&apos;re next to pay the bill.
-        </p>
-      )}
-      <ol className="mt-2 flex flex-col gap-2">
+    <section className="mb-5">
+      <SectionHeader title={meNext ? "You're next to pay the bill" : 'Whose turn to pay'} />
+      <Panel>
         {payers.map((p, i) => (
-          <li key={p.userId} className="flex items-center gap-3">
-            <span
-              className="w-10 shrink-0 text-[0.7rem] font-semibold uppercase"
-              style={{ color: i === 0 ? 'var(--accent)' : 'var(--t-dim)' }}
-            >
-              {i === 0 ? 'Next' : 'Then'}
-            </span>
-            <PersonAvatar view={view} userId={p.userId} size={30} />
-            <span
-              className="min-w-0 flex-1 truncate text-[0.85rem] font-semibold"
-              style={{ color: 'var(--t-primary)' }}
-            >
-              {p.userId === view.profile.id ? 'You' : nameIn(view, p.userId)}
-            </span>
-            <span className="font-mono text-[0.8rem] font-bold" style={{ color: 'var(--c-red)' }}>
-              owes {formatMoney(p.owes, ETB)}
-            </span>
-          </li>
+          <Row
+            key={p.userId}
+            leading={<PersonAvatar view={view} userId={p.userId} size={36} />}
+            title={p.userId === view.profile.id ? 'You' : nameIn(view, p.userId)}
+            sub={i === 0 ? 'Next' : 'Then'}
+            subTone={i === 0 ? undefined : 'plain'}
+            trailing={<Amount value={p.owes} tone="owe" />}
+            trailingSub="owes the group"
+          />
         ))}
-      </ol>
-      <p className="mt-3 text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+      </Panel>
+      <p className="mt-2 px-1 text-[0.74rem]" style={{ color: 'var(--t-dim)' }}>
         Whoever owes the most pays next. Paying a bill counts toward what you owe.
       </p>
     </section>
