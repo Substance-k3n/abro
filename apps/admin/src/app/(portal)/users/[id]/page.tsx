@@ -407,7 +407,15 @@ export default function UserPage() {
 
           {session.can('audit.view') && (
             <section className="card p-5">
-              <h2 className="font-display mb-3 font-semibold">Admin actions on this account</h2>
+              <div className="mb-3 flex items-baseline justify-between gap-2">
+                <h2 className="font-display font-semibold">Admin actions on this account</h2>
+                <Link
+                  href={`/audit?target=${user.id}`}
+                  className="text-accent shrink-0 text-xs font-medium hover:underline"
+                >
+                  See all
+                </Link>
+              </div>
               {log === null ? (
                 <Skeleton className="h-16" />
               ) : log.length === 0 ? (
