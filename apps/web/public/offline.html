@@ -11,7 +11,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#6366f1" />
-    <title>ABRO · Offline</title>
+    <title>ABRO · No internet connection</title>
     <!-- Same theme choice as the app (src/lib/theme.ts THEME_SCRIPT). -->
     <script>
       (function () {
@@ -109,10 +109,14 @@
   </head>
   <body>
     <div class="logo" aria-hidden="true"><span>AB</span></div>
-    <h1>You're offline</h1>
-    <p>
-      ABRO needs a connection to show your balances and expenses. Check your internet and try again.
-    </p>
+    <h1>No internet connection</h1>
+    <p>Check your Wi-Fi or mobile data. ABRO opens again by itself when you're back online.</p>
     <button type="button" onclick="location.reload()">Try again</button>
+    <script>
+      // Back on a network: try the page again without waiting for a tap.
+      window.addEventListener('online', function () {
+        location.reload();
+      });
+    </script>
   </body>
 </html>

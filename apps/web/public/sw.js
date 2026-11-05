@@ -23,7 +23,7 @@
 //
 // Bump VERSION to drop every cache this worker created.
 
-const VERSION = 'v4';
+const VERSION = 'v5';
 const STATIC_CACHE = `abro-static-${VERSION}`;
 const OFFLINE_CACHE = `abro-offline-${VERSION}`;
 const PAGE_CACHE = `abro-pages-${VERSION}`;
