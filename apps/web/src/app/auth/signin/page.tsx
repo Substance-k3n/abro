@@ -115,61 +115,57 @@ function SignInForm() {
           </p>
         </div>
 
-        {/* The one card on an otherwise bare screen -- real structure
-            instead of a form floating on the page. */}
-        <div className="neo-raised-lg rounded-[28px]">
-          <form onSubmit={submit} className="flex flex-col gap-4 p-7 sm:p-8">
-            <a
-              href={googleSignInUrl()}
-              className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold"
-              style={{ color: 'var(--t-secondary)' }}
+        <form onSubmit={submit} className="flex flex-col gap-4">
+          <a
+            href={googleSignInUrl()}
+            className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold"
+            style={{ color: 'var(--t-secondary)' }}
+          >
+            <GoogleIcon /> Continue with Google
+          </a>
+
+          <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--t-dim)' }}>
+            <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
+            or sign in with email
+            <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
+          </div>
+
+          {(oauthError || error) && (
+            <p
+              className="rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
+              style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
             >
-              <GoogleIcon /> Continue with Google
-            </a>
+              {error ?? oauthError}
+            </p>
+          )}
 
-            <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--t-dim)' }}>
-              <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
-              or sign in with email
-              <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
-            </div>
-
-            {(oauthError || error) && (
-              <p
-                className="rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
-                style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
-              >
-                {error ?? oauthError}
-              </p>
-            )}
-
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-2 block pl-1 text-[0.8rem] font-semibold"
-                style={{ color: 'var(--t-muted)' }}
-              >
-                Email address
-              </label>
-              <input
-                id="email"
-                className="neo-input"
-                type="email"
-                placeholder="you@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="neo-btn-accent font-display mt-1 rounded-[18px] px-4 py-4 text-base font-semibold"
+          <div>
+            <label
+              htmlFor="email"
+              className="mb-2 block pl-1 text-[0.8rem] font-semibold"
+              style={{ color: 'var(--t-muted)' }}
             >
-              {submitting ? 'Sending code…' : 'Continue'}
-            </button>
-          </form>
-        </div>
+              Email address
+            </label>
+            <input
+              id="email"
+              className="neo-input"
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="neo-btn-accent font-display mt-1 rounded-[18px] px-4 py-4 text-base font-semibold"
+          >
+            {submitting ? 'Sending code…' : 'Continue'}
+          </button>
+        </form>
       </div>
     </main>
   );

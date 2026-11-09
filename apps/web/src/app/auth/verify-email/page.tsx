@@ -132,70 +132,66 @@ function VerifyEmailForm() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center px-5 py-12 sm:justify-center sm:py-16">
-      {/* Same card language as sign-in -- bounded content instead of a
-          few lines floating in the middle of an otherwise empty page. */}
-      <div className="neo-raised-lg flex w-full max-w-[380px] flex-col items-center rounded-[28px] p-7 sm:p-8">
-        <h2
-          className="font-display text-center text-[1.5rem] font-bold tracking-tight"
-          style={{ color: 'var(--t-primary)' }}
+    <main className="flex min-h-screen flex-col items-center px-5 py-16 sm:justify-center sm:py-20">
+      <h2
+        className="font-display text-center text-[1.5rem] font-bold tracking-tight"
+        style={{ color: 'var(--t-primary)' }}
+      >
+        Enter the code
+      </h2>
+      <p className="mt-1.5 text-center text-[0.85rem]" style={{ color: 'var(--t-muted)' }}>
+        Sent to <strong style={{ color: 'var(--t-secondary)' }}>{maskEmail(email)}</strong>
+      </p>
+      <button
+        type="button"
+        onClick={() => router.push(`/auth/signin?email=${encodeURIComponent(email)}`)}
+        className="mb-7 mt-1 text-[0.74rem] font-medium"
+        style={{ color: 'var(--t-dim)' }}
+      >
+        Wrong email? Change it
+      </button>
+
+      {error && (
+        <p
+          className="mb-4 rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
+          style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
         >
-          Enter the code
-        </h2>
-        <p className="mt-1.5 text-center text-[0.85rem]" style={{ color: 'var(--t-muted)' }}>
-          Sent to <strong style={{ color: 'var(--t-secondary)' }}>{maskEmail(email)}</strong>
+          {error}
         </p>
-        <button
-          type="button"
-          onClick={() => router.push(`/auth/signin?email=${encodeURIComponent(email)}`)}
-          className="mb-7 mt-1 text-[0.74rem] font-medium"
-          style={{ color: 'var(--t-dim)' }}
-        >
-          Wrong email? Change it
-        </button>
+      )}
 
-        {error && (
-          <p
-            className="mb-4 rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
-            style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
-          >
-            {error}
-          </p>
-        )}
-
-        <div className="mb-7 flex gap-2">
-          {otp.map((digit, index) => (
-            <input
-              // Fixed 6-slot positional layout that never reorders — index is the
-              // correct, stable identity for "digit N of the code", not a code smell here.
-              key={`otp-digit-${index}`}
-              ref={(el) => {
-                inputRefs.current[index] = el;
-              }}
-              className={`otp-box ${digit ? 'otp-box-filled' : ''}`}
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={digit}
-              disabled={verifying}
-              onChange={(e) => handleChange(index, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(index, e)}
-              aria-label={`Digit ${index + 1} of 6`}
-            />
-          ))}
-        </div>
-
-        <button
-          type="button"
-          onClick={resend}
-          disabled={cooldown > 0}
-          className="text-[0.85rem] font-medium disabled:opacity-50"
-          style={{ color: 'var(--accent)' }}
-        >
-          {cooldown > 0 ? `Resend code (0:${cooldown.toString().padStart(2, '0')})` : 'Resend code'}
-        </button>
+      <div className="mb-7 flex gap-2">
+        {otp.map((digit, index) => (
+          <input
+            // Fixed 6-slot positional layout that never reorders — index is the
+            // correct, stable identity for "digit N of the code", not a code smell here.
+            key={`otp-digit-${index}`}
+            ref={(el) => {
+              inputRefs.current[index] = el;
+            }}
+            className={`otp-box ${digit ? 'otp-box-filled' : ''}`}
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={digit}
+            disabled={verifying}
+            onChange={(e) => handleChange(index, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(index, e)}
+            aria-label={`Digit ${index + 1} of 6`}
+          />
+        ))}
       </div>
+
+      <button
+        type="button"
+        onClick={resend}
+        disabled={cooldown > 0}
+        className="text-[0.85rem] font-medium disabled:opacity-50"
+        style={{ color: 'var(--accent)' }}
+      >
+        {cooldown > 0 ? `Resend code (0:${cooldown.toString().padStart(2, '0')})` : 'Resend code'}
+      </button>
     </main>
   );
 }
