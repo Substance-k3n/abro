@@ -27,7 +27,7 @@ abro/                          pnpm workspace + Turborepo (pnpm-workspace.yaml, 
 │   │   │                      (rules), mapper.go, *_integration_test.go
 │   │   │                      modules: auth users friends groups expenses balances
 │   │   │                      settlements analytics notifications recurring photos
-│   │                      voice admin (site admin portal API, ADR-028)
+│   │                      admin (site admin portal API, ADR-028)
 │   │   ├── internal/apitypes/ request validation + response shapes (wire format)
 │   │   ├── internal/db/       sqlc-GENERATED code — never edit by hand
 │   │   ├── internal/money/    minor units, splitting, debt simplification, Format

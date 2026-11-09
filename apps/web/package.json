@@ -8,14 +8,11 @@
     "build": "next build",
     "start": "next start --port 3200",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"no tests yet\" && exit 0",
-    "voice:manifest": "node scripts/voice-manifest.mjs"
+    "test": "echo \"no tests yet\" && exit 0"
   },
   "dependencies": {
     "@abro/types": "workspace:*",
     "@abro/ui": "workspace:*",
-    "@tezaz/core": "file:../../vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz",
-    "@tezaz/react": "file:../../vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz",
     "lucide-react": "^1.45.0",
     "next": "15.5.18",
     "qrcode": "^1.5.4",

@@ -28,13 +28,12 @@ const (
 	PermAdminsManage Permission = "admins.manage"
 	PermOverview     Permission = "overview.view"
 	PermGroupsView   Permission = "groups.view"
-	PermVoiceManage  Permission = "voice.manage"
 )
 
 // Each rank has everything the rank below has.
 var (
 	lookPerms   = []Permission{PermOverview, PermUsersView, PermGroupsView, PermAuditView, PermAdminsView}
-	actPerms    = []Permission{PermUsersSuspend, PermSessions, PermVoiceManage}
+	actPerms    = []Permission{PermUsersSuspend, PermSessions}
 	managePerms = []Permission{PermAdminsManage}
 
 	rolePermissions = map[db.AdminRole][]Permission{

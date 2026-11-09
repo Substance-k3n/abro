@@ -2,7 +2,7 @@ package apitypes
 
 import "time"
 
-// Admin portal overview, groups and voice (ADR-028). App-wide numbers
+// Admin portal overview and groups (ADR-028). App-wide numbers
 // only; the one money figure is total spending per currency across the
 // whole app (minor units as strings, like every amount on the wire).
 
@@ -32,10 +32,6 @@ type AdminOverview struct {
 		PendingInvites       int64 `json:"pendingInvites"`
 		StaleInvites         int64 `json:"staleInvites"`
 	} `json:"queue"`
-	Voice struct {
-		Sessions int64 `json:"sessions"`
-		Users    int64 `json:"users"`
-	} `json:"voice"`
 	Series     []AdminDay           `json:"series"`
 	Categories []AdminCategoryCount `json:"categories"`
 	Volume     []AdminVolume        `json:"volume"`
@@ -44,11 +40,10 @@ type AdminOverview struct {
 
 type AdminDay struct {
 	// Day is an Addis Ababa calendar day, YYYY-MM-DD.
-	Day           string `json:"day"`
-	Signups       int64  `json:"signups"`
-	Expenses      int64  `json:"expenses"`
-	Settlements   int64  `json:"settlements"`
-	VoiceSessions int64  `json:"voiceSessions"`
+	Day         string `json:"day"`
+	Signups     int64  `json:"signups"`
+	Expenses    int64  `json:"expenses"`
+	Settlements int64  `json:"settlements"`
 }
 
 type AdminCategoryCount struct {
@@ -117,44 +112,4 @@ type AdminGroupDetail struct {
 	SettlementCount int64              `json:"settlementCount"`
 	LastActivityAt  *time.Time         `json:"lastActivityAt"`
 	Members         []AdminGroupMember `json:"members"`
-}
-
-// AdminUserVoice is the voice part of a user's detail. Access says why
-// they have it (or don't): "unavailable" (voice isn't set up on the
-// server), "off" (switched off for everyone), "everyone", "tester"
-// (VOICE_TESTERS), "granted" (an admin turned it on), or "none".
-type AdminUserVoice struct {
-	Access      string     `json:"access"`
-	GrantedAt   *time.Time `json:"grantedAt"`
-	LastUsedAt  *time.Time `json:"lastUsedAt"`
-	Sessions30d int64      `json:"sessions30d"`
-}
-
-type AdminVoiceUser struct {
-	UserID        string     `json:"userId"`
-	DisplayName   string     `json:"displayName"`
-	Email         *string    `json:"email"`
-	Username      *string    `json:"username"`
-	AvatarURL     *string    `json:"avatarUrl"`
-	SuspendedAt   *time.Time `json:"suspendedAt"`
-	Access        string     `json:"access"`
-	GrantedAt     *time.Time `json:"grantedAt"`
-	GrantedByName *string    `json:"grantedByName"`
-	LastUsedAt    *time.Time `json:"lastUsedAt"`
-	Sessions30d   int64      `json:"sessions30d"`
-}
-
-// AdminVoice is GET /admin/voice.
-type AdminVoice struct {
-	Configured bool   `json:"configured"`
-	Mode       string `json:"mode"`
-	// Testers are VOICE_TESTERS' emails; TestersEveryone is a "*" there.
-	Testers         []string         `json:"testers"`
-	TestersEveryone bool             `json:"testersEveryone"`
-	Users           []AdminVoiceUser `json:"users"`
-}
-
-// SetVoiceModeInput is PUT /admin/voice/mode.
-type SetVoiceModeInput struct {
-	Mode string `json:"mode"`
 }

@@ -27,7 +27,6 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
-	"github.com/Substance-k3n/abro/apps/api/internal/voice"
 )
 
 func testDatabaseURL() string {
@@ -43,7 +42,6 @@ type fixture struct {
 	pool   *pgxpool.Pool
 	q      *db.Queries
 	svc    *Service
-	voice  *voice.Service
 	tag    string
 	owner  db.Profile
 	people []pgtype.UUID
@@ -60,10 +58,7 @@ func setup(t *testing.T) *fixture {
 		tag: fmt.Sprintf("adm%d%d", time.Now().UnixNano(), rand.Intn(1000))}
 	ownerEmail := f.tag + "-owner@abro.test"
 	// Mixed case and spaces: ADMIN_EMAILS is normalized like sign-in.
-	// Voice set up (not a live key, so nothing is published), with one
-	// VOICE_TESTERS email.
-	f.voice = voice.NewService("https://relay.test", "tz_sec_test_x", "https://app.test", f.tag+"-tester@abro.test")
-	f.svc = NewService(pool, "  "+strings.ToUpper(ownerEmail)+" , ", f.voice)
+	f.svc = NewService(pool, "  "+strings.ToUpper(ownerEmail)+" , ")
 	f.owner = f.person("owner")
 
 	t.Cleanup(func() {
@@ -163,11 +158,9 @@ func TestRoles(t *testing.T) {
 	assert.True(t, support.Can(PermUsersView))
 	assert.False(t, support.Can(PermUsersSuspend))
 	assert.Equal(t, []string{"overview.view", "users.view", "groups.view", "audit.view", "admins.view"}, support.Permissions())
-	assert.False(t, support.Can(PermVoiceManage))
 
 	admin := f.admin(f.withRole("admin", db.AdminRoleADMIN))
 	assert.True(t, admin.Can(PermUsersSuspend))
-	assert.True(t, admin.Can(PermVoiceManage))
 	assert.False(t, admin.Can(PermAdminsManage))
 
 	_, err := f.svc.adminFor(f.ctx, f.person("plain"))

@@ -541,13 +541,6 @@ type AdminAuditLog struct {
 	CreatedAt  pgtype.Timestamptz `json:"created_at"`
 }
 
-type AppSetting struct {
-	Key       string             `json:"key"`
-	Value     string             `json:"value"`
-	UpdatedBy pgtype.UUID        `json:"updated_by"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-}
-
 type CurrencyRate struct {
 	ID           pgtype.UUID        `json:"id"`
 	CurrencyFrom string             `json:"currency_from"`
@@ -803,16 +796,4 @@ type SiteAdmin struct {
 	Role      AdminRole          `json:"role"`
 	GrantedBy pgtype.UUID        `json:"granted_by"`
 	GrantedAt pgtype.Timestamptz `json:"granted_at"`
-}
-
-type VoiceAccess struct {
-	UserID    pgtype.UUID        `json:"user_id"`
-	GrantedBy pgtype.UUID        `json:"granted_by"`
-	GrantedAt pgtype.Timestamptz `json:"granted_at"`
-}
-
-type VoiceSession struct {
-	ID        pgtype.UUID        `json:"id"`
-	UserID    pgtype.UUID        `json:"user_id"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }

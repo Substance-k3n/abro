@@ -31,17 +31,13 @@ type Querier interface {
 	// username (the caller escapes % and _); `status` is NULL (everyone),
 	// 'active', 'suspended' or 'admins'.
 	AdminListUsers(ctx context.Context, arg AdminListUsersParams) ([]AdminListUsersRow, error)
-	// Admin portal overview, groups and voice (ADR-028). App-wide counts
+	// Admin portal overview and groups (ADR-028). App-wide counts
 	// and totals only: nothing here says what one person owes or spent.
 	// Days are Addis Ababa calendar days, where ABRO's people live.
 	AdminOverviewCounts(ctx context.Context, since pgtype.Timestamptz) (AdminOverviewCountsRow, error)
 	// What one person has in the app, as counts. Settlements are payments,
 	// not expenses, so they're counted apart.
 	AdminUserCounts(ctx context.Context, userID pgtype.UUID) (AdminUserCountsRow, error)
-	AdminUserVoice(ctx context.Context, userID pgtype.UUID) (AdminUserVoiceRow, error)
-	// People voice was turned on for, or who used it in the last 30 days
-	// (e.g. through VOICE_TESTERS), with how much.
-	AdminVoiceUsers(ctx context.Context, testerEmails []string) ([]AdminVoiceUsersRow, error)
 	// App-wide spending per currency in the range (minor units). Never per
 	// person.
 	AdminVolumeByCurrency(ctx context.Context, since pgtype.Timestamptz) ([]AdminVolumeByCurrencyRow, error)
@@ -95,8 +91,6 @@ type Querier interface {
 	DeletePushSubscriptionByEndpoint(ctx context.Context, endpoint string) error
 	DeleteSiteAdmin(ctx context.Context, userID pgtype.UUID) (int64, error)
 	FindFriendshipBetween(ctx context.Context, arg FindFriendshipBetweenParams) (Friendship, error)
-	// Voice access (ADR-027, admin-controlled since ADR-028).
-	GetAppSetting(ctx context.Context, key string) (string, error)
 	GetAutoRemindFriends(ctx context.Context, id pgtype.UUID) (bool, error)
 	GetCategoryBreakdown(ctx context.Context, arg GetCategoryBreakdownParams) ([]GetCategoryBreakdownRow, error)
 	GetEkub(ctx context.Context, id pgtype.UUID) (Ekub, error)
@@ -177,12 +171,10 @@ type Querier interface {
 	// Total Spending / Your Contribution / Your Share / amount owed for the
 	// period.
 	GetUserTotals(ctx context.Context, arg GetUserTotalsParams) (GetUserTotalsRow, error)
-	GrantVoiceAccess(ctx context.Context, arg GrantVoiceAccessParams) (int64, error)
 	// GRP-07: the currency can't change once the group has any expense
 	// (including settlements) -- it would relabel every stored amount.
 	GroupHasExpenses(ctx context.Context, groupID pgtype.UUID) (bool, error)
 	HasLateFeeDay(ctx context.Context, arg HasLateFeeDayParams) (bool, error)
-	HasVoiceAccess(ctx context.Context, userID pgtype.UUID) (bool, error)
 	IncrementOtpAttempts(ctx context.Context, id pgtype.UUID) error
 	InsertAdminAudit(ctx context.Context, arg InsertAdminAuditParams) error
 	IsNotificationOptedOut(ctx context.Context, arg IsNotificationOptedOutParams) (bool, error)
@@ -277,7 +269,6 @@ type Querier interface {
 	// Preserves the original read_at if already read, rather than bumping it to
 	// now() on every call -- matches the "no-op if already read" behavior.
 	MarkNotificationRead(ctx context.Context, id pgtype.UUID) (Notification, error)
-	RecordVoiceSession(ctx context.Context, userID pgtype.UUID) error
 	// joined_at doubles as invitedAt for ListMyInvites -- reset it so a
 	// re-invite after leaving shows up as a fresh invite, not the stale
 	// timestamp/ordering from the original membership.
@@ -305,7 +296,6 @@ type Querier interface {
 	RevokeSessionByID(ctx context.Context, id pgtype.UUID) (int64, error)
 	RevokeSessionsByTokenHash(ctx context.Context, tokenHash string) error
 	RevokeUserSession(ctx context.Context, arg RevokeUserSessionParams) (int64, error)
-	RevokeVoiceAccess(ctx context.Context, userID pgtype.UUID) (int64, error)
 	// Exact match on email or phone (an address or number someone already
 	// knows) -- never a fuzzy search. Emails are stored lowercased, so the
 	// caller passes a lowercased email.
@@ -349,7 +339,6 @@ type Querier interface {
 	UpdateRecurringExpenseEnabled(ctx context.Context, arg UpdateRecurringExpenseEnabledParams) (RecurringExpense, error)
 	UpdateRecurringExpenseNextRunAt(ctx context.Context, arg UpdateRecurringExpenseNextRunAtParams) error
 	UpdateSettlementRequestReceiptPath(ctx context.Context, arg UpdateSettlementRequestReceiptPathParams) (SettlementRequest, error)
-	UpsertAppSetting(ctx context.Context, arg UpsertAppSettingParams) error
 	// Mirrors Prisma's `upsert({ where: { email }, update: {}, create: {...} })`
 	// -- a genuine no-op on conflict (the "id = profiles.id" self-assignment),
 	// so an existing profile's fields are never touched by a repeat OTP sign-in.
