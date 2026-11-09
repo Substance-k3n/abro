@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 
 import { PwaSetup } from '~/components/PwaSetup';
 import { ThemeSync } from '~/components/ThemeSync';
+import { VoiceProvider } from '~/components/Voice';
 import { THEME_SCRIPT } from '~/lib/theme';
 
 import './globals.css';
@@ -84,7 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <PwaSetup />
         <ThemeSync />
-        {children}
+        <VoiceProvider>{children}</VoiceProvider>
       </body>
     </html>
   );
