@@ -257,25 +257,6 @@ site, which forwards `/api/*` to Render. Sign-in is by email code only
   Unset, the API logs "notifications stay in-app only", answers 501 on
   `/push/public-key`, and Settings shows no switch.
 
-- **Voice commands** (Tezaz, ADR-027): in the Tezaz dashboard, on the
-  ABRO project's **production** key, add the web address
-  (`https://abro-pi.vercel.app`) under domains. Then set on Render
-  (declared `sync: false` in `render.yaml`):
-  - `TEZAZ_RELAY_URL` -- `https://tezaz.onrender.com`
-  - `TEZAZ_SECRET_KEY` -- that production key's secret (`tz_sec_live_…`)
-  - `TEZAZ_PUBLIC_KEY` (optional) -- the same key's public key
-    (`tz_pub_live_…`). With it, the widget loads the look published in the
-    Tezaz dashboard's Widget page on every page load, with no deploy here.
-    Anything that isn't a `tz_pub_` key is ignored.
-  - `VOICE_TESTERS` -- comma-separated emails that get the voice button,
-    or `*` for everyone. Since ADR-028 the admin portal can also turn
-    voice on per person, open it to everyone, or switch it off for
-    everyone (which beats this list), with no deploy.
-
-  Unset, `GET /voice` answers `{"enabled": false}` and nobody sees the
-  button. Tokens are minted for `WEB_ORIGIN`, so it must be the exact
-  web address.
-
 - **Admin portal** (ADR-028): set `ADMIN_EMAILS` on Render to the
   owner's email (comma-separated for more). Those accounts are super
   admins with no database row, and nobody can demote or suspend them from

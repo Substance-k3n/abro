@@ -1,7 +1,6 @@
 package admin
 
-// The portal's overview, groups and voice controls (ADR-028). Reading is
-// app-wide counts; the only changes here are voice switches, each logged.
+// The portal's overview and groups (ADR-028): app-wide counts, read only.
 
 import (
 	"context"
@@ -17,16 +16,9 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
-	"github.com/Substance-k3n/abro/apps/api/internal/voice"
 )
 
-const (
-	ActionVoiceMode   = "voice.mode.set"
-	ActionVoiceGrant  = "user.voice.grant"
-	ActionVoiceRevoke = "user.voice.revoke"
-
-	GroupPageSize = 50
-)
+const GroupPageSize = 50
 
 // addis is Ethiopia's time (UTC+3 all year, no daylight saving): the
 // overview's days are the days ABRO's people live in. Fixed, so the API
@@ -82,16 +74,14 @@ func (s *Service) Overview(ctx context.Context, days int) (apitypes.AdminOvervie
 	o.Queue.OpenDisputes = c.OpenDisputes
 	o.Queue.PendingConfirmations, o.Queue.StaleConfirmations = c.PendingConfirmations, c.StaleConfirmations
 	o.Queue.PendingInvites, o.Queue.StaleInvites = c.PendingInvites, c.StaleInvites
-	o.Voice.Sessions, o.Voice.Users = c.VoiceSessions, c.VoiceUsers
 
 	o.Series = make([]apitypes.AdminDay, 0, len(series))
 	for _, d := range series {
 		o.Series = append(o.Series, apitypes.AdminDay{
-			Day:           d.Day.Time.Format(time.DateOnly),
-			Signups:       d.Signups,
-			Expenses:      d.Expenses,
-			Settlements:   d.Settlements,
-			VoiceSessions: d.VoiceSessions,
+			Day:         d.Day.Time.Format(time.DateOnly),
+			Signups:     d.Signups,
+			Expenses:    d.Expenses,
+			Settlements: d.Settlements,
 		})
 	}
 	o.Categories = make([]apitypes.AdminCategoryCount, 0, len(cats))
@@ -195,151 +185,4 @@ func (s *Service) GetGroup(ctx context.Context, id pgtype.UUID) (apitypes.AdminG
 		})
 	}
 	return d, nil
-}
-
-// --- voice -----------------------------------------------------------------
-
-// voiceAccess is why someone has voice or not (apitypes.AdminUserVoice).
-func (s *Service) voiceAccess(mode string, email pgtype.Text, granted bool) string {
-	switch {
-	case !s.voice.IsConfigured():
-		return "unavailable"
-	case mode == voice.ModeOff:
-		return "off"
-	case mode == voice.ModeEveryone:
-		return "everyone"
-	case s.voice.EnabledFor(email.String):
-		if _, everyone := s.voice.Testers(); everyone {
-			return "everyone"
-		}
-		return "tester"
-	case granted:
-		return "granted"
-	}
-	return "none"
-}
-
-func (s *Service) userVoice(ctx context.Context, p db.Profile) (apitypes.AdminUserVoice, error) {
-	mode, err := voice.Mode(ctx, s.q)
-	if err != nil {
-		return apitypes.AdminUserVoice{}, err
-	}
-	v, err := s.q.AdminUserVoice(ctx, p.ID)
-	if err != nil {
-		return apitypes.AdminUserVoice{}, err
-	}
-	return apitypes.AdminUserVoice{
-		Access:      s.voiceAccess(mode, p.Email, v.GrantedAt.Valid),
-		GrantedAt:   optTime(v.GrantedAt),
-		LastUsedAt:  optTime(v.LastUsedAt),
-		Sessions30d: v.Sessions30d,
-	}, nil
-}
-
-func (s *Service) Voice(ctx context.Context) (apitypes.AdminVoice, error) {
-	mode, err := voice.Mode(ctx, s.q)
-	if err != nil {
-		return apitypes.AdminVoice{}, err
-	}
-	testers, everyone := s.voice.Testers()
-	rows, err := s.q.AdminVoiceUsers(ctx, testers)
-	if err != nil {
-		return apitypes.AdminVoice{}, err
-	}
-	out := apitypes.AdminVoice{
-		Configured:      s.voice.IsConfigured(),
-		Mode:            mode,
-		Testers:         testers,
-		TestersEveryone: everyone,
-		Users:           make([]apitypes.AdminVoiceUser, 0, len(rows)),
-	}
-	for _, r := range rows {
-		out.Users = append(out.Users, apitypes.AdminVoiceUser{
-			UserID:        idutil.String(r.ID),
-			DisplayName:   r.DisplayName,
-			Email:         optText(r.Email),
-			Username:      optText(r.Username),
-			AvatarURL:     optText(r.AvatarUrl),
-			SuspendedAt:   optTime(r.SuspendedAt),
-			Access:        s.voiceAccess(mode, r.Email, r.GrantedAt.Valid),
-			GrantedAt:     optTime(r.GrantedAt),
-			GrantedByName: optText(r.GrantedByName),
-			LastUsedAt:    optTime(r.LastUsedAt),
-			Sessions30d:   r.Sessions30d,
-		})
-	}
-	return out, nil
-}
-
-func (s *Service) SetVoiceMode(ctx context.Context, actor Admin, mode, ip string) error {
-	switch mode {
-	case voice.ModeOff, voice.ModeListed, voice.ModeEveryone:
-	default:
-		return httpx.BadRequest("INVALID_MODE", "mode must be off, listed or everyone.")
-	}
-	return s.inTx(ctx, func(q *db.Queries) error {
-		from, err := voice.Mode(ctx, q)
-		if err != nil {
-			return err
-		}
-		if from == mode {
-			return httpx.Conflict("MODE_UNCHANGED", "Voice is already set that way.")
-		}
-		if err := q.UpsertAppSetting(ctx, db.UpsertAppSettingParams{
-			Key: voice.ModeSetting, Value: mode, UpdatedBy: actor.Profile.ID,
-		}); err != nil {
-			return err
-		}
-		return auditOn(ctx, q, actor, ActionVoiceMode, "setting", pgtype.UUID{},
-			map[string]any{"setting": voice.ModeSetting, "from": from, "to": mode}, ip)
-	})
-}
-
-// voiceTarget: voice is a feature switch, not a punishment, so any admin
-// with voice.manage may switch it for anyone, themselves included -- but
-// not turn it on for a suspended account.
-func voiceTarget(ctx context.Context, q *db.Queries, id pgtype.UUID) (db.Profile, error) {
-	p, err := q.GetProfileByID(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return db.Profile{}, httpx.NotFound("USER_NOT_FOUND", "No such user.")
-	}
-	return p, err
-}
-
-func (s *Service) GrantVoice(ctx context.Context, actor Admin, id pgtype.UUID, ip string) error {
-	return s.inTx(ctx, func(q *db.Queries) error {
-		p, err := voiceTarget(ctx, q, id)
-		if err != nil {
-			return err
-		}
-		if p.SuspendedAt.Valid {
-			return httpx.Conflict("TARGET_SUSPENDED", "Unsuspend this account before turning voice on.")
-		}
-		n, err := q.GrantVoiceAccess(ctx, db.GrantVoiceAccessParams{UserID: id, GrantedBy: actor.Profile.ID})
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			return httpx.Conflict("VOICE_ALREADY_ON", "Voice is already on for them.")
-		}
-		return audit(ctx, q, actor, ActionVoiceGrant, id, nil, ip)
-	})
-}
-
-// RevokeVoice removes an admin's grant. Someone in VOICE_TESTERS keeps
-// voice in "listed" mode; the portal says so.
-func (s *Service) RevokeVoice(ctx context.Context, actor Admin, id pgtype.UUID, ip string) error {
-	return s.inTx(ctx, func(q *db.Queries) error {
-		if _, err := voiceTarget(ctx, q, id); err != nil {
-			return err
-		}
-		n, err := q.RevokeVoiceAccess(ctx, id)
-		if err != nil {
-			return err
-		}
-		if n == 0 {
-			return httpx.Conflict("VOICE_NOT_GRANTED", "Voice wasn't turned on for them here.")
-		}
-		return audit(ctx, q, actor, ActionVoiceRevoke, id, nil, ip)
-	})
 }

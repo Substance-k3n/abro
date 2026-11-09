@@ -49,13 +49,6 @@ type Config struct {
 	// Contact push services see on our requests; defaults to WebOrigin.
 	VAPIDSubject string
 
-	// ADR-027 -- voice commands through Tezaz. Relay URL and secret key
-	// both set turns it on, for the emails in VoiceTesters ("*" = all).
-	TezazRelayURL  string
-	TezazSecretKey string
-	TezazPublicKey string
-	VoiceTesters   string
-
 	// ADR-028 -- the admin portal. Comma-separated emails that are super
 	// admins without a site_admins row, so the owner can't be locked out
 	// from inside the app. Empty means only stored roles count.
@@ -97,11 +90,6 @@ func Load() Config {
 		VAPIDPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
 		VAPIDPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
 		VAPIDSubject:    getEnv("VAPID_SUBJECT", getEnv("WEB_ORIGIN", "http://localhost:3200")),
-
-		TezazRelayURL:  os.Getenv("TEZAZ_RELAY_URL"),
-		TezazSecretKey: os.Getenv("TEZAZ_SECRET_KEY"),
-		TezazPublicKey: os.Getenv("TEZAZ_PUBLIC_KEY"),
-		VoiceTesters:   os.Getenv("VOICE_TESTERS"),
 
 		AdminEmails: os.Getenv("ADMIN_EMAILS"),
 	}

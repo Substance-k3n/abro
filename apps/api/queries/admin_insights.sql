@@ -1,4 +1,4 @@
--- Admin portal overview, groups and voice (ADR-028). App-wide counts
+-- Admin portal overview and groups (ADR-028). App-wide counts
 -- and totals only: nothing here says what one person owes or spent.
 -- Days are Addis Ababa calendar days, where ABRO's people live.
 
@@ -24,10 +24,7 @@ SELECT
      WHERE m1.status = 'INVITED' AND g3.deleted_at IS NULL) AS pending_invites,
   (SELECT count(*) FROM group_members m2 JOIN groups g4 ON g4.id = m2.group_id
      WHERE m2.status = 'INVITED' AND g4.deleted_at IS NULL
-       AND m2.joined_at < now() - interval '7 days') AS stale_invites,
-  (SELECT count(*) FROM voice_sessions v1 WHERE v1.created_at >= sqlc.arg('since')::timestamptz) AS voice_sessions,
-  (SELECT count(DISTINCT v2.user_id) FROM voice_sessions v2
-     WHERE v2.created_at >= sqlc.arg('since')::timestamptz) AS voice_users;
+       AND m2.joined_at < now() - interval '7 days') AS stale_invites;
 
 -- name: AdminDailySeries :many
 -- One row per day from `since` to today, zeros included.
@@ -45,9 +42,7 @@ SELECT d.day::date AS day,
        AND (e.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date = d.day) AS expenses,
   (SELECT count(*) FROM expenses e
      WHERE e.deleted_at IS NULL AND e.split_type = 'SETTLEMENT'
-       AND (e.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date = d.day) AS settlements,
-  (SELECT count(*) FROM voice_sessions v
-     WHERE (v.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date = d.day) AS voice_sessions
+       AND (e.created_at AT TIME ZONE 'Africa/Addis_Ababa')::date = d.day) AS settlements
 FROM days d
 ORDER BY d.day;
 
@@ -116,34 +111,3 @@ WHERE gm.group_id = $1
 -- Active members first (the enum's own order puts INVITED first), admins
 -- before members.
 ORDER BY gm.status = 'ACTIVE' DESC, gm.status, gm.role, p.display_name;
-
--- name: GrantVoiceAccess :execrows
-INSERT INTO voice_access (user_id, granted_by) VALUES (@user_id, @granted_by)
-ON CONFLICT (user_id) DO NOTHING;
-
--- name: RevokeVoiceAccess :execrows
-DELETE FROM voice_access WHERE user_id = $1;
-
--- name: AdminVoiceUsers :many
--- People voice was turned on for, or who used it in the last 30 days
--- (e.g. through VOICE_TESTERS), with how much.
-SELECT p.id, p.display_name, p.email, p.username, p.avatar_url, p.suspended_at,
-       va.granted_at, g.display_name AS granted_by_name,
-       (SELECT max(v.created_at) FROM voice_sessions v WHERE v.user_id = p.id)::timestamptz AS last_used_at,
-       (SELECT count(*) FROM voice_sessions v WHERE v.user_id = p.id
-          AND v.created_at >= now() - interval '30 days') AS sessions_30d
-FROM profiles p
-LEFT JOIN voice_access va ON va.user_id = p.id
-LEFT JOIN profiles g ON g.id = va.granted_by
-WHERE va.user_id IS NOT NULL
-   OR p.email = ANY(sqlc.arg('tester_emails')::text[])
-   OR EXISTS (SELECT 1 FROM voice_sessions v WHERE v.user_id = p.id
-                AND v.created_at >= now() - interval '30 days')
-ORDER BY last_used_at DESC NULLS LAST, p.display_name;
-
--- name: AdminUserVoice :one
-SELECT
-  (SELECT va.granted_at FROM voice_access va WHERE va.user_id = sqlc.arg('user_id')::uuid)::timestamptz AS granted_at,
-  (SELECT max(v1.created_at) FROM voice_sessions v1 WHERE v1.user_id = sqlc.arg('user_id')::uuid)::timestamptz AS last_used_at,
-  (SELECT count(*) FROM voice_sessions v2 WHERE v2.user_id = sqlc.arg('user_id')::uuid
-     AND v2.created_at >= now() - interval '30 days') AS sessions_30d;

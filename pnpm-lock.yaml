@@ -4,9 +4,6 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-overrides:
-  '@tezaz/core': file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz
-
 importers:
 
   .:
@@ -84,12 +81,6 @@ importers:
       '@abro/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@tezaz/core':
-        specifier: file:../../vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz
-        version: file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz
-      '@tezaz/react':
-        specifier: file:../../vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz
-        version: file:vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)
       lucide-react:
         specifier: ^1.45.0
         version: 1.46.0(react@19.2.1)
@@ -990,17 +981,6 @@ packages:
 
   '@tailwindcss/postcss@4.3.3':
     resolution: {integrity: sha512-JTSZZGQi1AyKirbLN3azmjVzef92tcX7h+iSqPdaeStyFpGpDlKvvpxeOE8njhbUanbRwr3z8DyzhICWnMtQeg==}
-
-  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz':
-    resolution: {integrity: sha512-h1XpXht8GI4MI2SwFFYEJ3xTjrC7fEBr6SsM/WuOht1gsGogOqePqG55pVB1E8OBGOdsp4kEFFp71leVf7QcWw==, tarball: file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz}
-    version: 0.2.1
-
-  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz':
-    resolution: {integrity: sha512-2ay+BEDEVFpOg5cenCoLArIj1MAI8qw9sKEkZfM6EP7xG+cxnLDaGTbPK6phrUt61Pdyb74K4TGXRJWKoPRjvA==, tarball: file:vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz}
-    version: 0.2.1
-    peerDependencies:
-      react: ^19.0.0
-      react-dom: ^19.0.0
 
   '@tsconfig/node10@1.0.13':
     resolution: {integrity: sha512-gcLdvR9HO1ZJBypsOGqaP6TFEzb6vIta0KSTLt9NAQ6pXQO3cRgSVyCN6pzYqI9DlJgY71XKO0dpDhCf08b3pg==}
@@ -3461,14 +3441,6 @@ snapshots:
       '@tailwindcss/oxide': 4.3.3
       postcss: 8.5.28
       tailwindcss: 4.3.3
-
-  '@tezaz/core@file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz': {}
-
-  '@tezaz/react@file:vendor/tezaz/tezaz-react-0.2.1-65c98dc.tgz(react-dom@19.2.1(react@19.2.1))(react@19.2.1)':
-    dependencies:
-      '@tezaz/core': file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz
-      react: 19.2.1
-      react-dom: 19.2.1(react@19.2.1)
 
   '@tsconfig/node10@1.0.13':
     optional: true
