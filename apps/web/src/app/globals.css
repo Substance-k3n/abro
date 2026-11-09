@@ -488,6 +488,22 @@ body {
     transform 0.15s ease;
 }
 
+/* Chrome/Safari paint their own autofill styling (a tinted background,
+   sometimes a text color that doesn't apply until the field is
+   interacted with) over whatever this class sets, once
+   autoComplete="one-time-code" below tells them these are fillable --
+   reported as "can't see it's filled till I click on it". Forcing both
+   back to this class's own colors, and defeating Chrome's
+   autofill-background transition trick with a very long one of our
+   own (the standard workaround -- there's no "turn off autofill
+   styling" property). */
+.otp-box:-webkit-autofill {
+  -webkit-text-fill-color: var(--t-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--neo-bg2) inset;
+  box-shadow: 0 0 0 1000px var(--neo-bg2) inset;
+  transition: background-color 9999s ease-in-out 0s;
+}
+
 .otp-box:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 4px var(--accent-light);
