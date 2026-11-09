@@ -100,72 +100,79 @@ function SignInForm() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col px-7 py-12 sm:items-center sm:justify-center sm:py-16">
-      <div className="mx-auto w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center sm:mb-10">
-          <Logomark size={40} className="mb-5" />
+    <main className="flex min-h-screen flex-col px-5 py-12 sm:items-center sm:justify-center sm:py-16">
+      <div className="mx-auto w-full max-w-[380px]">
+        <div className="mb-9 flex flex-col items-center text-center sm:mb-11">
+          <Logomark size={48} className="mb-6" />
           <h2
-            className="font-display text-[1.7rem] font-bold tracking-tight"
+            className="font-display text-[2.1rem] font-bold leading-[1.1] tracking-tight"
             style={{ color: 'var(--t-primary)' }}
           >
             Welcome back
           </h2>
-          <p className="mt-1.5 text-sm" style={{ color: 'var(--t-muted)' }}>
+          <p className="mt-2 text-[0.92rem]" style={{ color: 'var(--t-muted)' }}>
             Sign in to your ABRO account
           </p>
         </div>
 
-        <form onSubmit={submit} className="flex flex-col gap-4">
-          <a
-            href={googleSignInUrl()}
-            className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold"
-            style={{ color: 'var(--t-secondary)' }}
-          >
-            <GoogleIcon /> Continue with Google
-          </a>
-
-          <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--t-dim)' }}>
-            <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
-            or sign in with email
-            <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
-          </div>
-
-          {(oauthError || error) && (
-            <p
-              className="rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
-              style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
+        {/* The one card on an otherwise bare screen -- real structure
+            instead of a form floating on the page, with a thin top
+            accent (a ledger tab, not a gradient) as the single
+            deliberate brand touch. */}
+        <div className="neo-raised-lg overflow-hidden rounded-[28px]">
+          <div className="h-[3px]" style={{ background: 'var(--accent)' }} />
+          <form onSubmit={submit} className="flex flex-col gap-4 p-7 sm:p-8">
+            <a
+              href={googleSignInUrl()}
+              className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold"
+              style={{ color: 'var(--t-secondary)' }}
             >
-              {error ?? oauthError}
-            </p>
-          )}
+              <GoogleIcon /> Continue with Google
+            </a>
 
-          <div>
-            <label
-              htmlFor="email"
-              className="mb-2 block pl-1 text-[0.8rem] font-semibold"
-              style={{ color: 'var(--t-muted)' }}
+            <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--t-dim)' }}>
+              <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
+              or sign in with email
+              <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
+            </div>
+
+            {(oauthError || error) && (
+              <p
+                className="rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
+                style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
+              >
+                {error ?? oauthError}
+              </p>
+            )}
+
+            <div>
+              <label
+                htmlFor="email"
+                className="mb-2 block pl-1 text-[0.8rem] font-semibold"
+                style={{ color: 'var(--t-muted)' }}
+              >
+                Email address
+              </label>
+              <input
+                id="email"
+                className="neo-input"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="neo-btn-accent font-display mt-1 rounded-[18px] px-4 py-4 text-base font-semibold"
             >
-              Email address
-            </label>
-            <input
-              id="email"
-              className="neo-input"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="neo-btn-accent font-display mt-1 rounded-[18px] px-4 py-4 text-base font-semibold"
-          >
-            {submitting ? 'Sending code…' : 'Continue'}
-          </button>
-        </form>
+              {submitting ? 'Sending code…' : 'Continue'}
+            </button>
+          </form>
+        </div>
       </div>
     </main>
   );

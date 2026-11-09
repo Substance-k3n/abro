@@ -464,35 +464,62 @@ body {
   }
 }
 
-/* OTP input, used by email verification */
+/* OTP input, used by email verification. Raised off the page (real
+   shadow, not the flat inset the old version used) so each box reads
+   as a tappable object, bigger and bolder than a typical input --
+   this is the one thing on the screen, so it gets to be the one bold
+   element (2026-11-09 feedback: wanted a more "visible response"). */
 .otp-box {
-  width: 48px;
-  height: 56px;
+  width: 52px;
+  height: 60px;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  background: var(--neo-bg);
-  border: 1px solid var(--border-med);
+  font-size: 1.45rem;
+  font-weight: 700;
+  background: var(--neo-bg2);
+  border: 1.5px solid var(--border-sub);
   outline: none;
-  border-radius: 14px;
+  border-radius: 16px;
   color: var(--t-primary);
+  box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.12);
   transition:
     border-color 0.15s ease,
-    background-color 0.15s ease;
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 
 .otp-box:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-light);
 }
 
 /* A digit that's been entered reads as "locked in" at a glance, not
    just the same empty box with different text -- the six boxes are
-   otherwise identical, so this is the only progress signal there is. */
+   otherwise identical, so this is the only progress signal there is.
+   The pop plays once per fill (the class is only added once a digit
+   lands), not on every render. */
 .otp-box-filled {
   border-color: var(--accent);
-  background: var(--accent-light);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: otpPop 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes otpPop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .otp-box-filled {
+    animation: none;
+  }
 }
 
 /* Fonts, fed by next/font/local in layout.tsx */

@@ -121,29 +121,30 @@ function VerifyEmailForm() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center px-7 py-16 sm:justify-center sm:py-20">
+    <main className="flex min-h-screen flex-col items-center px-5 py-16 sm:justify-center sm:py-20">
       <div
-        className="neo-raised-lg mb-7 flex h-[72px] w-[72px] items-center justify-center rounded-[24px]"
+        className="neo-raised-lg mb-8 flex h-[76px] w-[76px] items-center justify-center rounded-[26px]"
         aria-hidden
       >
-        <Mail size={32} strokeWidth={1.5} color="var(--accent)" />
+        <Mail size={34} strokeWidth={1.5} color="var(--accent)" />
       </div>
 
       <h2
-        className="font-display text-center text-[1.8rem] font-bold tracking-tight"
+        className="font-display text-center text-[2.1rem] font-bold leading-[1.1] tracking-tight"
         style={{ color: 'var(--t-primary)' }}
       >
-        Check your email
+        Enter the code
       </h2>
-      <p className="mt-2 text-center text-sm leading-relaxed" style={{ color: 'var(--t-muted)' }}>
-        We sent a 6-digit code to
-        <br />
-        <strong style={{ color: 'var(--t-secondary)' }}>{maskEmail(email)}</strong>
+      <p
+        className="mt-2.5 text-center text-[0.92rem] leading-relaxed"
+        style={{ color: 'var(--t-muted)' }}
+      >
+        Sent to <strong style={{ color: 'var(--t-secondary)' }}>{maskEmail(email)}</strong>
       </p>
       <button
         type="button"
         onClick={() => router.push(`/auth/signin?email=${encodeURIComponent(email)}`)}
-        className="mb-6 mt-1 text-[0.78rem] font-semibold"
+        className="mb-8 mt-1.5 text-[0.78rem] font-semibold"
         style={{ color: 'var(--accent)' }}
       >
         Wrong email? Change it
@@ -158,7 +159,7 @@ function VerifyEmailForm() {
         </p>
       )}
 
-      <div className="mb-8 flex gap-2.5">
+      <div className="mb-8 flex gap-3">
         {otp.map((digit, index) => (
           <input
             // Fixed 6-slot positional layout that never reorders — index is the
