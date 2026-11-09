@@ -307,14 +307,19 @@ body {
   transform: scale(0.98);
 }
 
+/* The one gradient in the system, reserved for the single boldest
+   element on the screen (the hero balance card) -- every stop stays
+   above 4.5:1 for the white text sitting on it, so the gradient can't
+   accidentally wash out a number. Flat #c2410c everywhere else
+   (buttons, pills, toggles) stays flat on purpose. */
 .neo-card-accent {
-  background: #c2410c;
+  background: linear-gradient(146deg, #cf4a12 0%, #9c3209 100%);
   color: white;
-  box-shadow: 0 12px 28px -10px rgba(20, 15, 50, 0.4);
+  box-shadow: 0 14px 30px -12px rgba(30, 16, 8, 0.45);
 }
 
 :root[data-theme='dark'] .neo-card-accent {
-  box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.65);
+  box-shadow: 0 14px 30px -12px rgba(0, 0, 0, 0.65);
 }
 
 .neo-badge-green {
