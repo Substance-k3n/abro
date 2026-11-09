@@ -203,12 +203,10 @@ export default function CreateGroupMembersPage() {
                 sub={balanceLabel}
                 right={
                   <div
-                    className="flex h-6 w-6 items-center justify-center rounded-lg"
+                    className="flex h-6 w-6 items-center justify-center rounded-lg border"
                     style={{
-                      background: selected ? 'var(--accent)' : 'transparent',
-                      boxShadow: selected
-                        ? '3px 3px 8px rgba(99,102,241,0.3), -2px -2px 5px rgba(255,255,255,0.5)'
-                        : 'inset 3px 3px 7px var(--neo-dark), inset -3px -3px 7px var(--neo-light)',
+                      background: selected ? '#12813f' : 'transparent',
+                      borderColor: selected ? '#12813f' : 'var(--border-med)',
                     }}
                   >
                     {selected && <Check size={14} strokeWidth={2.5} color="white" />}
@@ -234,7 +232,7 @@ export default function CreateGroupMembersPage() {
       <button
         onClick={() => finish(draft.memberIds)}
         disabled={creating}
-        className="neo-btn-accent font-display mt-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:opacity-40"
+        className="neo-btn-accent font-display mt-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold"
       >
         {creating ? 'Creating…' : 'Create Group'}
       </button>

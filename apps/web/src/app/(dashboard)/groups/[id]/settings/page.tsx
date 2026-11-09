@@ -34,6 +34,7 @@
 //    points; apps/api checks the same limits.
 
 import { ETB, abs, formatMoney, toDecimal } from '@abro/types';
+import { GroupIcon } from '@abro/ui';
 import { ArrowLeft, LogOut, Trash2 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
@@ -267,15 +268,13 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
                   onClick={() => setType(t.id)}
                   className="flex items-center gap-2 rounded-xl border-2 px-3 py-2.5 text-left"
                   style={{
-                    borderColor: type === t.id ? t.color : 'transparent',
-                    background: 'var(--neo-bg)',
-                    boxShadow:
-                      type === t.id
-                        ? 'inset 2px 2px 6px rgba(0,0,0,0.06), inset -2px -2px 6px rgba(255,255,255,0.6)'
-                        : '3px 3px 8px var(--neo-dark), -3px -3px 8px var(--neo-light)',
+                    borderColor: type === t.id ? t.color : 'var(--border-sub)',
+                    background: 'var(--neo-bg2)',
                   }}
                 >
-                  <span className="text-[0.9rem]">{t.icon}</span>
+                  <span style={{ color: type === t.id ? t.color : 'var(--t-muted)' }}>
+                    <GroupIcon icon={t.icon} size={16} />
+                  </span>
                   <span
                     className="text-[0.8rem] font-semibold"
                     style={{ color: type === t.id ? t.color : 'var(--t-secondary)' }}
@@ -457,7 +456,7 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
           <button
             onClick={save}
             disabled={!dirty || !name.trim() || thresholdInvalid || feesInvalid || saving}
-            className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+            className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
           >
             {saving ? 'Saving…' : saved && !dirty ? 'Saved ✓' : 'Save Changes'}
           </button>

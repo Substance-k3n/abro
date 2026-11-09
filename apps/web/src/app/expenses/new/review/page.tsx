@@ -27,9 +27,10 @@
 //    be disabled, not just have it disabled with no explanation.
 
 import { ETB, formatMoney } from '@abro/types';
+import { CategoryIcon, GroupIcon } from '@abro/ui';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import { ApiError } from '~/lib/api-client';
 import { useExpenseDirectory } from '~/lib/expense-directory';
@@ -121,11 +122,26 @@ export default function AddExpenseReviewPage() {
           <Row label="Name" value={draft.name || '—'} />
           <Row
             label="Category"
-            value={category ? `${category.icon} ${category.label}` : draft.category}
+            value={
+              <span className="inline-flex items-center gap-1.5">
+                <CategoryIcon label={draft.category} size={14} />
+                {category?.label ?? draft.category}
+              </span>
+            }
           />
           <Row label="Date" value={draft.date} />
           <Row label="Amount" value={formatMoney(total, ETB)} mono />
-          {group && <Row label="Group" value={`${groupTypeFor(group.type).icon} ${group.name}`} />}
+          {group && (
+            <Row
+              label="Group"
+              value={
+                <span className="inline-flex items-center gap-1.5">
+                  <GroupIcon icon={groupTypeFor(group.type).icon} size={14} />
+                  {group.name}
+                </span>
+              }
+            />
+          )}
         </div>
       </div>
 
@@ -269,7 +285,7 @@ export default function AddExpenseReviewPage() {
       <button
         onClick={submit}
         disabled={!canCreate}
-        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         {submitting ? 'Creating…' : 'Create Expense'}
       </button>
@@ -277,7 +293,7 @@ export default function AddExpenseReviewPage() {
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Row({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>

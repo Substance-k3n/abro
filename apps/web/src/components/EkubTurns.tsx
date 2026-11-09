@@ -86,8 +86,8 @@ export function EkubTurns({
           <li key={turn.map((s) => s.id).join('+')} className="neo-raised rounded-2xl p-3.5">
             <div className="mb-2 flex items-center gap-2">
               <span
-                className="neo-inset-sm flex h-7 w-7 shrink-0 items-center justify-center rounded-lg font-mono text-[0.75rem] font-bold"
-                style={{ color: 'var(--accent)' }}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-[0.75rem] font-bold text-white"
+                style={{ background: locked ? 'var(--t-dim)' : '#12813f' }}
               >
                 {i + 1}
               </span>
@@ -356,7 +356,7 @@ export function AddToTurn({
           setTurn('new');
           setAmount(amountInput(slotAmount));
         }}
-        className="neo-btn-accent rounded-xl px-4 py-2.5 text-[0.85rem] font-semibold disabled:opacity-40"
+        className="neo-btn-accent rounded-xl px-4 py-2.5 text-[0.85rem] font-semibold"
       >
         Add
       </button>

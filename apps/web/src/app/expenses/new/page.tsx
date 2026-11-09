@@ -29,6 +29,7 @@
 //    using it out of full static rendering otherwise) -- the default
 //    export below just wraps the real page in one.
 
+import { CategoryIcon, GroupIcon } from '@abro/ui';
 import { ArrowRight, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
@@ -87,12 +88,38 @@ function AddExpenseDetailsForm() {
         <div className="w-[60px]" />
       </div>
 
+      {/* Amount -- the hero figure. What this screen exists to record. */}
+      <div className="flex flex-col items-center gap-2 py-2">
+        <span
+          className="text-[0.78rem] font-semibold uppercase tracking-wide"
+          style={{ color: 'var(--t-dim)' }}
+        >
+          Amount
+        </span>
+        <div className="flex items-baseline justify-center gap-2">
+          <span className="font-mono text-[1.4rem] font-semibold" style={{ color: 'var(--t-dim)' }}>
+            ETB
+          </span>
+          <input
+            className="amount-hero-input"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={draft.amountInput}
+            onChange={(e) => update({ amountInput: e.target.value })}
+            style={{ maxWidth: 220 }}
+          />
+        </div>
+        <div className="h-px w-16" style={{ background: 'var(--border-med)' }} />
+      </div>
+
       <div>
         <label
           className="mb-2 block pl-1 text-[0.8rem] font-semibold"
           style={{ color: 'var(--t-muted)' }}
         >
-          Expense name
+          For
         </label>
         <input
           className="neo-input"
@@ -119,43 +146,16 @@ function AddExpenseDetailsForm() {
           className="mb-2 block pl-1 text-[0.8rem] font-semibold"
           style={{ color: 'var(--t-muted)' }}
         >
-          Amount
-        </label>
-        <div className="relative">
-          <span
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 font-mono text-[0.9rem] font-semibold"
-            style={{ color: 'var(--t-dim)' }}
-          >
-            ETB
-          </span>
-          <input
-            className="neo-input font-mono text-[1.2rem] font-bold"
-            type="number"
-            min="0"
-            step="0.01"
-            placeholder="0.00"
-            value={draft.amountInput}
-            onChange={(e) => update({ amountInput: e.target.value })}
-            style={{ color: 'var(--t-primary)', paddingLeft: 52 }}
-          />
-        </div>
-      </div>
-
-      <div>
-        <label
-          className="mb-2 block pl-1 text-[0.8rem] font-semibold"
-          style={{ color: 'var(--t-muted)' }}
-        >
           Category
         </label>
-        <div className="flex flex-wrap gap-2">
+        <div className="hide-scroll -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 md:-mx-8 md:px-8">
           {CATEGORIES.map((c) => (
             <button
               key={c.label}
               onClick={() => update({ category: c.label })}
-              className={`cat-pill border-none ${draft.category === c.label ? 'selected' : ''}`}
+              className={`cat-pill shrink-0 border-none ${draft.category === c.label ? 'selected' : ''}`}
             >
-              <span>{c.icon}</span>
+              <CategoryIcon label={c.label} size={14} />
               {c.label}
             </button>
           ))}
@@ -170,7 +170,7 @@ function AddExpenseDetailsForm() {
           Date
         </label>
         <input
-          className="neo-input"
+          className="neo-input w-40"
           type="date"
           value={draft.date}
           onChange={(e) => update({ date: e.target.value })}
@@ -185,28 +185,21 @@ function AddExpenseDetailsForm() {
         >
           Group
         </label>
-        <div className="flex flex-wrap gap-2">
+        <div className="hide-scroll -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 md:-mx-8 md:px-8">
           <button
             onClick={() => selectGroup(null)}
-            className={`neo-flat rounded-xl border-none px-3.5 py-2 text-[0.8rem] font-medium ${draft.groupId === null ? 'ring-2' : ''}`}
-            style={{
-              color: draft.groupId === null ? 'var(--accent)' : 'var(--t-muted)',
-              ...(draft.groupId === null ? { boxShadow: '0 0 0 2px var(--accent)' } : {}),
-            }}
+            className={`cat-pill shrink-0 border-none ${draft.groupId === null ? 'selected' : ''}`}
           >
-            Personal (no group)
+            Personal
           </button>
           {groups.map((g) => (
             <button
               key={g.id}
               onClick={() => selectGroup(g.id)}
-              className="neo-flat rounded-xl border-none px-3.5 py-2 text-[0.8rem] font-medium"
-              style={{
-                color: draft.groupId === g.id ? 'var(--accent)' : 'var(--t-muted)',
-                ...(draft.groupId === g.id ? { boxShadow: '0 0 0 2px var(--accent)' } : {}),
-              }}
+              className={`cat-pill shrink-0 border-none ${draft.groupId === g.id ? 'selected' : ''}`}
             >
-              {groupTypeFor(g.type).icon} {g.name}
+              <GroupIcon icon={groupTypeFor(g.type).icon} size={14} />
+              {g.name}
             </button>
           ))}
         </div>
@@ -215,7 +208,7 @@ function AddExpenseDetailsForm() {
       <button
         onClick={() => router.push('/expenses/new/payer')}
         disabled={!isValid}
-        className="neo-btn-accent font-display mt-2 flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display mt-2 flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         Next <ArrowRight size={17} strokeWidth={2.25} />
       </button>

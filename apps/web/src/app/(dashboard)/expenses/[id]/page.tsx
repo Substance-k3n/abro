@@ -33,9 +33,17 @@
 //    of "Paid by", explains itself, has no receipt and no Edit; Delete
 //    waives it.
 
-import { EmptyState } from '@abro/ui';
+import { CategoryIcon, EmptyState, GroupIcon } from '@abro/ui';
 import { ETB, formatMoney } from '@abro/types';
-import { ArrowLeft, MoreHorizontal, Pencil, Receipt, Trash2 } from 'lucide-react';
+import {
+  AlarmClock,
+  ArrowLeft,
+  Handshake,
+  MoreHorizontal,
+  Pencil,
+  Receipt,
+  Trash2,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -49,7 +57,6 @@ import { type AuthExpense, deleteExpense, getExpense } from '~/lib/expenses-api'
 import { listFriends } from '~/lib/friends-api';
 import { type GroupListItem, groupTypeFor, listGroups } from '~/lib/groups-api';
 import { colorForId, initialsOf } from '~/lib/identity';
-import { CATEGORIES } from '~/lib/reference-data';
 import { photoSrc } from '~/lib/photos';
 import { useApiRefresh } from '~/lib/use-api-refresh';
 
@@ -151,7 +158,6 @@ export default function ExpenseDetailPage() {
   const { profile, expense, group, friendIds } = state.data;
   const isYou = (user: AuthProfile) => user.id === profile.id;
   const nameOf = (user: AuthProfile) => (isYou(user) ? 'You' : user.displayName);
-  const category = CATEGORIES.find((c) => c.label === expense.category);
   const amount = BigInt(expense.amount);
   const mightManage = isYou(expense.paidBy) || expense.groupId !== null;
   const wasUpdated = expense.updatedAt !== expense.createdAt;
@@ -276,14 +282,16 @@ export default function ExpenseDetailPage() {
       {/* Info card */}
       <div className="neo-raised-sm mb-4 flex flex-col items-center gap-2 rounded-[20px] p-6 text-center">
         <div
-          className="neo-raised-sm flex h-14 w-14 items-center justify-center rounded-2xl text-[1.4rem]"
+          className="neo-raised-sm flex h-14 w-14 items-center justify-center rounded-2xl"
           style={{ color: 'var(--t-muted)' }}
         >
-          {expense.splitType === 'SETTLEMENT'
-            ? '🤝'
-            : expense.splitType === 'INTEREST'
-              ? '⏰'
-              : (category?.icon ?? '📦')}
+          {expense.splitType === 'SETTLEMENT' ? (
+            <Handshake size={24} strokeWidth={1.75} />
+          ) : expense.splitType === 'INTEREST' ? (
+            <AlarmClock size={24} strokeWidth={1.75} />
+          ) : (
+            <CategoryIcon label={expense.category} size={24} />
+          )}
         </div>
         <p
           className="font-display text-[2rem] font-extrabold tracking-tighter"
@@ -299,7 +307,8 @@ export default function ExpenseDetailPage() {
             className="neo-flat mt-1 flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[0.72rem] font-semibold"
             style={{ color: 'var(--t-muted)' }}
           >
-            {groupTypeFor(group.type).icon} {group.name}
+            <GroupIcon icon={groupTypeFor(group.type).icon} size={14} />
+            {group.name}
           </span>
         )}
       </div>

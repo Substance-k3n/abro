@@ -154,6 +154,50 @@ export default function NewEkubPage() {
       </h2>
 
       <div className="flex flex-col gap-5">
+        {/* Amount per turn -- the hero figure. The number every turn puts
+            in and every turn takes out. */}
+        <div className="flex flex-col items-center gap-2 py-2">
+          <span
+            className="text-[0.78rem] font-semibold uppercase tracking-wide"
+            style={{ color: 'var(--t-dim)' }}
+          >
+            Amount per turn
+          </span>
+          <div className="flex items-baseline justify-center gap-2">
+            <span
+              className="font-mono text-[1.4rem] font-semibold"
+              style={{ color: 'var(--t-dim)' }}
+            >
+              ETB
+            </span>
+            <input
+              className="amount-hero-input"
+              inputMode="decimal"
+              placeholder="40000"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              style={{ maxWidth: 220 }}
+            />
+          </div>
+          <div className="neo-inset-sm mt-1 flex gap-1 rounded-[14px] p-1">
+            {(['WEEKLY', 'MONTHLY'] as const).map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCadence(c)}
+                className={`rounded-xl px-5 py-1.5 text-[0.8rem] font-semibold ${cadence === c ? 'neo-raised-sm' : ''}`}
+                style={{ color: cadence === c ? 'var(--accent)' : 'var(--t-muted)' }}
+              >
+                {c === 'WEEKLY' ? 'Weekly' : 'Monthly'}
+              </button>
+            ))}
+          </div>
+          <p className="max-w-sm text-center text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
+            What one turn puts in each round. Two or more people can share a turn, e.g. 20,000 each:
+            add someone to a turn, or change anyone&apos;s amount below.
+          </p>
+        </div>
+
         <label className="flex flex-col gap-1.5">
           <span className="text-[0.8rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
             Name
@@ -166,43 +210,6 @@ export default function NewEkubPage() {
             onChange={(e) => setName(e.target.value)}
           />
         </label>
-
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[0.8rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
-              Amount per turn (ETB)
-            </span>
-            <input
-              className="neo-input font-mono"
-              inputMode="decimal"
-              placeholder="40000"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <span className="text-[0.72rem]" style={{ color: 'var(--t-dim)' }}>
-              What one turn puts in each round. Two or more people can share a turn, e.g. 20,000
-              each: add someone to a turn, or change anyone&apos;s amount below.
-            </span>
-          </label>
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[0.8rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
-              Rounds
-            </span>
-            <div className="neo-inset-sm flex gap-1 rounded-[14px] p-1">
-              {(['WEEKLY', 'MONTHLY'] as const).map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCadence(c)}
-                  className={`flex-1 rounded-xl py-2 text-[0.82rem] font-semibold ${cadence === c ? 'neo-raised-sm' : ''}`}
-                  style={{ color: cadence === c ? 'var(--accent)' : 'var(--t-muted)' }}
-                >
-                  {c === 'WEEKLY' ? 'Weekly' : 'Monthly'}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
 
         <div className="flex flex-col gap-2.5">
           <span className="text-[0.8rem] font-semibold" style={{ color: 'var(--t-muted)' }}>
@@ -243,7 +250,7 @@ export default function NewEkubPage() {
         <button
           onClick={submit}
           disabled={!ready || saving}
-          className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+          className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
         >
           {saving ? 'Creating…' : 'Create and invite'}
         </button>

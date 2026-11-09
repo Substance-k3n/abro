@@ -17,6 +17,7 @@ export { BalanceCard, type BalanceCardProps } from './BalanceCard';
 export { ActivityItem, type ActivityItemProps } from './ActivityItem';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { CategoryIcon, GroupIcon } from './icons';
+export { Logomark, type LogomarkProps } from './Logomark';
 export { PersonRow, type PersonRowProps } from './PersonRow';
 export { SectionLabel } from './SectionLabel';
 export { BackButton } from './BackButton';

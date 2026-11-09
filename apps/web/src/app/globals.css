@@ -6,37 +6,30 @@
 @source '../../../../packages/ui/src';
 
 /*
- * Design tokens, ported from the Figma Make prototype
- * (~/Downloads/Design Ultra Modern UI (1)/src/index.css) per
- * docs/WIRING_PLAN.md Phase 1. Fonts are wired separately via
- * next/font/local in layout.tsx, which feeds the same
- * --font-display/--font-body/--font-mono variables used below.
- *
- * Ported so far: .neo-raised(-lg/-sm), .neo-flat, .neo-btn(-accent/-green),
- * .neo-card-accent, .neo-badge-green/red, .neo-avatar, .neo-inset(-sm),
- * .neo-input, .otp-box, .neo-tab(.active), .hide-scroll, .notif-dot,
- * .fade-in, .split-card(.selected), .cat-pill(.selected),
- * .neo-toggle(.on)/.neo-toggle-thumb, .neo-progress-track/-fill —
- * everything Phase 1/2 (auth), Phase 3 (dashboard), and Phase 4's
- * add-expense wizard foundation need. There's no dedicated CSS class for
- * the wizard's step indicator (numbered circles + connector line) — the
- * prototype builds that with inline styles per-instance rather than a
- * reusable class, so this port does the same in the wizard layout
- * component rather than inventing a class the prototype doesn't have.
+ * Design tokens. Class names below (.neo-raised, .neo-btn, etc.) are kept
+ * from the original neumorphic port so every screen that already
+ * references them keeps working — only what they *render* changed:
+ * flat surfaces with a hairline border, one real cast shadow reserved for
+ * things that are genuinely elevated (the hero balance card, the bottom
+ * nav, modals), solid fills instead of gradients. No new colors were
+ * introduced in the rebrand pass — every value here already existed in
+ * the palette, or comes from the brand kit (packages/ui's Logomark).
+ * Fonts are wired separately via next/font/local in layout.tsx, which
+ * feeds the --font-display/--font-body/--font-mono variables used below.
  */
 
 /* ===================== LIGHT THEME (default) ===================== */
-/* Near-white with a faint lavender tint, so the brand purple (the icon's
-   #6366f1 -> #a855f7) reads as part of the page rather than painted on.
-   The neo-morphic shadows use the same hue family so the soft 3D look
-   holds. Light is the default whatever the phone's setting; people can
-   pick Dark or "Match my phone" in Settings (lib/theme.ts). */
+/* Neutral near-white -- the original lavender tint was a leftover from
+   the old indigo brand; matches the admin portal's page color now.
+   Light is the default whatever the phone's setting; people can pick
+   Dark or "Match my phone" in Settings (lib/theme.ts). */
 :root {
-  /* Neo-morphic shadow system */
-  --neo-bg: #f0eff9;
-  --neo-dark: #d3d0ea;
-  --neo-light: #ffffff;
-  --neo-bg2: #f7f6fd;
+  /* Surface tones -- --neo-bg is the page, --neo-bg2 (plain white) is
+     cards/buttons that sit on it. --neo-dark is the skeleton-loading
+     pulse color only (LoadStates.tsx). */
+  --neo-bg: #f5f7f5;
+  --neo-dark: #d9dbd9;
+  --neo-bg2: #ffffff;
 
   /* Status colors */
   --green-soft: #22c55e;
@@ -44,16 +37,23 @@
   --red-soft: #ef4444;
   --red-bg: #fee2e2;
   --amber-soft: #f59e0b;
-  --accent: #6366f1;
-  --accent-light: #e9e8fd;
+  /* A working shade of the brand green (the "Together" mark itself uses
+     the brighter #1eba5a -- packages/ui's Logomark). This darker shade
+     is what actually appears as button fills, links and active states:
+     #1eba5a is too light to pass WCAG AA (4.5:1) as text, or under white
+     button text -- about 2.6:1 either way. */
+  --accent: #12813f;
+  --accent-light: #e1f6e8;
 
-  /* Text hierarchy -- an ink with a hint of purple. --t-dim keeps about
+  /* Text hierarchy -- neutral ink (the old purple-tinted ink was a last
+     leftover of the indigo brand; invisible against the old lavender
+     page, but stood out once the page went neutral). --t-dim keeps about
      3.5:1 on --neo-bg (secondary info only); everything else 4.5:1+. */
-  --t-primary: #1c1a33;
-  --t-secondary: #3d3a58;
-  --t-muted: #625f80;
-  --t-dim: #85829f;
-  --t-nav-inactive: #8a87a5;
+  --t-primary: #16181a;
+  --t-secondary: #3a3d40;
+  --t-muted: #5f6366;
+  --t-dim: #82868a;
+  --t-nav-inactive: #888c8f;
 
   /* Semantic colors */
   --c-green: #16a34a;
@@ -67,7 +67,7 @@
   --owed-soft: #e2f2ea;
   --owe: #b4463a;
   --owe-soft: #f7e6e2;
-  --hairline: rgba(91, 87, 140, 0.12);
+  --hairline: rgba(20, 20, 20, 0.08);
 
   /* Chart series (group admin dashboard), checked as a pair for
      colorblind separation on --neo-bg. Never green/red: those mean
@@ -77,43 +77,44 @@
   --viz-2: #eb6834;
 
   /* Borders / surfaces */
-  --border-sub: rgba(60, 50, 130, 0.07);
-  --border-med: rgba(60, 50, 130, 0.12);
-  --overlay: rgba(28, 26, 51, 0.5);
+  --border-sub: rgba(20, 20, 20, 0.08);
+  --border-med: rgba(20, 20, 20, 0.13);
+  --overlay: rgba(10, 10, 10, 0.5);
   --overlay-light: rgba(255, 255, 255, 0.85);
 
-  /* Page backdrop */
-  --page-bg: linear-gradient(135deg, #eceaf8 0%, #f4f3fc 50%, #efedf9 100%);
-  --nav-shadow: 0 -4px 24px rgba(180, 175, 220, 0.45), 0 -1px 0 rgba(255, 255, 255, 0.9);
+  /* Page backdrop — flat, not a diagonal glass gradient. */
+  --page-bg: var(--neo-bg);
+  --nav-shadow: 0 -1px 0 var(--border-med), 0 -8px 20px -12px rgba(0, 0, 0, 0.14);
 
   color-scheme: light;
 }
 
 /* ===================== DARK THEME ===================== */
 /* Stamped on <html> by the theme script in app/layout.tsx (Dark, or
-   "Match my phone" on a dark phone). Text tokens are brighter than the
-   original port's: --t-dim was about 2.6:1 on --neo-bg and hard to read;
-   it's now about 4.6:1, and the highlight shadow is stronger so cards
-   stand out from the page. */
+   "Match my phone" on a dark phone). Neutral near-black -- the old
+   navy-purple tint was the same indigo-brand leftover as the light
+   theme's lavender. Text tokens keep about 4.6:1+ contrast on --neo-bg. */
 :root[data-theme='dark'] {
-  --neo-bg: #1f2134;
-  --neo-dark: #11121d;
-  --neo-light: #2d3049;
-  --neo-bg2: #24273c;
+  --neo-bg: #17181a;
+  --neo-dark: #2f3133;
+  --neo-bg2: #212324;
 
   --green-soft: #4ade80;
   --green-bg: rgba(74, 222, 128, 0.14);
   --red-soft: #f87171;
   --red-bg: rgba(248, 113, 113, 0.14);
   --amber-soft: #fbbf24;
-  --accent: #8b93fa;
-  --accent-light: rgba(139, 147, 250, 0.16);
+  /* Lightened brand green -- stays legible as text/icon color on a dark
+     page; solid fills (buttons, the hero card) use the fixed #12813f
+     below instead, which already has plenty of contrast for white text. */
+  --accent: #6dd294;
+  --accent-light: rgba(109, 210, 148, 0.16);
 
-  --t-primary: #f1f3fa;
-  --t-secondary: #d0d5e6;
-  --t-muted: #a9b0c7;
-  --t-dim: #8a92ab;
-  --t-nav-inactive: #8f97b0;
+  --t-primary: #f2f3f2;
+  --t-secondary: #d4d6d5;
+  --t-muted: #a8acab;
+  --t-dim: #8d9190;
+  --t-nav-inactive: #90948f;
 
   --c-green: #4ade80;
   --c-green-text: #86efac;
@@ -132,10 +133,10 @@
   --border-sub: rgba(255, 255, 255, 0.08);
   --border-med: rgba(255, 255, 255, 0.14);
   --overlay: rgba(0, 0, 0, 0.75);
-  --overlay-light: rgba(31, 33, 52, 0.9);
+  --overlay-light: rgba(23, 24, 26, 0.9);
 
-  --page-bg: linear-gradient(135deg, #10111c 0%, #181a29 50%, #131422 100%);
-  --nav-shadow: 0 -4px 24px rgba(8, 9, 18, 0.7), 0 -1px 0 rgba(45, 48, 73, 0.9);
+  --page-bg: var(--neo-bg);
+  --nav-shadow: 0 -1px 0 var(--border-med), 0 -8px 20px -12px rgba(0, 0, 0, 0.55);
 
   color-scheme: dark;
 }
@@ -191,160 +192,147 @@ body {
   }
 }
 
-/* ===================== NEOMORPHIC PRIMITIVES ===================== */
+/* ===================== FLAT SURFACE PRIMITIVES ===================== */
+/* Formerly dual-shadow neumorphism. Now: a hairline border reads as the
+   surface edge, and the one real (single, neutral, downward) cast shadow
+   is reserved for --neo-raised-lg, which is the only variant used for
+   things that are genuinely elevated above the page (the hero balance
+   card, modals). Everything else sits flat on the page. */
 
-.neo-raised {
-  background: var(--neo-bg);
-  box-shadow:
-    8px 8px 18px var(--neo-dark),
-    -8px -8px 18px var(--neo-light);
-}
-
+.neo-raised,
 .neo-raised-sm {
-  background: var(--neo-bg);
-  box-shadow:
-    4px 4px 10px var(--neo-dark),
-    -4px -4px 10px var(--neo-light);
+  background: var(--neo-bg2);
+  border: 1px solid var(--border-sub);
 }
 
 .neo-raised-lg {
-  background: var(--neo-bg);
-  box-shadow:
-    12px 12px 28px var(--neo-dark),
-    -12px -12px 28px var(--neo-light);
+  background: var(--neo-bg2);
+  border: 1px solid var(--border-sub);
+  box-shadow: 0 10px 24px -12px rgba(20, 15, 50, 0.22);
 }
 
-.neo-inset {
+:root[data-theme='dark'] .neo-raised-lg {
+  box-shadow: 0 10px 24px -12px rgba(0, 0, 0, 0.6);
+}
+
+.neo-inset,
+.neo-inset-sm {
   background: var(--neo-bg);
-  box-shadow:
-    inset 5px 5px 12px var(--neo-dark),
-    inset -5px -5px 12px var(--neo-light);
+  border: 1px solid var(--border-med);
 }
 
 .neo-flat {
-  background: var(--neo-bg);
-  box-shadow:
-    2px 2px 6px var(--neo-dark),
-    -2px -2px 6px var(--neo-light);
+  background: var(--neo-bg2);
+  border: 1px solid var(--border-sub);
 }
 
 .neo-btn {
-  background: var(--neo-bg);
-  box-shadow:
-    6px 6px 14px var(--neo-dark),
-    -6px -6px 14px var(--neo-light);
-  transition: all 0.15s ease;
+  background: var(--neo-bg2);
+  border: 1px solid var(--border-med);
+  transition:
+    background-color 0.15s ease,
+    transform 0.1s ease;
   cursor: pointer;
   user-select: none;
+}
+
+.neo-btn:hover {
+  background: var(--border-sub);
 }
 
 .neo-btn:active {
-  box-shadow:
-    inset 4px 4px 10px var(--neo-dark),
-    inset -4px -4px 10px var(--neo-light);
+  background: var(--border-med);
   transform: scale(0.98);
 }
 
+/* Solid fill, reusing the existing gradient's darker stop as a flat
+   color — same hue family as --accent, chosen over the token itself so
+   white text keeps solid contrast in dark mode too (--accent lightens
+   there). No new color added. */
 .neo-btn-accent {
-  background: linear-gradient(145deg, #7c7fff, #5558ee);
-  box-shadow:
-    6px 6px 14px rgba(99, 102, 241, 0.35),
-    -4px -4px 10px rgba(255, 255, 255, 0.18);
-  transition: all 0.15s ease;
+  background: #12813f;
+  border: 1px solid #12813f;
+  transition:
+    filter 0.15s ease,
+    transform 0.1s ease;
   cursor: pointer;
   user-select: none;
   color: white;
 }
 
-:root[data-theme='dark'] .neo-btn-accent {
-  box-shadow:
-    6px 6px 14px rgba(99, 102, 241, 0.45),
-    -4px -4px 10px rgba(40, 44, 63, 0.6);
+.neo-btn-accent:hover {
+  filter: brightness(1.06);
 }
 
 .neo-btn-accent:active {
-  box-shadow:
-    inset 4px 4px 10px rgba(60, 63, 200, 0.4),
-    inset -2px -2px 6px rgba(255, 255, 255, 0.15);
+  filter: brightness(0.92);
   transform: scale(0.98);
 }
 
-.neo-inset-sm {
-  background: var(--neo-bg);
-  box-shadow:
-    inset 3px 3px 8px var(--neo-dark),
-    inset -3px -3px 8px var(--neo-light);
+/* A real disabled state -- not whole-button opacity, which fades the
+   white label text along with the fill and leaves it barely legible. */
+.neo-btn-accent:disabled,
+.neo-btn-green:disabled {
+  background: var(--border-med);
+  border-color: var(--border-med);
+  color: var(--t-dim);
+  cursor: not-allowed;
+}
+
+.neo-btn-accent:disabled:hover,
+.neo-btn-accent:disabled:active,
+.neo-btn-green:disabled:hover,
+.neo-btn-green:disabled:active {
+  filter: none;
+  transform: none;
 }
 
 .neo-btn-green {
-  background: linear-gradient(145deg, #34d874, #16a34a);
-  box-shadow:
-    6px 6px 14px rgba(34, 197, 94, 0.3),
-    -4px -4px 10px rgba(255, 255, 255, 0.18);
-  transition: all 0.15s ease;
+  background: var(--c-green);
+  border: 1px solid var(--c-green);
+  transition:
+    filter 0.15s ease,
+    transform 0.1s ease;
   cursor: pointer;
   user-select: none;
   color: white;
 }
 
-:root[data-theme='dark'] .neo-btn-green {
-  box-shadow:
-    6px 6px 14px rgba(34, 197, 94, 0.35),
-    -4px -4px 10px rgba(19, 21, 31, 0.6);
+.neo-btn-green:hover {
+  filter: brightness(1.06);
 }
 
 .neo-btn-green:active {
-  box-shadow:
-    inset 4px 4px 10px rgba(15, 100, 40, 0.4),
-    inset -2px -2px 6px rgba(255, 255, 255, 0.15);
+  filter: brightness(0.92);
   transform: scale(0.98);
 }
 
 .neo-card-accent {
-  background: linear-gradient(145deg, #7c7fff, #5558ee);
-  box-shadow:
-    10px 10px 22px rgba(99, 102, 241, 0.35),
-    -6px -6px 14px rgba(255, 255, 255, 0.18);
+  background: #12813f;
+  color: white;
+  box-shadow: 0 12px 28px -10px rgba(20, 15, 50, 0.4);
 }
 
 :root[data-theme='dark'] .neo-card-accent {
-  box-shadow:
-    10px 10px 22px rgba(99, 102, 241, 0.5),
-    -6px -6px 14px rgba(19, 21, 31, 0.6);
+  box-shadow: 0 12px 28px -10px rgba(0, 0, 0, 0.65);
 }
 
 .neo-badge-green {
   background: var(--green-bg);
-  box-shadow:
-    inset 2px 2px 5px rgba(34, 197, 94, 0.2),
-    inset -2px -2px 5px rgba(255, 255, 255, 0.25);
   color: var(--c-green);
-}
-
-:root[data-theme='dark'] .neo-badge-green {
-  box-shadow:
-    inset 2px 2px 5px rgba(34, 197, 94, 0.15),
-    inset -2px -2px 5px rgba(40, 44, 63, 0.5);
 }
 
 .neo-badge-red {
   background: var(--red-bg);
-  box-shadow:
-    inset 2px 2px 5px rgba(239, 68, 68, 0.15),
-    inset -2px -2px 5px rgba(255, 255, 255, 0.25);
   color: var(--c-red);
 }
 
-:root[data-theme='dark'] .neo-badge-red {
-  box-shadow:
-    inset 2px 2px 5px rgba(239, 68, 68, 0.12),
-    inset -2px -2px 5px rgba(40, 44, 63, 0.5);
+.neo-avatar {
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.neo-avatar {
-  box-shadow:
-    4px 4px 10px var(--neo-dark),
-    -4px -4px 10px var(--neo-light);
+:root[data-theme='dark'] .neo-avatar {
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 /* Scrollbar hiding */
@@ -368,10 +356,7 @@ body {
 }
 
 .neo-tab.active {
-  background: var(--neo-bg);
-  box-shadow:
-    4px 4px 10px var(--neo-dark),
-    -4px -4px 10px var(--neo-light);
+  background: var(--accent-light);
   color: var(--accent);
   font-weight: 600;
 }
@@ -382,7 +367,6 @@ body {
   height: 8px;
   background: #ef4444;
   border-radius: 50%;
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
 }
 
 /* Neo input. In Tailwind's components layer so a field's own utility
@@ -414,28 +398,48 @@ body {
 
   .neo-input {
     background: var(--neo-bg);
-    border: none;
+    border: 1px solid var(--border-med);
     outline: none;
-    box-shadow:
-      inset 4px 4px 10px var(--neo-dark),
-      inset -4px -4px 10px var(--neo-light);
     border-radius: 14px;
     padding: 14px 18px;
     font-family: var(--font-body);
     font-size: 0.9rem;
     color: var(--t-primary);
     width: 100%;
-    transition: box-shadow 0.2s ease;
+    transition: border-color 0.15s ease;
   }
 
   .neo-input:focus {
-    box-shadow:
-      inset 4px 4px 10px var(--neo-dark),
-      inset -4px -4px 10px var(--neo-light),
-      0 0 0 2px rgba(99, 102, 241, 0.35);
+    border-color: var(--accent);
   }
 
   .neo-input::placeholder {
+    color: var(--t-dim);
+  }
+
+  /* Large, borderless amount entry -- the "hero" figure on the add-expense
+     screen, styled like a ledger amount rather than a form field. */
+  .amount-hero-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    width: 100%;
+    text-align: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 3rem;
+    letter-spacing: -0.02em;
+    color: var(--t-primary);
+    -moz-appearance: textfield;
+  }
+
+  .amount-hero-input::-webkit-outer-spin-button,
+  .amount-hero-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .amount-hero-input::placeholder {
     color: var(--t-dim);
   }
 }
@@ -450,20 +454,15 @@ body {
   font-weight: 600;
   letter-spacing: 0.05em;
   background: var(--neo-bg);
-  border: none;
+  border: 1px solid var(--border-med);
   outline: none;
   border-radius: 14px;
   color: var(--t-primary);
-  box-shadow:
-    inset 4px 4px 10px var(--neo-dark),
-    inset -4px -4px 10px var(--neo-light);
+  transition: border-color 0.15s ease;
 }
 
 .otp-box:focus {
-  box-shadow:
-    inset 4px 4px 10px var(--neo-dark),
-    inset -4px -4px 10px var(--neo-light),
-    0 0 0 2px rgba(99, 102, 241, 0.4);
+  border-color: var(--accent);
 }
 
 /* Fonts, fed by next/font/local in layout.tsx */
@@ -517,30 +516,17 @@ body {
 /* Split method card (EXP-04) -- selectable card, ported from the
    prototype's .split-card (index.css:452). */
 .split-card {
-  background: var(--neo-bg);
-  box-shadow:
-    6px 6px 14px var(--neo-dark),
-    -6px -6px 14px var(--neo-light);
+  background: var(--neo-bg2);
   border-radius: 18px;
   padding: 16px;
   cursor: pointer;
-  transition: all 0.2s ease;
-  border: 2px solid transparent;
+  transition: all 0.15s ease;
+  border: 2px solid var(--border-sub);
 }
 
 .split-card.selected {
-  border-color: rgba(99, 102, 241, 0.5);
-  box-shadow:
-    inset 3px 3px 8px rgba(99, 102, 241, 0.08),
-    inset -3px -3px 8px var(--neo-light),
-    0 0 0 2px rgba(99, 102, 241, 0.2);
-}
-
-:root[data-theme='dark'] .split-card.selected {
-  box-shadow:
-    inset 3px 3px 8px rgba(99, 102, 241, 0.15),
-    inset -3px -3px 8px rgba(40, 44, 63, 0.5),
-    0 0 0 2px rgba(129, 140, 248, 0.25);
+  border-color: var(--accent);
+  background: var(--accent-light);
 }
 
 /* Category pill (EXP-01), ported from the prototype's .cat-pill
@@ -553,28 +539,18 @@ body {
   border-radius: 12px;
   font-size: 0.78rem;
   font-weight: 500;
-  background: var(--neo-bg);
-  box-shadow:
-    3px 3px 8px var(--neo-dark),
-    -3px -3px 8px var(--neo-light);
+  background: var(--neo-bg2);
+  border: 1px solid var(--border-sub);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   color: var(--t-muted);
   white-space: nowrap;
 }
 
 .cat-pill.selected {
-  background: linear-gradient(145deg, #7c7fff, #5558ee);
+  background: #12813f;
+  border-color: #12813f;
   color: white;
-  box-shadow:
-    3px 3px 8px rgba(99, 102, 241, 0.35),
-    -2px -2px 6px rgba(255, 255, 255, 0.18);
-}
-
-:root[data-theme='dark'] .cat-pill.selected {
-  box-shadow:
-    3px 3px 8px rgba(99, 102, 241, 0.45),
-    -2px -2px 6px rgba(19, 21, 31, 0.5);
 }
 
 /* Toggle switch, ported from the prototype's .neo-toggle
@@ -586,51 +562,44 @@ body {
   border-radius: 999px;
   position: relative;
   cursor: pointer;
-  transition: all 0.25s ease;
-  box-shadow:
-    inset 3px 3px 7px var(--neo-dark),
-    inset -3px -3px 7px var(--neo-light);
+  transition: background-color 0.2s ease;
+  background: var(--neo-bg);
+  border: 1px solid var(--border-med);
 }
 
 .neo-toggle.on {
-  background: linear-gradient(145deg, #7c7fff, #5558ee);
-  box-shadow:
-    inset 2px 2px 5px rgba(60, 63, 200, 0.3),
-    inset -2px -2px 5px rgba(255, 255, 255, 0.15);
+  background: #12813f;
+  border-color: #12813f;
 }
 
+/* A real, single, understated drop shadow — this is the one place a
+   shadow is doing honest work: showing the thumb sits above the track,
+   same as a physical switch. */
 .neo-toggle-thumb {
   width: 22px;
   height: 22px;
   border-radius: 50%;
   position: absolute;
-  top: 3px;
-  left: 3px;
-  transition: left 0.25s ease;
-  box-shadow:
-    3px 3px 6px rgba(0, 0, 0, 0.2),
-    -2px -2px 4px rgba(255, 255, 255, 0.4);
+  top: 2px;
+  left: 2px;
+  transition: left 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
   background: white;
 }
 
 :root[data-theme='dark'] .neo-toggle-thumb {
   background: #dde4f0;
-  box-shadow:
-    3px 3px 6px rgba(0, 0, 0, 0.4),
-    -2px -2px 4px rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
 }
 
 .neo-toggle.on .neo-toggle-thumb {
   left: 27px;
 }
 
-/* Progress bar, ported from the prototype's .neo-progress-track
-   (index.css:413) -- backs the wizard's step indicator connector line. */
+/* Progress bar -- backs the wizard's step indicator connector line. */
 .neo-progress-track {
   background: var(--neo-bg);
-  box-shadow:
-    inset 3px 3px 7px var(--neo-dark),
-    inset -3px -3px 7px var(--neo-light);
+  border: 1px solid var(--border-med);
   border-radius: 999px;
   overflow: hidden;
   height: 10px;
@@ -639,8 +608,7 @@ body {
 .neo-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, #7c7fff, #5558ee);
-  box-shadow: 0 0 8px rgba(99, 102, 241, 0.4);
+  background: #12813f;
   transition: width 0.5s ease;
 }
 

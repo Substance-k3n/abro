@@ -10,7 +10,7 @@ import { useState } from 'react';
 
 const SLIDES = [
   {
-    icon: <Receipt size={52} strokeWidth={1.25} color="#6366f1" />,
+    icon: <Receipt size={52} strokeWidth={1.25} color="#12813f" />,
     title: 'Track Expenses',
     desc: 'Record shared expenses between friends, family, and groups in seconds.',
   },
@@ -77,8 +77,7 @@ export default function OnboardingPage() {
               className="h-2 rounded-full transition-all duration-300"
               style={{
                 width: i === slide ? 24 : 8,
-                background: i === slide ? 'var(--accent)' : 'var(--neo-dark)',
-                boxShadow: i === slide ? '0 0 8px rgba(99,102,241,0.4)' : 'none',
+                background: i === slide ? 'var(--accent)' : 'var(--border-med)',
               }}
             />
           ))}

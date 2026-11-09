@@ -213,7 +213,7 @@ function ProfileForm({ initial }: { initial: AuthProfile }) {
       <button
         onClick={save}
         disabled={!dirty || !valid || saving}
-        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         {saving ? 'Saving…' : justSaved && !dirty ? 'Saved ✓' : 'Save Changes'}
       </button>

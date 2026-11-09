@@ -30,7 +30,7 @@
 //    group one), so the prototype's dimmed "not a group member" rows no
 //    longer exist -- apps/api would reject a non-member anyway.
 
-import { EmptyState, PersonRow } from '@abro/ui';
+import { EmptyState, GroupIcon, PersonRow } from '@abro/ui';
 import { Check, Search, Users, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -118,7 +118,9 @@ export default function AddExpenseParticipantsPage() {
 
       {group && (
         <div className="neo-inset-sm flex items-center gap-2 rounded-[14px] px-3.5 py-2.5">
-          <span style={{ color: 'var(--t-muted)' }}>{groupTypeFor(group.type).icon}</span>
+          <span style={{ color: 'var(--t-muted)' }}>
+            <GroupIcon icon={groupTypeFor(group.type).icon} size={16} />
+          </span>
           <p className="text-[0.8rem] font-medium" style={{ color: 'var(--t-muted)' }}>
             Showing members of <strong>{group.name}</strong>
           </p>
@@ -192,12 +194,10 @@ export default function AddExpenseParticipantsPage() {
         style={{ color: 'var(--accent)' }}
       >
         <div
-          className="flex h-5 w-5 items-center justify-center rounded-[6px]"
+          className="flex h-5 w-5 items-center justify-center rounded-[6px] border"
           style={{
-            background: allFriendsSelected ? 'var(--accent)' : 'transparent',
-            boxShadow: allFriendsSelected
-              ? '3px 3px 8px rgba(99,102,241,0.3), -2px -2px 5px rgba(255,255,255,0.5)'
-              : 'inset 3px 3px 7px var(--neo-dark), inset -3px -3px 7px var(--neo-light)',
+            background: allFriendsSelected ? '#12813f' : 'transparent',
+            borderColor: allFriendsSelected ? '#12813f' : 'var(--border-med)',
           }}
         >
           {allFriendsSelected && <Check size={12} strokeWidth={2.5} color="white" />}
@@ -230,12 +230,10 @@ export default function AddExpenseParticipantsPage() {
                   sub={group ? 'Group member' : undefined}
                   right={
                     <div
-                      className="flex h-6 w-6 items-center justify-center rounded-lg"
+                      className="flex h-6 w-6 items-center justify-center rounded-lg border"
                       style={{
-                        background: selected ? 'var(--accent)' : 'transparent',
-                        boxShadow: selected
-                          ? '3px 3px 8px rgba(99,102,241,0.3), -2px -2px 5px rgba(255,255,255,0.5)'
-                          : 'inset 3px 3px 7px var(--neo-dark), inset -3px -3px 7px var(--neo-light)',
+                        background: selected ? '#12813f' : 'transparent',
+                        borderColor: selected ? '#12813f' : 'var(--border-med)',
                       }}
                     >
                       {selected && <Check size={14} strokeWidth={2.5} color="white" />}
@@ -252,7 +250,7 @@ export default function AddExpenseParticipantsPage() {
       <button
         onClick={() => router.push('/expenses/new/split')}
         disabled={totalSelected === 0}
-        className="neo-btn-accent font-display mt-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display mt-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         Next
       </button>

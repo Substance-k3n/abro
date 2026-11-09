@@ -15,6 +15,7 @@
 //    as EXP-08 not adding an extra success screen beyond the spec.
 //  - Name max 80 characters, apps/api's limit.
 
+import { GroupIcon } from '@abro/ui';
 import { useRouter } from 'next/navigation';
 
 import { useGroupDraft } from '~/lib/group-draft';
@@ -89,19 +90,18 @@ export default function CreateGroupDetailsPage() {
               onClick={() => update({ type: t.id })}
               className="flex items-center gap-2.5 rounded-2xl border-2 px-3.5 py-3 text-left"
               style={{
-                borderColor: draft.type === t.id ? t.color : 'transparent',
-                background: 'var(--neo-bg)',
-                boxShadow:
-                  draft.type === t.id
-                    ? `inset 2px 2px 6px rgba(0,0,0,0.06), inset -2px -2px 6px rgba(255,255,255,0.6)`
-                    : '3px 3px 8px var(--neo-dark), -3px -3px 8px var(--neo-light)',
+                borderColor: draft.type === t.id ? t.color : 'var(--border-sub)',
+                background: draft.type === t.id ? tintOf(t.color) : 'var(--neo-bg2)',
               }}
             >
               <span
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[1rem]"
-                style={{ background: draft.type === t.id ? tintOf(t.color) : 'transparent' }}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                style={{
+                  background: draft.type === t.id ? tintOf(t.color) : 'transparent',
+                  color: draft.type === t.id ? t.color : 'var(--t-muted)',
+                }}
               >
-                {t.icon}
+                <GroupIcon icon={t.icon} size={18} />
               </span>
               <span
                 className="text-[0.85rem] font-semibold"
@@ -154,7 +154,7 @@ export default function CreateGroupDetailsPage() {
       <button
         onClick={() => router.push('/groups/new/members')}
         disabled={!isValid}
-        className="neo-btn-accent font-display mt-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display mt-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         Next
       </button>

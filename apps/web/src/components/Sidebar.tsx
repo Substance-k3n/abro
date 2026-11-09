@@ -6,6 +6,7 @@
 // navigation" requirement, reusing the shared nav items and neomorphic
 // active-state language as BottomNav so the two feel like one system.
 
+import { Logomark } from '@abro/ui';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -17,26 +18,15 @@ export function Sidebar() {
   return (
     <aside
       className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col gap-1 p-5 md:flex"
-      style={{ background: 'var(--neo-bg)', boxShadow: '4px 0 24px rgba(184,190,199,0.35)' }}
+      style={{ background: 'var(--neo-bg2)', borderRight: '1px solid var(--border-med)' }}
     >
       <div className="mb-8 flex items-center gap-2.5 px-2 pt-2">
-        <div className="neo-raised-sm flex h-9 w-9 items-center justify-center rounded-xl">
-          <span
-            className="font-display text-sm font-extrabold"
-            style={{
-              background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            AB
-          </span>
-        </div>
+        <Logomark size={30} />
         <span
-          className="font-display text-lg font-extrabold tracking-tighter"
+          className="font-display text-lg font-extrabold tracking-tight"
           style={{ color: 'var(--t-primary)' }}
         >
-          ABRO
+          abro
         </span>
       </div>
 
@@ -48,12 +38,11 @@ export function Sidebar() {
           <Link
             key={item.id}
             href={item.href}
-            className="flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-all"
+            className={`flex items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-all ${
+              isActive ? '' : 'hover:bg-[var(--border-sub)]'
+            }`}
             style={{
-              background: isActive ? 'var(--neo-bg)' : 'transparent',
-              boxShadow: isActive
-                ? 'inset 4px 4px 9px var(--neo-dark), inset -4px -4px 9px var(--neo-light)'
-                : 'none',
+              background: isActive ? 'var(--accent-light)' : 'transparent',
               color: isActive ? 'var(--accent)' : 'var(--t-nav-inactive)',
               fontWeight: isActive ? 700 : 500,
             }}

@@ -30,15 +30,12 @@ function StepIndicator() {
           className={`flex items-center gap-1.5 ${i < STEPS.length - 1 ? 'flex-1' : ''}`}
         >
           <div
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] font-mono text-[0.7rem] font-bold transition-colors"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border font-mono text-[0.7rem] font-bold transition-colors"
             style={{
               background:
-                i < activeIndex ? '#22c55e' : i === activeIndex ? 'var(--accent)' : 'var(--neo-bg)',
-              color: i <= activeIndex ? 'white' : 'var(--neo-dark)',
-              boxShadow:
-                i <= activeIndex
-                  ? `3px 3px 8px ${i < activeIndex ? 'rgba(34,197,94,0.3)' : 'rgba(99,102,241,0.3)'}, -2px -2px 5px rgba(255,255,255,0.5)`
-                  : '3px 3px 8px var(--neo-dark), -3px -3px 8px var(--neo-light)',
+                i < activeIndex ? '#16a34a' : i === activeIndex ? '#12813f' : 'var(--neo-bg)',
+              borderColor: i <= activeIndex ? 'transparent' : 'var(--border-med)',
+              color: i <= activeIndex ? 'white' : 'var(--t-dim)',
             }}
           >
             {i + 1}
@@ -47,8 +44,7 @@ function StepIndicator() {
             <div
               className="h-0.5 flex-1 rounded-full transition-colors"
               style={{
-                background: i < activeIndex ? '#22c55e' : 'var(--neo-dark)',
-                opacity: i < activeIndex ? 0.6 : 0.3,
+                background: i < activeIndex ? '#16a34a' : 'var(--border-med)',
               }}
             />
           )}

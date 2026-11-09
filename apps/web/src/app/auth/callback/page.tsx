@@ -33,7 +33,7 @@ export default function AuthCallbackPage() {
       <div
         className="h-8 w-8 rounded-full border-2"
         style={{
-          borderColor: 'rgba(99,102,241,0.3)',
+          borderColor: 'var(--accent-light)',
           borderTopColor: 'var(--accent)',
           animation: 'spin 0.7s linear infinite',
         }}
