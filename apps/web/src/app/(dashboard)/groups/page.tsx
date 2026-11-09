@@ -4,17 +4,15 @@
 // This is the full-screen expansion of the "Group Summary" preview already
 // rendered on Home (home/page.tsx's groupsWithBalance section) -- same
 // card visual language (GroupIcon in a tinted neo-raised-sm tile, name,
-// balance via MoneyDisplay), extended here with the type badge, member
+// balance as the refresh's Amount with "You're owed" / "You owe"), extended here with the type badge, member
 // count and last-activity line the spec calls for and the Home preview
 // omits for space. Card layout otherwise follows the prototype's
 // GroupsScreen (App.tsx:2218): icon tile, name + type pill on one line,
 // "members · lastActivity" subline, balance row.
 //
 // Deviations from spec:
-// - "Settled" balance uses `var(--t-dim)` text instead of a colored
-//   MoneyDisplay (no direction to color for a zero balance) -- matches the
-//   prototype's `g.balance === 0` branch, which shows "Settled" instead of
-//   an amount.
+// - A zero balance reads "All square" in `var(--t-dim)` with no amount
+//   (no direction to colour) -- the prototype's `g.balance === 0` branch.
 // - Loading state is the shared spinner (~/components/LoadStates), not a
 //   per-card skeleton -- same as every other Phase 8 screen so far.
 //
@@ -33,7 +31,7 @@
 // and this is where they join. Accepting reloads the page (the group
 // now appears below); declining just drops the invite.
 
-import { EmptyState, GroupIcon, MoneyDisplay, SectionLabel } from '@abro/ui';
+import { EmptyState, GroupIcon } from '@abro/ui';
 import { Check, ChevronRight, PiggyBank, Plus, Users, X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
@@ -53,6 +51,7 @@ import {
   listGroups,
 } from '~/lib/groups-api';
 import { GroupPicture } from '~/components/GroupPicture';
+import { Amount, SectionHeader } from '~/components/refresh';
 import { useApiRefresh } from '~/lib/use-api-refresh';
 
 interface GroupCardData {
@@ -103,7 +102,7 @@ function GroupCard({ group }: { group: GroupCardData }) {
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-2">
           <p
-            className="font-display truncate text-[0.95rem] font-bold tracking-tight"
+            className="font-display truncate text-[1rem] font-semibold tracking-tight"
             style={{ color: 'var(--t-primary)' }}
           >
             {group.name}
@@ -119,20 +118,17 @@ function GroupCard({ group }: { group: GroupCardData }) {
           {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'} · Active{' '}
           {formatShortDate(group.lastActivityAt)}
         </p>
-        <div className="flex items-center justify-between">
-          <p className="text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
-            Your balance
+        <div className="flex items-baseline justify-between">
+          <p
+            className="text-[0.78rem]"
+            style={{
+              color: isSettled ? 'var(--t-dim)' : group.balance > 0n ? 'var(--owed)' : 'var(--owe)',
+            }}
+          >
+            {isSettled ? 'All square' : group.balance > 0n ? "You're owed" : 'You owe'}
           </p>
-          {isSettled ? (
-            <span className="text-[0.9rem] font-semibold" style={{ color: 'var(--t-dim)' }}>
-              Settled
-            </span>
-          ) : (
-            <MoneyDisplay
-              amount={group.balance < 0n ? -group.balance : group.balance}
-              className="font-mono text-[0.9rem] font-bold"
-              style={{ color: group.balance > 0n ? 'var(--c-green)' : 'var(--c-red)' }}
-            />
+          {!isSettled && (
+            <Amount value={group.balance} tone={group.balance > 0n ? 'owed' : 'owe'} size="md" />
           )}
         </div>
       </div>
@@ -199,7 +195,7 @@ export default function GroupsPage() {
     <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       <div className="mb-6 flex items-center justify-between">
         <h2
-          className="font-display text-[1.5rem] font-extrabold tracking-tighter"
+          className="font-display text-[1.6rem] font-semibold tracking-tight"
           style={{ color: 'var(--t-primary)' }}
         >
           Groups
@@ -209,7 +205,7 @@ export default function GroupsPage() {
           className="neo-btn-accent flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[0.8rem] font-semibold"
         >
           <Plus size={14} strokeWidth={2.5} />
-          Create Group
+          New group
         </Link>
       </div>
 
@@ -234,9 +230,9 @@ export default function GroupsPage() {
 
       {invites.length > 0 && (
         <div className="mb-6">
-          <SectionLabel>Group invites ({invites.length})</SectionLabel>
+          <SectionHeader title={`Group invites (${invites.length})`} />
           {inviteError && (
-            <p className="mb-2 text-[0.85rem]" role="alert" style={{ color: 'var(--c-red)' }}>
+            <p className="mb-2 text-[0.85rem]" role="alert" style={{ color: 'var(--owe)' }}>
               {inviteError}
             </p>
           )}
@@ -272,13 +268,13 @@ export default function GroupsPage() {
                     aria-label={`Decline ${invite.group.name}`}
                     className="neo-btn flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-60"
                   >
-                    <X size={16} strokeWidth={2.25} style={{ color: 'var(--c-red)' }} />
+                    <X size={16} strokeWidth={2.25} style={{ color: 'var(--owe)' }} />
                   </button>
                   <button
                     onClick={() => respond(invite, true)}
                     disabled={busy}
                     aria-label={`Join ${invite.group.name}`}
-                    className="neo-btn-green flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-60"
+                    className="neo-btn-accent flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-60"
                   >
                     <Check size={16} strokeWidth={2.25} />
                   </button>
@@ -299,7 +295,7 @@ export default function GroupsPage() {
         <div className="flex flex-col gap-6">
           {activeGroups.length > 0 && (
             <div>
-              <SectionLabel>Active</SectionLabel>
+              <SectionHeader title="With a balance" />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {activeGroups.map((g) => (
                   <GroupCard key={g.id} group={g} />
@@ -309,7 +305,7 @@ export default function GroupsPage() {
           )}
           {settledGroups.length > 0 && (
             <div>
-              <SectionLabel>Settled</SectionLabel>
+              <SectionHeader title="All square" />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {settledGroups.map((g) => (
                   <GroupCard key={g.id} group={g} />

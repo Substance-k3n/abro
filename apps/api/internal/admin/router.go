@@ -47,10 +47,6 @@ func (h *Handler) Mount(r chi.Router) {
 	r.Get("/groups", need(PermGroupsView, h.listGroups))
 	r.Get("/groups/{id}", need(PermGroupsView, h.getGroup))
 
-	r.Get("/voice", need(PermOverview, h.voice))
-	r.Put("/voice/mode", need(PermVoiceManage, h.setVoiceMode))
-	r.Put("/users/{id}/voice", need(PermVoiceManage, h.grantVoice))
-	r.Delete("/users/{id}/voice", need(PermVoiceManage, h.revokeVoice))
 }
 
 // clientIP is the caller's address for the audit log (RealIP has already
@@ -287,46 +283,4 @@ func (h *Handler) getGroup(w http.ResponseWriter, r *http.Request) error {
 	}
 	httpx.WriteJSON(w, http.StatusOK, out)
 	return nil
-}
-
-func (h *Handler) voice(w http.ResponseWriter, r *http.Request) error {
-	out, err := h.svc.Voice(r.Context())
-	if err != nil {
-		return err
-	}
-	httpx.WriteJSON(w, http.StatusOK, out)
-	return nil
-}
-
-func (h *Handler) setVoiceMode(w http.ResponseWriter, r *http.Request) error {
-	var in apitypes.SetVoiceModeInput
-	if err := httpx.DecodeJSON(r, &in); err != nil {
-		return err
-	}
-	if err := h.svc.SetVoiceMode(r.Context(), CurrentAdmin(r.Context()), in.Mode, clientIP(r)); err != nil {
-		return err
-	}
-	return h.voice(w, r)
-}
-
-func (h *Handler) grantVoice(w http.ResponseWriter, r *http.Request) error {
-	id, err := pathID(r, "id")
-	if err != nil {
-		return err
-	}
-	if err := h.svc.GrantVoice(r.Context(), CurrentAdmin(r.Context()), id, clientIP(r)); err != nil {
-		return err
-	}
-	return h.afterAction(w, r, id)
-}
-
-func (h *Handler) revokeVoice(w http.ResponseWriter, r *http.Request) error {
-	id, err := pathID(r, "id")
-	if err != nil {
-		return err
-	}
-	if err := h.svc.RevokeVoice(r.Context(), CurrentAdmin(r.Context()), id, clientIP(r)); err != nil {
-		return err
-	}
-	return h.afterAction(w, r, id)
 }

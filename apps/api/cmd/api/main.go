@@ -33,7 +33,6 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/settlements"
 	"github.com/Substance-k3n/abro/apps/api/internal/storage"
 	"github.com/Substance-k3n/abro/apps/api/internal/users"
-	"github.com/Substance-k3n/abro/apps/api/internal/voice"
 )
 
 func main() {
@@ -133,17 +132,9 @@ func main() {
 	recurringSvc := recurring.NewService(queries, expensesSvc, notificationsSvc)
 	recurringHandler := recurring.NewHandler(recurringSvc, queries)
 
-	// Voice commands through Tezaz (ADR-027): tokens for testers only, and
-	// the voice actions published to the relay on every start.
-	voiceSvc := voice.NewService(cfg.TezazRelayURL, cfg.TezazSecretKey, cfg.WebOrigin, cfg.VoiceTesters).
-		WithPublicKey(cfg.TezazPublicKey)
-	go voiceSvc.PublishActions(ctx)
-	voiceHandler := voice.NewHandler(voiceSvc, queries)
-
-	// The site admin portal (ADR-028, apps/admin): roles, suspensions,
-	// voice access and the audit log. It needs the pool for its
-	// action+audit transactions.
-	adminHandler := admin.NewHandler(admin.NewService(pool, cfg.AdminEmails, voiceSvc))
+	// The site admin portal (ADR-028, apps/admin): roles, suspensions and
+	// the audit log. It needs the pool for its action+audit transactions.
+	adminHandler := admin.NewHandler(admin.NewService(pool, cfg.AdminEmails))
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -181,7 +172,6 @@ func main() {
 	r.Route("/analytics", analyticsHandler.Mount)
 	r.Route("/recurring", recurringHandler.Mount)
 	r.Route("/ekubs", ekubsHandler.Mount)
-	r.Route("/voice", voiceHandler.Mount)
 	r.Route("/admin", adminHandler.Mount)
 
 	srv := &http.Server{

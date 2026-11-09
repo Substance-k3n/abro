@@ -33,14 +33,13 @@ const ABILITIES: { label: string; hint?: string; from: (typeof COLUMNS)[number] 
   { label: 'See the audit log and who the admins are', from: 'SUPPORT' },
   { label: 'Suspend and unsuspend accounts', hint: 'Only people with a lower role', from: 'ADMIN' },
   { label: "End someone's sessions", hint: 'Only people with a lower role', from: 'ADMIN' },
-  { label: 'Choose who has voice', from: 'ADMIN' },
   { label: 'Give and remove Support and Admin roles', from: 'SUPER_ADMIN' },
   { label: 'Give and remove the Super admin role', from: 'OWNER' },
 ];
 
 const ROLE_TEXT: Record<AdminRole, string> = {
   SUPPORT: 'Looks only: helps people without changing anything.',
-  ADMIN: 'Acts on accounts: suspends, signs out, switches voice.',
+  ADMIN: 'Acts on accounts: suspends and signs people out.',
   SUPER_ADMIN: 'Also manages Support and Admin roles.',
 };
 

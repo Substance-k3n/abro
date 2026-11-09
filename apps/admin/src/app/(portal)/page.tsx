@@ -25,7 +25,6 @@ const SERIES: { key: keyof Omit<OverviewDay, 'day'>; label: string; unit: [strin
   { key: 'expenses', label: 'Expenses', unit: ['expense', 'expenses'] },
   { key: 'settlements', label: 'Payments', unit: ['payment', 'payments'] },
   { key: 'signups', label: 'Sign-ups', unit: ['sign-up', 'sign-ups'] },
-  { key: 'voiceSessions', label: 'Voice', unit: ['voice session', 'voice sessions'] },
 ];
 
 const REFRESH_MS = 60_000;
@@ -118,7 +117,7 @@ export default function DashboardPage() {
       {shown && (
         <div className="space-y-6">
           <section
-            className="grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-6"
+            className="grid grid-cols-2 gap-4 lg:grid-cols-5 [&>:last-child]:col-span-2 lg:[&>:last-child]:col-span-1"
             aria-label="Headline numbers"
           >
             <Tile label="People" value={shown.users.total} sub={`+${num(shown.users.new)} new`} />
@@ -133,11 +132,6 @@ export default function DashboardPage() {
               label="Payments settled"
               value={shown.activity.settlements}
               sub={`in ${range} days`}
-            />
-            <Tile
-              label="Voice sessions"
-              value={shown.voice.sessions}
-              sub={`by ${num(shown.voice.users)} ${shown.voice.users === 1 ? 'person' : 'people'}`}
             />
           </section>
 
@@ -302,7 +296,7 @@ function Queue({ o }: { o: Overview }) {
 function DashboardSkeleton() {
   return (
     <div className="space-y-6" aria-busy>
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5 [&>:last-child]:col-span-2 lg:[&>:last-child]:col-span-1">
         {Array.from({ length: 6 }, (_, i) => (
           <Skeleton key={i} className="h-[118px]" />
         ))}

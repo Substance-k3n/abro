@@ -14,7 +14,6 @@ export type Permission =
   | 'admins.view'
   | 'users.suspend'
   | 'users.sessions'
-  | 'voice.manage'
   | 'admins.manage';
 
 export interface Profile {
@@ -55,7 +54,6 @@ export interface OverviewDay {
   signups: number;
   expenses: number;
   settlements: number;
-  voiceSessions: number;
 }
 
 export interface Overview {
@@ -71,7 +69,6 @@ export interface Overview {
     pendingInvites: number;
     staleInvites: number;
   };
-  voice: { sessions: number; users: number };
   series: OverviewDay[];
   categories: { category: string; expenses: number }[];
   volume: { currency: string; total: bigint; expenses: number }[];
@@ -133,9 +130,6 @@ export interface UserGroup {
   memberCount: number;
 }
 
-/** Why someone has voice or not (apps/api AdminUserVoice). */
-export type VoiceAccess = 'unavailable' | 'off' | 'everyone' | 'tester' | 'granted' | 'none';
-
 export interface UserDetail {
   id: string;
   displayName: string;
@@ -154,12 +148,6 @@ export interface UserDetail {
   settlementCount: number;
   sessions: AdminSession[];
   groups: UserGroup[];
-  voice: {
-    access: VoiceAccess;
-    grantedAt: string | null;
-    lastUsedAt: string | null;
-    sessions30d: number;
-  };
 }
 
 export const listUsers = (q: string, status: UserStatus, page: number) =>
@@ -172,8 +160,6 @@ export const endAllSessions = (id: string) =>
   api.post<UserDetail>(`/admin/users/${id}/sessions/revoke`);
 export const endSession = (id: string, sessionId: string) =>
   api.delete<UserDetail>(`/admin/users/${id}/sessions/${sessionId}`);
-export const voiceOn = (id: string) => api.put<UserDetail>(`/admin/users/${id}/voice`);
-export const voiceOff = (id: string) => api.delete<UserDetail>(`/admin/users/${id}/voice`);
 
 // --- audit log ---
 
@@ -261,37 +247,6 @@ export interface GroupDetail {
 export const listGroups = (q: string, status: GroupStatus, page: number) =>
   api.get<GroupPage>(`/admin/groups${query({ q, status, page })}`);
 export const getGroup = (id: string) => api.get<GroupDetail>(`/admin/groups/${id}`);
-
-// --- voice ---
-
-export type VoiceMode = 'off' | 'listed' | 'everyone';
-
-export interface VoiceUser {
-  userId: string;
-  displayName: string;
-  email: string | null;
-  username: string | null;
-  avatarUrl: string | null;
-  suspendedAt: string | null;
-  access: VoiceAccess;
-  grantedAt: string | null;
-  grantedByName: string | null;
-  lastUsedAt: string | null;
-  sessions30d: number;
-}
-
-export interface VoiceSettings {
-  configured: boolean;
-  mode: VoiceMode;
-  /** VOICE_TESTERS' emails (Render); testersEveryone = a "*" there. */
-  testers: string[];
-  testersEveryone: boolean;
-  users: VoiceUser[];
-}
-
-export const getVoice = () => api.get<VoiceSettings>('/admin/voice');
-export const setVoiceMode = (mode: VoiceMode) =>
-  api.put<VoiceSettings>('/admin/voice/mode', { mode });
 
 // --- site admins (roles) ---
 

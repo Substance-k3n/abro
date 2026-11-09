@@ -1,9 +1,9 @@
 'use client';
 
 // One person (ADR-028): who they are, what they have in ABRO as counts,
-// where they're signed in, their groups, voice, and what admins have done
+// where they're signed in, their groups, and what admins have done
 // to their account. The actions -- suspend / unsuspend, sign out
-// everywhere or on one device, voice on / off -- each confirm in a dialog
+// everywhere or on one device -- each confirm in a dialog
 // first, and each is logged by the API. Never their balances, expenses or
 // receipts.
 
@@ -12,8 +12,6 @@ import {
   Ban,
   CheckCircle2,
   LogOut,
-  Mic,
-  MicOff,
   MonitorSmartphone,
   ShieldCheck,
   Users,
@@ -39,15 +37,12 @@ import {
   type AdminSession,
   type AuditEntry,
   type UserDetail,
-  type VoiceAccess,
   endAllSessions,
   endSession,
   getUser,
   listAudit,
   suspendUser,
   unsuspendUser,
-  voiceOff,
-  voiceOn,
 } from '~/lib/admin-api';
 import { ApiError } from '~/lib/api';
 import { ACTION_LABELS, auditDetail } from '~/lib/audit';
@@ -57,18 +52,7 @@ type Dialog =
   | { kind: 'suspend' }
   | { kind: 'unsuspend' }
   | { kind: 'end-all' }
-  | { kind: 'end-one'; session: AdminSession }
-  | { kind: 'voice-on' }
-  | { kind: 'voice-off' };
-
-const VOICE_TEXT: Record<VoiceAccess, string> = {
-  unavailable: "Voice isn't set up on the server.",
-  off: 'Voice is switched off for everyone.',
-  everyone: 'Has voice: it is on for everyone.',
-  tester: 'Has voice: listed in VOICE_TESTERS on the server.',
-  granted: 'Has voice: an admin turned it on.',
-  none: 'No voice.',
-};
+  | { kind: 'end-one'; session: AdminSession };
 
 export default function UserPage() {
   const { id } = useParams<{ id: string }>();
@@ -146,7 +130,6 @@ export default function UserPage() {
   const blocked = whyCantActOn(session, user);
   const canSuspend = session.can('users.suspend');
   const canSessions = session.can('users.sessions');
-  const canVoice = session.can('voice.manage');
   const live = user.sessions.filter((s) => s.live);
 
   return (
@@ -360,51 +343,6 @@ export default function UserPage() {
         </div>
 
         <div className="space-y-6">
-          <section className="card p-5">
-            <h2 className="font-display mb-3 flex items-center gap-2 font-semibold">
-              <Mic className="text-ink-3 size-4" aria-hidden /> Voice
-            </h2>
-            <p className="text-sm">{VOICE_TEXT[user.voice.access]}</p>
-            <dl className="text-ink-2 mt-3 space-y-1 text-sm">
-              <div className="flex justify-between">
-                <dt className="text-ink-3">Last used</dt>
-                <dd>{relTime(user.voice.lastUsedAt)}</dd>
-              </div>
-              <div className="flex justify-between">
-                <dt className="text-ink-3">Sessions, 30 days</dt>
-                <dd className="tabular-nums">{num(user.voice.sessions30d)}</dd>
-              </div>
-            </dl>
-            {canVoice && (
-              <div className="mt-4">
-                {user.voice.grantedAt ? (
-                  <button
-                    type="button"
-                    className="btn btn-ghost w-full"
-                    onClick={() => setDialog({ kind: 'voice-off' })}
-                  >
-                    <MicOff className="size-4" aria-hidden /> Turn voice off
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-ghost w-full"
-                    disabled={!!user.suspendedAt || user.voice.access === 'unavailable'}
-                    title={user.suspendedAt ? 'Unsuspend them first' : undefined}
-                    onClick={() => setDialog({ kind: 'voice-on' })}
-                  >
-                    <Mic className="size-4" aria-hidden /> Turn voice on
-                  </button>
-                )}
-                {user.voice.access === 'tester' && !user.voice.grantedAt && (
-                  <p className="text-ink-3 mt-2 text-xs">
-                    To take voice away from a tester, remove them from VOICE_TESTERS on Render.
-                  </p>
-                )}
-              </div>
-            )}
-          </section>
-
           {session.can('audit.view') && (
             <section className="card p-5">
               <div className="mb-3 flex items-baseline justify-between gap-2">
@@ -458,8 +396,6 @@ export default function UserPage() {
           onEndOne={(s) =>
             act(() => endSession(user.id, s.id), `Ended the session on ${deviceName(s.userAgent)}.`)
           }
-          onVoiceOn={() => act(() => voiceOn(user.id), 'Voice turned on.')}
-          onVoiceOff={() => act(() => voiceOff(user.id), 'Voice turned off.')}
         />
       )}
     </>
@@ -494,8 +430,6 @@ function ActionDialog({
   onUnsuspend,
   onEndAll,
   onEndOne,
-  onVoiceOn,
-  onVoiceOff,
 }: {
   dialog: Dialog;
   user: UserDetail;
@@ -504,8 +438,6 @@ function ActionDialog({
   onUnsuspend: () => Promise<void>;
   onEndAll: () => Promise<void>;
   onEndOne: (s: AdminSession) => Promise<void>;
-  onVoiceOn: () => Promise<void>;
-  onVoiceOff: () => Promise<void>;
 }) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
@@ -588,31 +520,6 @@ function ActionDialog({
       tone: 'btn-danger',
       disabled: false,
       go: () => (dialog.kind === 'end-one' ? onEndOne(dialog.session) : Promise.resolve()),
-    },
-    'voice-on': {
-      title: `Turn voice on for ${name}?`,
-      body: (
-        <p>They&apos;ll see the voice button the next time ABRO opens. Voice uses speech credit.</p>
-      ),
-      confirm: 'Turn voice on',
-      tone: 'btn-primary',
-      disabled: false,
-      go: onVoiceOn,
-    },
-    'voice-off': {
-      title: `Turn voice off for ${name}?`,
-      body: (
-        <p>
-          The voice button goes away the next time ABRO opens.
-          {user.voice.access === 'tester'
-            ? ' They stay a tester through VOICE_TESTERS, so they keep voice.'
-            : ''}
-        </p>
-      ),
-      confirm: 'Turn voice off',
-      tone: 'btn-danger',
-      disabled: false,
-      go: onVoiceOff,
     },
   }[dialog.kind];
 
