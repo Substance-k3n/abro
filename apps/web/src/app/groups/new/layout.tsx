@@ -33,7 +33,7 @@ function StepIndicator() {
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[10px] border font-mono text-[0.7rem] font-bold transition-colors"
             style={{
               background:
-                i < activeIndex ? '#16a34a' : i === activeIndex ? '#12813f' : 'var(--neo-bg)',
+                i < activeIndex ? '#16a34a' : i === activeIndex ? '#c2410c' : 'var(--neo-bg)',
               borderColor: i <= activeIndex ? 'transparent' : 'var(--border-med)',
               color: i <= activeIndex ? 'white' : 'var(--t-dim)',
             }}

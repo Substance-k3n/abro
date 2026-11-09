@@ -37,13 +37,13 @@
   --red-soft: #ef4444;
   --red-bg: #fee2e2;
   --amber-soft: #f59e0b;
-  /* A working shade of the brand green (the "Together" mark itself uses
-     the brighter #1eba5a -- packages/ui's Logomark). This darker shade
-     is what actually appears as button fills, links and active states:
-     #1eba5a is too light to pass WCAG AA (4.5:1) as text, or under white
-     button text -- about 2.6:1 either way. */
-  --accent: #12813f;
-  --accent-light: #e1f6e8;
+  /* A working shade of the brand orange (the Logomark itself uses the
+     brighter #ff5a1f -- packages/ui's Logomark). This darker shade is
+     what actually appears as button fills, links and active states:
+     #ff5a1f is too light to pass WCAG AA (4.5:1) as text, or under white
+     button text -- about 3.1:1. */
+  --accent: #c2410c;
+  --accent-light: #fde8dc;
 
   /* Text hierarchy -- neutral ink (the old purple-tinted ink was a last
      leftover of the indigo brand; invisible against the old lavender
@@ -104,11 +104,11 @@
   --red-soft: #f87171;
   --red-bg: rgba(248, 113, 113, 0.14);
   --amber-soft: #fbbf24;
-  /* Lightened brand green -- stays legible as text/icon color on a dark
-     page; solid fills (buttons, the hero card) use the fixed #12813f
+  /* Lightened brand orange -- stays legible as text/icon color on a dark
+     page; solid fills (buttons, the hero card) use the fixed #c2410c
      below instead, which already has plenty of contrast for white text. */
-  --accent: #6dd294;
-  --accent-light: rgba(109, 210, 148, 0.16);
+  --accent: #ff8552;
+  --accent-light: rgba(255, 133, 82, 0.16);
 
   --t-primary: #f2f3f2;
   --t-secondary: #d4d6d5;
@@ -250,8 +250,8 @@ body {
    white text keeps solid contrast in dark mode too (--accent lightens
    there). No new color added. */
 .neo-btn-accent {
-  background: #12813f;
-  border: 1px solid #12813f;
+  background: #c2410c;
+  border: 1px solid #c2410c;
   transition:
     filter 0.15s ease,
     transform 0.1s ease;
@@ -308,7 +308,7 @@ body {
 }
 
 .neo-card-accent {
-  background: #12813f;
+  background: #c2410c;
   color: white;
   box-shadow: 0 12px 28px -10px rgba(20, 15, 50, 0.4);
 }
@@ -548,8 +548,8 @@ body {
 }
 
 .cat-pill.selected {
-  background: #12813f;
-  border-color: #12813f;
+  background: #c2410c;
+  border-color: #c2410c;
   color: white;
 }
 
@@ -568,8 +568,8 @@ body {
 }
 
 .neo-toggle.on {
-  background: #12813f;
-  border-color: #12813f;
+  background: #c2410c;
+  border-color: #c2410c;
 }
 
 /* A real, single, understated drop shadow — this is the one place a
@@ -608,7 +608,7 @@ body {
 .neo-progress-fill {
   height: 100%;
   border-radius: 999px;
-  background: #12813f;
+  background: #c2410c;
   transition: width 0.5s ease;
 }
 

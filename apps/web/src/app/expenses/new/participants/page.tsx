@@ -196,8 +196,8 @@ export default function AddExpenseParticipantsPage() {
         <div
           className="flex h-5 w-5 items-center justify-center rounded-[6px] border"
           style={{
-            background: allFriendsSelected ? '#12813f' : 'transparent',
-            borderColor: allFriendsSelected ? '#12813f' : 'var(--border-med)',
+            background: allFriendsSelected ? '#c2410c' : 'transparent',
+            borderColor: allFriendsSelected ? '#c2410c' : 'var(--border-med)',
           }}
         >
           {allFriendsSelected && <Check size={12} strokeWidth={2.5} color="white" />}
@@ -232,8 +232,8 @@ export default function AddExpenseParticipantsPage() {
                     <div
                       className="flex h-6 w-6 items-center justify-center rounded-lg border"
                       style={{
-                        background: selected ? '#12813f' : 'transparent',
-                        borderColor: selected ? '#12813f' : 'var(--border-med)',
+                        background: selected ? '#c2410c' : 'transparent',
+                        borderColor: selected ? '#c2410c' : 'var(--border-med)',
                       }}
                     >
                       {selected && <Check size={14} strokeWidth={2.5} color="white" />}

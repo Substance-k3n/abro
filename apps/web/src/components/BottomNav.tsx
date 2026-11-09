@@ -46,7 +46,7 @@ export function BottomNav() {
               href={item.href}
               className="-mt-3.5 flex h-[54px] w-[54px] shrink-0 items-center justify-center rounded-[18px] text-white transition-transform"
               style={{
-                background: '#12813f',
+                background: '#c2410c',
                 boxShadow: '0 6px 16px -4px rgba(20,15,50,0.45)',
                 transform: isActive ? 'scale(0.94)' : 'scale(1)',
               }}

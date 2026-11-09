@@ -205,8 +205,8 @@ export default function CreateGroupMembersPage() {
                   <div
                     className="flex h-6 w-6 items-center justify-center rounded-lg border"
                     style={{
-                      background: selected ? '#12813f' : 'transparent',
-                      borderColor: selected ? '#12813f' : 'var(--border-med)',
+                      background: selected ? '#c2410c' : 'transparent',
+                      borderColor: selected ? '#c2410c' : 'var(--border-med)',
                     }}
                   >
                     {selected && <Check size={14} strokeWidth={2.5} color="white" />}

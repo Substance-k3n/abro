@@ -65,7 +65,7 @@ export function PushNotifications({ variant }: { variant: 'section' | 'banner' }
       <div className="neo-raised-sm mb-5 flex items-start gap-3 rounded-[18px] p-4">
         <div
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
-          style={{ background: '#12813f' }}
+          style={{ background: '#c2410c' }}
           aria-hidden
         >
           <BellRing size={18} strokeWidth={2} />

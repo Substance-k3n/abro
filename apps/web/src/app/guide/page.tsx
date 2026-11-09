@@ -36,7 +36,7 @@ export const metadata: Metadata = {
   },
 };
 
-const accentText = { color: '#12813f' } as const;
+const accentText = { color: '#c2410c' } as const;
 const primary = { color: 'var(--t-primary)' } as const;
 const secondary = { color: 'var(--t-secondary)' } as const;
 const dim = { color: 'var(--t-dim)' } as const;
@@ -274,7 +274,7 @@ export default function GuidePage() {
             <li key={step.title} className="neo-raised-sm flex flex-col gap-2.5 rounded-[20px] p-5">
               <span
                 className="font-display flex h-8 w-8 items-center justify-center rounded-full text-[0.85rem] font-bold text-white"
-                style={{ background: '#12813f' }}
+                style={{ background: '#c2410c' }}
               >
                 {i + 1}
               </span>

@@ -10,7 +10,7 @@ import { useState } from 'react';
 
 const SLIDES = [
   {
-    icon: <Receipt size={52} strokeWidth={1.25} color="#12813f" />,
+    icon: <Receipt size={52} strokeWidth={1.25} color="#c2410c" />,
     title: 'Track Expenses',
     desc: 'Record shared expenses between friends, family, and groups in seconds.',
   },

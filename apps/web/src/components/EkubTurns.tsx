@@ -87,7 +87,7 @@ export function EkubTurns({
             <div className="mb-2 flex items-center gap-2">
               <span
                 className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-[0.75rem] font-bold text-white"
-                style={{ background: locked ? 'var(--t-dim)' : '#12813f' }}
+                style={{ background: locked ? 'var(--t-dim)' : '#c2410c' }}
               >
                 {i + 1}
               </span>

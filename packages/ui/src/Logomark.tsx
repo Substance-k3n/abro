@@ -1,24 +1,40 @@
-// ABRO brand mark ("Together"): two overlapping circles -- green on the
-// left, amber on the right, with the overlap in ink -- reading as "two
-// people, one shared space." Built as SVG (not a raster export) so it
-// stays crisp from the 16px favicon size up to the landing page hero.
+// ABRO brand mark ("Linked"): two people -- head + a flat-bottomed
+// "shoulders" dome each -- overlapping at the shoulder to read as
+// connected, not separate. Single color by design (unlike the old
+// two-circle "Together" mark), so it holds up at favicon size and as a
+// flat app-icon glyph. The dome is a half-circle closed with a straight
+// line, not a full circle: two full circles stacked reads as a face
+// (two dot eyes + a round chin) at small sizes.
 //
-// `invertLeft` swaps the left circle to white, for the one lockup that
-// sits on the brand-green background itself (green-on-green would
-// disappear) -- matches the brand kit's "On brand green" variant.
+// `invert` swaps the fill to white, for the lockup that sits on the
+// brand orange itself (orange-on-orange would disappear).
 
-const GREEN = '#1eba5a';
-const AMBER = '#f0a429';
-const INK = '#10231c';
+const ORANGE = '#ff5a1f';
+const HEAD_R = 6.5;
+const HEAD_CY = 25;
+const BODY_R = 16;
+const BASELINE = 45;
 
 export interface LogomarkProps {
   size?: number;
-  invertLeft?: boolean;
+  invert?: boolean;
   className?: string;
 }
 
-export function Logomark({ size = 32, invertLeft = false, className }: LogomarkProps) {
-  const clipId = `logomark-clip-${invertLeft ? 'inv' : 'std'}`;
+function Person({ cx, fill }: { cx: number; fill: string }) {
+  return (
+    <>
+      <circle cx={cx} cy={HEAD_CY} r={HEAD_R} fill={fill} />
+      <path
+        d={`M ${cx - BODY_R} ${BASELINE} A ${BODY_R} ${BODY_R} 0 0 1 ${cx + BODY_R} ${BASELINE} Z`}
+        fill={fill}
+      />
+    </>
+  );
+}
+
+export function Logomark({ size = 32, invert = false, className }: LogomarkProps) {
+  const fill = invert ? '#ffffff' : ORANGE;
   return (
     <svg
       width={size}
@@ -28,16 +44,8 @@ export function Logomark({ size = 32, invertLeft = false, className }: LogomarkP
       className={className}
       aria-hidden
     >
-      <defs>
-        <clipPath id={clipId}>
-          <circle cx="18" cy="32" r="20" />
-        </clipPath>
-      </defs>
-      <circle cx="18" cy="32" r="20" fill={invertLeft ? '#ffffff' : GREEN} />
-      <circle cx="46" cy="32" r="20" fill={AMBER} />
-      <g clipPath={`url(#${clipId})`}>
-        <circle cx="46" cy="32" r="20" fill={INK} />
-      </g>
+      <Person cx={20} fill={fill} />
+      <Person cx={44} fill={fill} />
     </svg>
   );
 }

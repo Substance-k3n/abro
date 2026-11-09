@@ -4,8 +4,9 @@
  * ABRO admin portal (ADR-028). A flat, dense back-office look -- deep
  * ink sidebar, near-white content, white cards -- not the PWA's
  * neumorphic style: admins read tables and numbers all day on a desktop.
- * The brand green (same --accent as apps/web) is the one accent; the
- * sidebar uses the brand kit's "Ink" (#10231c) directly; status colours
+ * The brand orange (same --accent as apps/web) is the one accent; the
+ * sidebar is a neutral near-black so the orange reads as the one thing
+ * that's "on," not fighting a tinted background; status colours
  * (good / warning / critical) are reserved for state and always come
  * with an icon or word. Light only for now.
  */
@@ -15,22 +16,22 @@
   --font-sans: var(--ff-body), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--ff-mono), ui-monospace, monospace;
 
-  --color-page: #f5f7f5;
+  --color-page: #f5f6f5;
   --color-card: #ffffff;
-  --color-line: #e4ebe6;
-  --color-line-strong: #cfdbd3;
-  --color-ink: #10231c;
-  --color-ink-2: #44574c;
-  --color-ink-3: #71857a;
+  --color-line: #e7e5e2;
+  --color-line-strong: #d4d0ca;
+  --color-ink: #17140f;
+  --color-ink-2: #524c43;
+  --color-ink-3: #817a6f;
 
-  --color-side: #10231c;
-  --color-side-2: #1c3a2c;
-  --color-side-ink: #c9e3d2;
-  --color-side-muted: #7a9c89;
+  --color-side: #16130f;
+  --color-side-2: #241f18;
+  --color-side-ink: #f5ede4;
+  --color-side-muted: #998e7f;
 
-  --color-accent: #12813f;
-  --color-accent-strong: #0f6636;
-  --color-accent-soft: #e1f6e8;
+  --color-accent: #c2410c;
+  --color-accent-strong: #9a3412;
+  --color-accent-soft: #fde8dc;
 
   --color-good: #1f7a3d;
   --color-good-soft: #e4f5ea;
