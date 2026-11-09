@@ -470,16 +470,16 @@ body {
    this is the one thing on the screen, so it gets to be the one bold
    element (2026-11-09 feedback: wanted a more "visible response"). */
 .otp-box {
-  width: 52px;
-  height: 60px;
+  width: 46px;
+  height: 54px;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 1.45rem;
+  font-size: 1.3rem;
   font-weight: 700;
   background: var(--neo-bg2);
   border: 1.5px solid var(--border-sub);
   outline: none;
-  border-radius: 16px;
+  border-radius: 14px;
   color: var(--t-primary);
   box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.12);
   transition:

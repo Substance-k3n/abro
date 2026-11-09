@@ -116,11 +116,8 @@ function SignInForm() {
         </div>
 
         {/* The one card on an otherwise bare screen -- real structure
-            instead of a form floating on the page, with a thin top
-            accent (a ledger tab, not a gradient) as the single
-            deliberate brand touch. */}
-        <div className="neo-raised-lg overflow-hidden rounded-[28px]">
-          <div className="h-[3px]" style={{ background: 'var(--accent)' }} />
+            instead of a form floating on the page. */}
+        <div className="neo-raised-lg rounded-[28px]">
           <form onSubmit={submit} className="flex flex-col gap-4 p-7 sm:p-8">
             <a
               href={googleSignInUrl()}

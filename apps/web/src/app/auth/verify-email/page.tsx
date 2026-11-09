@@ -25,7 +25,6 @@
 // The address is shown masked (maskEmail in ~/lib/format.ts) -- enough to
 // recognize which inbox to check without printing it in full on screen.
 
-import { Mail } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
@@ -122,30 +121,20 @@ function VerifyEmailForm() {
 
   return (
     <main className="flex min-h-screen flex-col items-center px-5 py-16 sm:justify-center sm:py-20">
-      <div
-        className="neo-raised-lg mb-8 flex h-[76px] w-[76px] items-center justify-center rounded-[26px]"
-        aria-hidden
-      >
-        <Mail size={34} strokeWidth={1.5} color="var(--accent)" />
-      </div>
-
       <h2
-        className="font-display text-center text-[2.1rem] font-bold leading-[1.1] tracking-tight"
+        className="font-display text-center text-[1.5rem] font-bold tracking-tight"
         style={{ color: 'var(--t-primary)' }}
       >
         Enter the code
       </h2>
-      <p
-        className="mt-2.5 text-center text-[0.92rem] leading-relaxed"
-        style={{ color: 'var(--t-muted)' }}
-      >
+      <p className="mt-1.5 text-center text-[0.85rem]" style={{ color: 'var(--t-muted)' }}>
         Sent to <strong style={{ color: 'var(--t-secondary)' }}>{maskEmail(email)}</strong>
       </p>
       <button
         type="button"
         onClick={() => router.push(`/auth/signin?email=${encodeURIComponent(email)}`)}
-        className="mb-8 mt-1.5 text-[0.78rem] font-semibold"
-        style={{ color: 'var(--accent)' }}
+        className="mb-7 mt-1 text-[0.74rem] font-medium"
+        style={{ color: 'var(--t-dim)' }}
       >
         Wrong email? Change it
       </button>
@@ -159,7 +148,7 @@ function VerifyEmailForm() {
         </p>
       )}
 
-      <div className="mb-8 flex gap-3">
+      <div className="mb-7 flex gap-2">
         {otp.map((digit, index) => (
           <input
             // Fixed 6-slot positional layout that never reorders — index is the
