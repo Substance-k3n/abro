@@ -3,11 +3,14 @@
 // Create-group wizard layout -- same pattern as
 // apps/web/src/app/expenses/new/layout.tsx: wraps every step route in
 // GroupDraftProvider, renders a step indicator, lives outside the
-// (dashboard) chrome (focused flow, no sidebar/bottom nav).
+// (dashboard) chrome (focused flow, no bottom nav on phone -- the
+// desktop sidebar is still shown, see expenses/new/layout.tsx's header
+// comment for why).
 
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { Sidebar } from '~/components/Sidebar';
 import { GroupDraftProvider } from '~/lib/group-draft';
 
 const STEPS = [
@@ -57,9 +60,14 @@ function StepIndicator() {
 export default function CreateGroupLayout({ children }: { children: ReactNode }) {
   return (
     <GroupDraftProvider>
-      <div className="fade-in mx-auto max-w-xl px-5 py-6 md:px-8 md:py-8">
-        <StepIndicator />
-        {children}
+      <div className="flex min-h-screen md:flex-row">
+        <Sidebar />
+        <main className="min-h-screen min-w-0 flex-1">
+          <div className="fade-in mx-auto max-w-xl px-5 py-6 md:px-8 md:py-8">
+            <StepIndicator />
+            {children}
+          </div>
+        </main>
       </div>
     </GroupDraftProvider>
   );

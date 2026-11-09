@@ -5,13 +5,17 @@
 // its header comment for why the draft lives here instead of in a
 // single collapsed screen component) and renders the step indicator.
 //
-// Deliberately outside the (dashboard) route group: no sidebar/bottom
-// nav. ABRO_FRONTEND_SPEC.md's screen-flow section (§ "Tab 3: Add
+// Deliberately outside the (dashboard) route group: no bottom nav on
+// phone. ABRO_FRONTEND_SPEC.md's screen-flow section (§ "Tab 3: Add
 // Expense -> EXP-01 (Modal/Sheet)") frames this as a focused, modal-like
 // flow entered from the bottom nav's center button, not a page within
 // the persistent dashboard chrome -- matches how most expense-splitting
 // apps treat multi-step entry forms (fewer exit points, full attention
-// on the flow).
+// on the flow). The desktop sidebar is still shown, though (2026-11-09
+// feedback: a wizard with zero chrome on a wide screen has no "where
+// am I in the app" landmark at all -- the bottom nav it's standing in
+// for doesn't exist on desktop anyway, so there's nothing it needs to
+// stay focused instead of).
 //
 // ExpenseDirectoryProvider (~/lib/expense-directory.tsx) loads the
 // real people/groups every step picks from; steps render only once it
@@ -32,6 +36,7 @@ import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
+import { Sidebar } from '~/components/Sidebar';
 import { ExpenseDirectoryProvider } from '~/lib/expense-directory';
 import { ExpenseDraftProvider } from '~/lib/expense-draft';
 
@@ -85,15 +90,20 @@ function StepIndicator() {
 export default function AddExpenseLayout({ children }: { children: ReactNode }) {
   return (
     <ExpenseDraftProvider>
-      <div className="fade-in mx-auto max-w-xl px-5 py-6 md:px-8 md:py-8">
-        <StepIndicator />
-        <ExpenseDirectoryProvider
-          fallback={({ error, retry }) =>
-            error ? <ErrorState message={error} onRetry={retry} /> : <LoadingState inline />
-          }
-        >
-          {children}
-        </ExpenseDirectoryProvider>
+      <div className="flex min-h-screen md:flex-row">
+        <Sidebar />
+        <main className="min-h-screen min-w-0 flex-1">
+          <div className="fade-in mx-auto max-w-xl px-5 py-6 md:px-8 md:py-8">
+            <StepIndicator />
+            <ExpenseDirectoryProvider
+              fallback={({ error, retry }) =>
+                error ? <ErrorState message={error} onRetry={retry} /> : <LoadingState inline />
+              }
+            >
+              {children}
+            </ExpenseDirectoryProvider>
+          </div>
+        </main>
       </div>
     </ExpenseDraftProvider>
   );
