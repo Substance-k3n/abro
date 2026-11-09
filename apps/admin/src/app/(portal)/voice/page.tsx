@@ -174,67 +174,69 @@ export default function VoicePage() {
               Nobody yet.{canManage ? ' Add someone on the right.' : ''}
             </p>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="text-ink-3 text-left text-xs">
-                <tr>
-                  <th className="px-5 py-2.5 font-medium">Person</th>
-                  <th className="px-5 py-2.5 font-medium">Why</th>
-                  <th className="px-5 py-2.5 font-medium">Last used</th>
-                  <th className="px-5 py-2.5 text-right font-medium">30 days</th>
-                  <th className="px-5 py-2.5" />
-                </tr>
-              </thead>
-              <tbody>
-                {v.users.map((u) => (
-                  <tr key={u.userId} className="border-line border-t">
-                    <td className="px-5 py-3">
-                      <Link
-                        href={`/users/${u.userId}`}
-                        className="flex items-center gap-3 hover:underline"
-                      >
-                        <Avatar name={u.displayName} url={u.avatarUrl} size={30} />
-                        <span className="min-w-0">
-                          <span className="block truncate font-medium">{u.displayName}</span>
-                          <span className="text-ink-3 block truncate text-xs">{u.email}</span>
-                        </span>
-                      </Link>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex flex-wrap gap-1.5">
-                        <Badge tone={ACCESS[u.access].tone}>{ACCESS[u.access].label}</Badge>
-                        {u.grantedAt && u.access !== 'granted' && <Badge>+ turned on here</Badge>}
-                        {u.suspendedAt && <Badge tone="bad">Suspended</Badge>}
-                      </div>
-                      {u.grantedAt && (
-                        <div className="text-ink-3 mt-1 text-xs">
-                          by {u.grantedByName ?? 'a deleted admin'} · {relTime(u.grantedAt)}
-                        </div>
-                      )}
-                    </td>
-                    <td className="text-ink-2 px-5 py-3">{relTime(u.lastUsedAt)}</td>
-                    <td className="px-5 py-3 text-right tabular-nums">{num(u.sessions30d)}</td>
-                    <td className="px-5 py-3 text-right">
-                      {canManage && u.grantedAt && (
-                        <button
-                          type="button"
-                          className="text-bad text-sm font-medium hover:underline"
-                          onClick={() =>
-                            setDialog({
-                              kind: 'off',
-                              id: u.userId,
-                              name: u.displayName,
-                              tester: u.access === 'tester',
-                            })
-                          }
-                        >
-                          Turn off
-                        </button>
-                      )}
-                    </td>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-ink-3 text-left text-xs">
+                  <tr>
+                    <th className="px-5 py-2.5 font-medium">Person</th>
+                    <th className="px-5 py-2.5 font-medium">Why</th>
+                    <th className="px-5 py-2.5 font-medium">Last used</th>
+                    <th className="px-5 py-2.5 text-right font-medium">30 days</th>
+                    <th className="px-5 py-2.5" />
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {v.users.map((u) => (
+                    <tr key={u.userId} className="border-line border-t">
+                      <td className="px-5 py-3">
+                        <Link
+                          href={`/users/${u.userId}`}
+                          className="flex items-center gap-3 hover:underline"
+                        >
+                          <Avatar name={u.displayName} url={u.avatarUrl} size={30} />
+                          <span className="min-w-0">
+                            <span className="block truncate font-medium">{u.displayName}</span>
+                            <span className="text-ink-3 block truncate text-xs">{u.email}</span>
+                          </span>
+                        </Link>
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex flex-wrap gap-1.5">
+                          <Badge tone={ACCESS[u.access].tone}>{ACCESS[u.access].label}</Badge>
+                          {u.grantedAt && u.access !== 'granted' && <Badge>+ turned on here</Badge>}
+                          {u.suspendedAt && <Badge tone="bad">Suspended</Badge>}
+                        </div>
+                        {u.grantedAt && (
+                          <div className="text-ink-3 mt-1 text-xs">
+                            by {u.grantedByName ?? 'a deleted admin'} · {relTime(u.grantedAt)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="text-ink-2 px-5 py-3">{relTime(u.lastUsedAt)}</td>
+                      <td className="px-5 py-3 text-right tabular-nums">{num(u.sessions30d)}</td>
+                      <td className="px-5 py-3 text-right">
+                        {canManage && u.grantedAt && (
+                          <button
+                            type="button"
+                            className="text-bad text-sm font-medium hover:underline"
+                            onClick={() =>
+                              setDialog({
+                                kind: 'off',
+                                id: u.userId,
+                                name: u.displayName,
+                                tester: u.access === 'tester',
+                              })
+                            }
+                          >
+                            Turn off
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </section>
 

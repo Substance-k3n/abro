@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@abro/types": "workspace:*",
+    "@abro/ui": "workspace:*",
     "lucide-react": "^1.45.0",
     "next": "15.5.18",
     "react": "19.2.1",

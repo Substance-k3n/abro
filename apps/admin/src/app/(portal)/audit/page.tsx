@@ -167,78 +167,84 @@ function Audit() {
 
       {!error || entries ? (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-page/70 text-ink-3 border-line border-b text-left text-xs">
-              <tr>
-                <th className="px-5 py-3 font-medium">When</th>
-                <th className="px-5 py-3 font-medium">Admin</th>
-                <th className="px-5 py-3 font-medium">What</th>
-                <th className="px-5 py-3 font-medium">About</th>
-                <th className="px-5 py-3 font-medium">IP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!entries &&
-                Array.from({ length: 6 }, (_, i) => (
-                  <tr key={i} className="border-line border-t">
-                    <td colSpan={5} className="px-5 py-3">
-                      <Skeleton className="h-6" />
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-page/70 text-ink-3 border-line border-b text-left text-xs">
+                <tr>
+                  <th className="px-5 py-3 font-medium">When</th>
+                  <th className="px-5 py-3 font-medium">Admin</th>
+                  <th className="px-5 py-3 font-medium">What</th>
+                  <th className="px-5 py-3 font-medium">About</th>
+                  <th className="px-5 py-3 font-medium">IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!entries &&
+                  Array.from({ length: 6 }, (_, i) => (
+                    <tr key={i} className="border-line border-t">
+                      <td colSpan={5} className="px-5 py-3">
+                        <Skeleton className="h-6" />
+                      </td>
+                    </tr>
+                  ))}
+                {entries?.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="text-ink-3 px-5 py-14 text-center">
+                      <ScrollText className="text-line-strong mx-auto mb-2 size-8" aria-hidden />
+                      {filtered
+                        ? 'Nothing matches these filters.'
+                        : 'No admin has changed anything yet.'}
+                    </td>
+                  </tr>
+                )}
+                {entries?.map((e) => (
+                  <tr key={e.id} className="border-line border-t align-top">
+                    <td
+                      className="text-ink-2 whitespace-nowrap px-5 py-3"
+                      title={fullDate(e.createdAt)}
+                    >
+                      <div>{relTime(e.createdAt)}</div>
+                      <div className="text-ink-3 text-xs">{fullDate(e.createdAt)}</div>
+                    </td>
+                    <td className="px-5 py-3">
+                      {e.actorId ? (
+                        <Link href={`/users/${e.actorId}`} className="font-medium hover:underline">
+                          {e.actorName ?? e.actorEmail}
+                        </Link>
+                      ) : (
+                        <span className="text-ink-3">A deleted admin</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      <Badge tone={TONE[e.action] ?? 'neutral'}>
+                        {ACTION_LABELS[e.action] ?? e.action}
+                      </Badge>
+                      {auditDetail(e) && (
+                        <div className="text-ink-2 mt-1 max-w-md text-xs">{auditDetail(e)}</div>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      {e.targetType === 'user' && e.targetId ? (
+                        <Link href={`/users/${e.targetId}`} className="hover:underline">
+                          <div className="font-medium">{e.targetName ?? 'A deleted account'}</div>
+                          {e.targetEmail && (
+                            <div className="text-ink-3 text-xs">{e.targetEmail}</div>
+                          )}
+                        </Link>
+                      ) : e.targetType === 'setting' ? (
+                        <span className="text-ink-2">App setting</span>
+                      ) : (
+                        <span className="text-ink-3">—</span>
+                      )}
+                    </td>
+                    <td className="text-ink-3 px-5 py-3 font-mono text-xs">
+                      {cleanIp(e.ipAddress)}
                     </td>
                   </tr>
                 ))}
-              {entries?.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="text-ink-3 px-5 py-14 text-center">
-                    <ScrollText className="text-line-strong mx-auto mb-2 size-8" aria-hidden />
-                    {filtered
-                      ? 'Nothing matches these filters.'
-                      : 'No admin has changed anything yet.'}
-                  </td>
-                </tr>
-              )}
-              {entries?.map((e) => (
-                <tr key={e.id} className="border-line border-t align-top">
-                  <td
-                    className="text-ink-2 whitespace-nowrap px-5 py-3"
-                    title={fullDate(e.createdAt)}
-                  >
-                    <div>{relTime(e.createdAt)}</div>
-                    <div className="text-ink-3 text-xs">{fullDate(e.createdAt)}</div>
-                  </td>
-                  <td className="px-5 py-3">
-                    {e.actorId ? (
-                      <Link href={`/users/${e.actorId}`} className="font-medium hover:underline">
-                        {e.actorName ?? e.actorEmail}
-                      </Link>
-                    ) : (
-                      <span className="text-ink-3">A deleted admin</span>
-                    )}
-                  </td>
-                  <td className="px-5 py-3">
-                    <Badge tone={TONE[e.action] ?? 'neutral'}>
-                      {ACTION_LABELS[e.action] ?? e.action}
-                    </Badge>
-                    {auditDetail(e) && (
-                      <div className="text-ink-2 mt-1 max-w-md text-xs">{auditDetail(e)}</div>
-                    )}
-                  </td>
-                  <td className="px-5 py-3">
-                    {e.targetType === 'user' && e.targetId ? (
-                      <Link href={`/users/${e.targetId}`} className="hover:underline">
-                        <div className="font-medium">{e.targetName ?? 'A deleted account'}</div>
-                        {e.targetEmail && <div className="text-ink-3 text-xs">{e.targetEmail}</div>}
-                      </Link>
-                    ) : e.targetType === 'setting' ? (
-                      <span className="text-ink-2">App setting</span>
-                    ) : (
-                      <span className="text-ink-3">—</span>
-                    )}
-                  </td>
-                  <td className="text-ink-3 px-5 py-3 font-mono text-xs">{cleanIp(e.ipAddress)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
           {cursor && (
             <div className="border-line border-t px-5 py-3 text-center">
               <button

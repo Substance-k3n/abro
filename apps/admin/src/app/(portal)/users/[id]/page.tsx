@@ -264,55 +264,57 @@ export default function UserPage() {
             {user.sessions.length === 0 ? (
               <p className="text-ink-3 px-5 py-8 text-center text-sm">Never signed in.</p>
             ) : (
-              <table className="w-full text-sm">
-                <thead className="text-ink-3 text-left text-xs">
-                  <tr>
-                    <th className="px-5 py-2.5 font-medium">Device</th>
-                    <th className="px-5 py-2.5 font-medium">IP address</th>
-                    <th className="px-5 py-2.5 font-medium">Last used</th>
-                    <th className="px-5 py-2.5 font-medium">Started</th>
-                    <th className="px-5 py-2.5" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {user.sessions.map((s) => (
-                    <tr key={s.id} className="border-line border-t">
-                      <td className="px-5 py-3">
-                        <div className="font-medium" title={s.userAgent ?? undefined}>
-                          {deviceName(s.userAgent)}
-                        </div>
-                        <div className="mt-0.5">
-                          {s.live ? (
-                            <Badge tone="good">Signed in</Badge>
-                          ) : s.revokedAt ? (
-                            <Badge>Ended {relTime(s.revokedAt)}</Badge>
-                          ) : (
-                            <Badge>Expired</Badge>
-                          )}
-                        </div>
-                      </td>
-                      <td className="text-ink-2 px-5 py-3 font-mono text-xs">
-                        {cleanIp(s.ipAddress)}
-                      </td>
-                      <td className="text-ink-2 px-5 py-3" title={fullDate(s.lastUsedAt)}>
-                        {relTime(s.lastUsedAt)}
-                      </td>
-                      <td className="text-ink-2 px-5 py-3">{dateOnly(s.createdAt)}</td>
-                      <td className="px-5 py-3 text-right">
-                        {s.live && canSessions && !blocked && (
-                          <button
-                            type="button"
-                            className="text-bad text-sm font-medium hover:underline"
-                            onClick={() => setDialog({ kind: 'end-one', session: s })}
-                          >
-                            End
-                          </button>
-                        )}
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="text-ink-3 text-left text-xs">
+                    <tr>
+                      <th className="px-5 py-2.5 font-medium">Device</th>
+                      <th className="px-5 py-2.5 font-medium">IP address</th>
+                      <th className="px-5 py-2.5 font-medium">Last used</th>
+                      <th className="px-5 py-2.5 font-medium">Started</th>
+                      <th className="px-5 py-2.5" />
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {user.sessions.map((s) => (
+                      <tr key={s.id} className="border-line border-t">
+                        <td className="px-5 py-3">
+                          <div className="font-medium" title={s.userAgent ?? undefined}>
+                            {deviceName(s.userAgent)}
+                          </div>
+                          <div className="mt-0.5">
+                            {s.live ? (
+                              <Badge tone="good">Signed in</Badge>
+                            ) : s.revokedAt ? (
+                              <Badge>Ended {relTime(s.revokedAt)}</Badge>
+                            ) : (
+                              <Badge>Expired</Badge>
+                            )}
+                          </div>
+                        </td>
+                        <td className="text-ink-2 px-5 py-3 font-mono text-xs">
+                          {cleanIp(s.ipAddress)}
+                        </td>
+                        <td className="text-ink-2 px-5 py-3" title={fullDate(s.lastUsedAt)}>
+                          {relTime(s.lastUsedAt)}
+                        </td>
+                        <td className="text-ink-2 px-5 py-3">{dateOnly(s.createdAt)}</td>
+                        <td className="px-5 py-3 text-right">
+                          {s.live && canSessions && !blocked && (
+                            <button
+                              type="button"
+                              className="text-bad text-sm font-medium hover:underline"
+                              onClick={() => setDialog({ kind: 'end-one', session: s })}
+                            >
+                              End
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
 
