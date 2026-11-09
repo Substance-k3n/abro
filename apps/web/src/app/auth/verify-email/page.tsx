@@ -121,7 +121,7 @@ function VerifyEmailForm() {
   }
 
   return (
-    <main className="fade-in flex min-h-screen flex-col items-center px-7 py-16 sm:py-20">
+    <main className="flex min-h-screen flex-col items-center px-7 py-16 sm:justify-center sm:py-20">
       <div
         className="neo-raised-lg mb-7 flex h-[72px] w-[72px] items-center justify-center rounded-[24px]"
         aria-hidden
@@ -135,17 +135,25 @@ function VerifyEmailForm() {
       >
         Check your email
       </h2>
-      <p
-        className="mb-6 mt-2 text-center text-sm leading-relaxed"
-        style={{ color: 'var(--t-muted)' }}
-      >
+      <p className="mt-2 text-center text-sm leading-relaxed" style={{ color: 'var(--t-muted)' }}>
         We sent a 6-digit code to
         <br />
         <strong style={{ color: 'var(--t-secondary)' }}>{maskEmail(email)}</strong>
       </p>
+      <button
+        type="button"
+        onClick={() => router.push(`/auth/signin?email=${encodeURIComponent(email)}`)}
+        className="mb-6 mt-1 text-[0.78rem] font-semibold"
+        style={{ color: 'var(--accent)' }}
+      >
+        Wrong email? Change it
+      </button>
 
       {error && (
-        <p className="mb-4 text-center text-[0.8rem] font-medium" style={{ color: 'var(--c-red)' }}>
+        <p
+          className="mb-4 rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
+          style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
+        >
           {error}
         </p>
       )}
@@ -159,7 +167,7 @@ function VerifyEmailForm() {
             ref={(el) => {
               inputRefs.current[index] = el;
             }}
-            className="otp-box"
+            className={`otp-box ${digit ? 'otp-box-filled' : ''}`}
             type="text"
             inputMode="numeric"
             maxLength={1}

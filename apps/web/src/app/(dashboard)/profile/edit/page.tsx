@@ -91,7 +91,7 @@ function ProfileForm({ initial }: { initial: AuthProfile }) {
   };
 
   return (
-    <div className="fade-in flex flex-col gap-5 px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
+    <div className="flex flex-col gap-5 px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <div className="flex items-center justify-between">
         <button
           onClick={() => router.push('/profile')}
@@ -213,7 +213,7 @@ function ProfileForm({ initial }: { initial: AuthProfile }) {
       <button
         onClick={save}
         disabled={!dirty || !valid || saving}
-        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         {saving ? 'Saving…' : justSaved && !dirty ? 'Saved ✓' : 'Save Changes'}
       </button>

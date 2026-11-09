@@ -27,9 +27,10 @@
 //    be disabled, not just have it disabled with no explanation.
 
 import { ETB, formatMoney } from '@abro/types';
+import { CategoryIcon, GroupIcon } from '@abro/ui';
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 
 import { ApiError } from '~/lib/api-client';
 import { useExpenseDirectory } from '~/lib/expense-directory';
@@ -38,6 +39,7 @@ import {
   computeShares,
   isSplitValid,
   parseAmount,
+  splitStepRoute,
   toCreateExpenseInput,
 } from '~/lib/expense-split';
 import { createExpense } from '~/lib/expenses-api';
@@ -68,6 +70,12 @@ export default function AddExpenseReviewPage() {
 
   const category = CATEGORIES.find((c) => c.label === draft.category);
   const payer = resolve(draft.payerId);
+  // Where "Edit" on the split card (and this screen's own Back button)
+  // should land: the method-specific screen that actually has the
+  // entered numbers on it, not the method-picker -- going back there
+  // for anything but Equal left no way back to Review except re-picking
+  // the same method again (2026-11-09 feedback: felt like a dead end).
+  const splitRoute = splitStepRoute(draft.splitMethod);
 
   const submit = async () => {
     setSubmitting(true);
@@ -88,7 +96,7 @@ export default function AddExpenseReviewPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <button
-          onClick={() => router.push('/expenses/new/split')}
+          onClick={() => router.push(splitRoute)}
           className="text-[0.85rem] font-medium"
           style={{ color: 'var(--accent)' }}
         >
@@ -121,11 +129,26 @@ export default function AddExpenseReviewPage() {
           <Row label="Name" value={draft.name || '—'} />
           <Row
             label="Category"
-            value={category ? `${category.icon} ${category.label}` : draft.category}
+            value={
+              <span className="inline-flex items-center gap-1.5">
+                <CategoryIcon label={draft.category} size={14} />
+                {category?.label ?? draft.category}
+              </span>
+            }
           />
           <Row label="Date" value={draft.date} />
           <Row label="Amount" value={formatMoney(total, ETB)} mono />
-          {group && <Row label="Group" value={`${groupTypeFor(group.type).icon} ${group.name}`} />}
+          {group && (
+            <Row
+              label="Group"
+              value={
+                <span className="inline-flex items-center gap-1.5">
+                  <GroupIcon icon={groupTypeFor(group.type).icon} size={14} />
+                  {group.name}
+                </span>
+              }
+            />
+          )}
         </div>
       </div>
 
@@ -165,6 +188,44 @@ export default function AddExpenseReviewPage() {
         </div>
       </div>
 
+      {/* Participants -- who's included, separate from the Split card's
+          how-much-each (its own Edit below goes straight to the step
+          that actually changes this, not the split-method screen). */}
+      <div className="neo-raised-sm rounded-[18px] p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <p
+            className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
+            style={{ color: 'var(--t-dim)' }}
+          >
+            Participants
+          </p>
+          <button
+            onClick={() => router.push('/expenses/new/participants')}
+            className="text-[0.72rem] font-semibold"
+            style={{ color: 'var(--accent)' }}
+          >
+            Edit
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {participants.map((p) => (
+            <span
+              key={p.id}
+              className="neo-flat flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-[0.78rem] font-medium"
+              style={{ color: 'var(--t-secondary)' }}
+            >
+              <span
+                className="flex h-5 w-5 items-center justify-center rounded-full text-[0.6rem] font-bold text-white"
+                style={{ background: p.color }}
+              >
+                {p.initials}
+              </span>
+              {p.id === ME ? 'You' : p.name}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* Split breakdown */}
       <div className="neo-raised-sm rounded-[18px] p-4">
         <div className="mb-3 flex items-center justify-between">
@@ -182,7 +243,7 @@ export default function AddExpenseReviewPage() {
               {METHOD_LABEL[draft.splitMethod]}
             </span>
             <button
-              onClick={() => router.push('/expenses/new/split')}
+              onClick={() => router.push(splitRoute)}
               className="text-[0.72rem] font-semibold"
               style={{ color: 'var(--accent)' }}
             >
@@ -269,7 +330,7 @@ export default function AddExpenseReviewPage() {
       <button
         onClick={submit}
         disabled={!canCreate}
-        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         {submitting ? 'Creating…' : 'Create Expense'}
       </button>
@@ -277,7 +338,7 @@ export default function AddExpenseReviewPage() {
   );
 }
 
-function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function Row({ label, value, mono }: { label: string; value: ReactNode; mono?: boolean }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>

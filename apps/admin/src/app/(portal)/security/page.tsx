@@ -206,55 +206,59 @@ export default function SecurityPage() {
           </div>
         )}
         {sessions && (
-          <table className="w-full text-sm">
-            <thead className="text-ink-3 text-left text-xs">
-              <tr>
-                <th className="px-5 py-2.5 font-medium">Device</th>
-                <th className="px-5 py-2.5 font-medium">IP address</th>
-                <th className="px-5 py-2.5 font-medium">Last used</th>
-                <th className="px-5 py-2.5 font-medium">Started</th>
-                <th className="px-5 py-2.5" />
-              </tr>
-            </thead>
-            <tbody>
-              {sessions.map((s) => (
-                <tr key={s.id} className="border-line border-t">
-                  <td className="px-5 py-3">
-                    <div className="font-medium" title={s.userAgent ?? undefined}>
-                      {deviceName(s.userAgent)}
-                    </div>
-                    <div className="mt-0.5 flex gap-1.5">
-                      {s.current ? (
-                        <Badge tone="accent">This browser</Badge>
-                      ) : s.live ? (
-                        <Badge tone="good">Signed in</Badge>
-                      ) : s.revokedAt ? (
-                        <Badge>Ended {relTime(s.revokedAt)}</Badge>
-                      ) : (
-                        <Badge>Expired</Badge>
-                      )}
-                    </div>
-                  </td>
-                  <td className="text-ink-2 px-5 py-3 font-mono text-xs">{cleanIp(s.ipAddress)}</td>
-                  <td className="text-ink-2 px-5 py-3" title={fullDate(s.lastUsedAt)}>
-                    {s.current ? 'now' : relTime(s.lastUsedAt)}
-                  </td>
-                  <td className="text-ink-2 px-5 py-3">{dateOnly(s.createdAt)}</td>
-                  <td className="px-5 py-3 text-right">
-                    {s.live && !s.current && (
-                      <button
-                        type="button"
-                        className="text-bad text-sm font-medium hover:underline"
-                        onClick={() => setDialog({ kind: 'one', s })}
-                      >
-                        End
-                      </button>
-                    )}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-ink-3 text-left text-xs">
+                <tr>
+                  <th className="px-5 py-2.5 font-medium">Device</th>
+                  <th className="px-5 py-2.5 font-medium">IP address</th>
+                  <th className="px-5 py-2.5 font-medium">Last used</th>
+                  <th className="px-5 py-2.5 font-medium">Started</th>
+                  <th className="px-5 py-2.5" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sessions.map((s) => (
+                  <tr key={s.id} className="border-line border-t">
+                    <td className="px-5 py-3">
+                      <div className="font-medium" title={s.userAgent ?? undefined}>
+                        {deviceName(s.userAgent)}
+                      </div>
+                      <div className="mt-0.5 flex gap-1.5">
+                        {s.current ? (
+                          <Badge tone="accent">This browser</Badge>
+                        ) : s.live ? (
+                          <Badge tone="good">Signed in</Badge>
+                        ) : s.revokedAt ? (
+                          <Badge>Ended {relTime(s.revokedAt)}</Badge>
+                        ) : (
+                          <Badge>Expired</Badge>
+                        )}
+                      </div>
+                    </td>
+                    <td className="text-ink-2 px-5 py-3 font-mono text-xs">
+                      {cleanIp(s.ipAddress)}
+                    </td>
+                    <td className="text-ink-2 px-5 py-3" title={fullDate(s.lastUsedAt)}>
+                      {s.current ? 'now' : relTime(s.lastUsedAt)}
+                    </td>
+                    <td className="text-ink-2 px-5 py-3">{dateOnly(s.createdAt)}</td>
+                    <td className="px-5 py-3 text-right">
+                      {s.live && !s.current && (
+                        <button
+                          type="button"
+                          className="text-bad text-sm font-medium hover:underline"
+                          onClick={() => setDialog({ kind: 'one', s })}
+                        >
+                          End
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
 

@@ -32,7 +32,7 @@ export function Avatar({ initials, color, size = 40, className = '', src, alt = 
         width: size,
         height: size,
         borderRadius: radius,
-        background: `linear-gradient(145deg, ${color}dd, ${color})`,
+        background: color,
         fontSize: size * 0.35,
         fontFamily: 'var(--font-display)',
       }}

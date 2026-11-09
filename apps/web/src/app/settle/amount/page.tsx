@@ -212,7 +212,7 @@ function SettleAmountForm() {
       <button
         onClick={() => router.push(`/settle/confirm`)}
         disabled={!isValid}
-        className="neo-btn-accent font-display mt-2 flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display mt-2 flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         Next <ArrowRight size={17} strokeWidth={2.25} />
       </button>

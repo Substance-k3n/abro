@@ -145,7 +145,7 @@ export default function SetupProfilePage() {
   };
 
   return (
-    <main className="fade-in flex min-h-screen flex-col px-7 py-12 sm:py-16">
+    <main className="flex min-h-screen flex-col px-7 py-12 sm:py-16">
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col">
         <div className="mb-8">
           <h2
@@ -221,7 +221,7 @@ export default function SetupProfilePage() {
                   <div
                     className="h-4 w-4 rounded-full border-2"
                     style={{
-                      borderColor: 'rgba(99,102,241,0.3)',
+                      borderColor: 'var(--accent-light)',
                       borderTopColor: 'var(--accent)',
                       animation: 'spin 0.7s linear infinite',
                     }}
@@ -295,7 +295,7 @@ export default function SetupProfilePage() {
           <button
             onClick={submit}
             disabled={!canContinue}
-            className="neo-btn-accent font-display w-full rounded-[18px] px-4 py-4 text-base font-bold transition-opacity duration-200 disabled:cursor-default disabled:opacity-40"
+            className="neo-btn-accent font-display w-full rounded-[18px] px-4 py-4 text-base font-bold transition-opacity duration-200 disabled:cursor-default"
           >
             {submitting ? 'Saving…' : 'Continue'}
           </button>

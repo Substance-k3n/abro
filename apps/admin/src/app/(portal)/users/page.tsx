@@ -76,67 +76,71 @@ function Users() {
 
       {!error && (
         <div className="card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-page/70 text-ink-3 border-line border-b text-left text-xs">
-              <tr>
-                <th className="px-5 py-3 font-medium">Person</th>
-                <th className="px-5 py-3 font-medium">Email</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 text-right font-medium">Groups</th>
-                <th className="px-5 py-3 font-medium">Last active</th>
-                <th className="px-5 py-3 font-medium">Joined</th>
-              </tr>
-            </thead>
-            <tbody className={loading && data ? 'opacity-60' : ''}>
-              {!data && <SkeletonRows cols={6} />}
-              {data?.users.length === 0 && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-page/70 text-ink-3 border-line border-b text-left text-xs">
                 <tr>
-                  <td colSpan={6} className="text-ink-3 px-5 py-12 text-center">
-                    {q ? `Nobody matches "${q}".` : 'Nobody here yet.'}
-                  </td>
+                  <th className="px-5 py-3 font-medium">Person</th>
+                  <th className="px-5 py-3 font-medium">Email</th>
+                  <th className="px-5 py-3 font-medium">Status</th>
+                  <th className="px-5 py-3 text-right font-medium">Groups</th>
+                  <th className="px-5 py-3 font-medium">Last active</th>
+                  <th className="px-5 py-3 font-medium">Joined</th>
                 </tr>
-              )}
-              {data?.users.map((u) => (
-                <tr
-                  key={u.id}
-                  className="border-line hover:bg-page/60 cursor-pointer border-t"
-                  onClick={() => router.push(`/users/${u.id}`)}
-                >
-                  <td className="px-5 py-3">
-                    <Link
-                      href={`/users/${u.id}`}
-                      className="flex items-center gap-3"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Avatar name={u.displayName} url={u.avatarUrl} size={32} />
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">{u.displayName}</span>
-                        <span className="text-ink-3 block truncate text-xs">
-                          {u.username ? `@${u.username}` : 'no username yet'}
+              </thead>
+              <tbody className={loading && data ? 'opacity-60' : ''}>
+                {!data && <SkeletonRows cols={6} />}
+                {data?.users.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="text-ink-3 px-5 py-12 text-center">
+                      {q ? `Nobody matches "${q}".` : 'Nobody here yet.'}
+                    </td>
+                  </tr>
+                )}
+                {data?.users.map((u) => (
+                  <tr
+                    key={u.id}
+                    className="border-line hover:bg-page/60 cursor-pointer border-t"
+                    onClick={() => router.push(`/users/${u.id}`)}
+                  >
+                    <td className="px-5 py-3">
+                      <Link
+                        href={`/users/${u.id}`}
+                        className="flex items-center gap-3"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Avatar name={u.displayName} url={u.avatarUrl} size={32} />
+                        <span className="min-w-0">
+                          <span className="block truncate font-medium">{u.displayName}</span>
+                          <span className="text-ink-3 block truncate text-xs">
+                            {u.username ? `@${u.username}` : 'no username yet'}
+                          </span>
                         </span>
-                      </span>
-                    </Link>
-                  </td>
-                  <td className="text-ink-2 max-w-[260px] truncate px-5 py-3">{u.email ?? '—'}</td>
-                  <td className="px-5 py-3">
-                    <div className="flex flex-wrap gap-1.5">
-                      {u.suspendedAt ? (
-                        <Badge tone="bad">Suspended</Badge>
-                      ) : (
-                        <Badge tone="good">Active</Badge>
-                      )}
-                      {u.adminRole && <Badge tone="accent">{ROLE_LABEL[u.adminRole]}</Badge>}
-                    </div>
-                  </td>
-                  <td className="px-5 py-3 text-right tabular-nums">{num(u.groupCount)}</td>
-                  <td className="text-ink-2 px-5 py-3" title={u.lastActiveAt ?? undefined}>
-                    {relTime(u.lastActiveAt)}
-                  </td>
-                  <td className="text-ink-2 px-5 py-3">{dateOnly(u.createdAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      </Link>
+                    </td>
+                    <td className="text-ink-2 max-w-[260px] truncate px-5 py-3">
+                      {u.email ?? '—'}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex flex-wrap gap-1.5">
+                        {u.suspendedAt ? (
+                          <Badge tone="bad">Suspended</Badge>
+                        ) : (
+                          <Badge tone="good">Active</Badge>
+                        )}
+                        {u.adminRole && <Badge tone="accent">{ROLE_LABEL[u.adminRole]}</Badge>}
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-right tabular-nums">{num(u.groupCount)}</td>
+                    <td className="text-ink-2 px-5 py-3" title={u.lastActiveAt ?? undefined}>
+                      {relTime(u.lastActiveAt)}
+                    </td>
+                    <td className="text-ink-2 px-5 py-3">{dateOnly(u.createdAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
           {data && (
             <Pager
               page={page}

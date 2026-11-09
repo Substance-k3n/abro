@@ -29,7 +29,7 @@
 // "Expense not found" like EXP-09.
 
 import { ETB, formatMoney, splitEqually, toDecimal } from '@abro/types';
-import { EmptyState, PersonRow } from '@abro/ui';
+import { CategoryIcon, EmptyState, PersonRow } from '@abro/ui';
 import { ArrowLeft, Receipt } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useState } from 'react';
@@ -272,7 +272,7 @@ function EditForm({ data }: { data: EditData }) {
               onClick={() => setCategory(c.label)}
               className={`cat-pill border-none ${category === c.label ? 'selected' : ''}`}
             >
-              <span>{c.icon}</span>
+              <CategoryIcon label={c.label} size={14} />
               {c.label}
             </button>
           ))}
@@ -359,7 +359,7 @@ function EditForm({ data }: { data: EditData }) {
       <button
         onClick={save}
         disabled={!isValid || saving}
-        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         {saving ? 'Saving…' : 'Update'}
       </button>

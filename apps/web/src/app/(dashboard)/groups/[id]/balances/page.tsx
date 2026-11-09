@@ -86,7 +86,7 @@ function GroupBalances({
   const allSettled = [...nets.values()].every((b) => b === 0n);
 
   return (
-    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
+    <div className="px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <div className="mb-5 flex items-center justify-between">
         <button
           onClick={() => router.push(`/groups/${group.id}`)}

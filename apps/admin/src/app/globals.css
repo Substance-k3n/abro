@@ -2,11 +2,13 @@
 
 /*
  * ABRO admin portal (ADR-028). A flat, dense back-office look -- deep
- * indigo sidebar, near-white content, white cards -- not the PWA's
+ * ink sidebar, near-white content, white cards -- not the PWA's
  * neumorphic style: admins read tables and numbers all day on a desktop.
- * The brand purple is the one accent; status colours (good / warning /
- * critical) are reserved for state and always come with an icon or word.
- * Light only for now.
+ * The brand orange (same --accent as apps/web) is the one accent; the
+ * sidebar is a neutral near-black so the orange reads as the one thing
+ * that's "on," not fighting a tinted background; status colours
+ * (good / warning / critical) are reserved for state and always come
+ * with an icon or word. Light only for now.
  */
 
 @theme {
@@ -14,22 +16,22 @@
   --font-sans: var(--ff-body), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--ff-mono), ui-monospace, monospace;
 
-  --color-page: #f6f5fa;
+  --color-page: #f5f6f5;
   --color-card: #ffffff;
-  --color-line: #e6e4ef;
-  --color-line-strong: #d4d1e3;
-  --color-ink: #17152b;
-  --color-ink-2: #4c4964;
-  --color-ink-3: #7a7790;
+  --color-line: #e7e5e2;
+  --color-line-strong: #d4d0ca;
+  --color-ink: #17140f;
+  --color-ink-2: #524c43;
+  --color-ink-3: #817a6f;
 
-  --color-side: #16132e;
-  --color-side-2: #221e42;
-  --color-side-ink: #c9c5e8;
-  --color-side-muted: #8b86b3;
+  --color-side: #16130f;
+  --color-side-2: #241f18;
+  --color-side-ink: #f5ede4;
+  --color-side-muted: #998e7f;
 
-  --color-accent: #6250d6;
-  --color-accent-strong: #4f3dc4;
-  --color-accent-soft: #eeebfc;
+  --color-accent: #c2410c;
+  --color-accent-strong: #9a3412;
+  --color-accent-soft: #fde8dc;
 
   --color-good: #1f7a3d;
   --color-good-soft: #e4f5ea;
@@ -58,21 +60,28 @@
     @apply bg-card border-line rounded-xl border;
   }
   .btn {
-    @apply inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3.5 text-sm font-medium transition-colors disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply bg-accent hover:bg-accent-strong text-white;
+    @apply bg-accent hover:bg-accent-strong disabled:bg-line disabled:text-ink-3 disabled:hover:bg-line text-white;
   }
   .btn-ghost {
-    @apply border-line text-ink-2 hover:bg-page border bg-white;
+    @apply border-line text-ink-2 hover:bg-page border bg-white disabled:opacity-50;
   }
   .btn-danger {
-    @apply bg-bad text-white hover:brightness-95;
+    @apply bg-bad disabled:bg-line disabled:text-ink-3 text-white hover:brightness-95 disabled:hover:brightness-100;
   }
   .input {
     @apply border-line-strong text-ink placeholder:text-ink-3 focus:border-accent h-10 w-full rounded-lg border bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--color-accent)_20%,transparent)];
   }
   .label {
     @apply text-ink-3 text-xs font-medium uppercase tracking-wide;
+  }
+
+  /* A structural grid texture for the one full-bleed dark surface in the
+     app (the sign-in brand panel) -- depth from a real pattern, not a
+     gradient wash or a glow. Single hairline color, no blur, no motion. */
+  .grid-texture {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='48'%3E%3Cpath d='M48 0H0V48' fill='none' stroke='%23ffffff' stroke-opacity='0.07'/%3E%3C/svg%3E");
   }
 }

@@ -140,7 +140,7 @@ export default function FriendDetailPage() {
 
   if (!friend) {
     return (
-      <div className="fade-in px-5 py-6 md:px-8 md:py-8">
+      <div className="px-5 py-6 md:px-8 md:py-8">
         <BackButton onBack={() => router.push('/friends')} />
         <EmptyState
           icon={<UserX size={26} strokeWidth={1.5} />}
@@ -179,7 +179,7 @@ export default function FriendDetailPage() {
   const shown = tab === 'expenses' ? expenses : settlements;
 
   return (
-    <div className="fade-in px-5 py-6 md:px-8 md:py-8">
+    <div className="px-5 py-6 md:px-8 md:py-8">
       <BackButton onBack={() => router.push('/friends')} label="Friends" />
 
       <div className="mx-auto max-w-md">

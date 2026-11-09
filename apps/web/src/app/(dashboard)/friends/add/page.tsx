@@ -108,7 +108,7 @@ export default function AddFriendPage() {
   };
 
   return (
-    <div className="fade-in px-5 py-6 md:px-8 md:py-8">
+    <div className="px-5 py-6 md:px-8 md:py-8">
       <BackButton onBack={() => router.push('/friends')} label="Friends" />
 
       <div className="mx-auto max-w-md">
@@ -206,7 +206,7 @@ export default function AddFriendPage() {
                 <button
                   onClick={() => onSend(p)}
                   disabled={state === 'sending'}
-                  className="neo-btn-accent font-display flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
+                  className="neo-btn-accent font-display flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-semibold"
                 >
                   <UserPlus size={16} strokeWidth={2.25} />
                   {state === 'sending' ? 'Sending…' : 'Add'}

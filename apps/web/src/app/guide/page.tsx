@@ -1,3 +1,16 @@
+import { Logomark } from '@abro/ui';
+import {
+  Bell,
+  Camera,
+  CheckCircle2,
+  Divide,
+  Handshake,
+  Receipt,
+  Scale,
+  Search,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Fragment } from 'react';
@@ -23,63 +36,59 @@ export const metadata: Metadata = {
   },
 };
 
-const gradientText = {
-  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-  WebkitBackgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
-} as const;
+const accentText = { color: '#c2410c' } as const;
 const primary = { color: 'var(--t-primary)' } as const;
 const secondary = { color: 'var(--t-secondary)' } as const;
 const dim = { color: 'var(--t-dim)' } as const;
 
 const FEATURES = [
   {
-    icon: '🧾',
+    icon: <Receipt size={19} strokeWidth={1.75} />,
     title: 'Add any expense',
     body: 'Dinner, rent, a taxi, a trip. Say who paid and who it was for, and ABRO works out everyone’s share.',
   },
   {
-    icon: '➗',
+    icon: <Divide size={19} strokeWidth={1.75} />,
     title: 'Split it your way',
     body: 'Equally, by exact amounts, by percentages, or by shares (say one person had twice as much). The total always adds up.',
   },
   {
-    icon: '🤝',
+    icon: <Handshake size={19} strokeWidth={1.75} />,
     title: 'Quick IOUs',
     body: 'Lent someone money? Record it in seconds so neither of you has to remember.',
   },
   {
-    icon: '👥',
+    icon: <Users size={19} strokeWidth={1.75} />,
     title: 'Groups',
     body: 'Make a group for a trip, your household, family or team. Invite friends and keep all its expenses in one place.',
   },
   {
-    icon: '⚖️',
+    icon: <Scale size={19} strokeWidth={1.75} />,
     title: 'Always-correct balances',
     body: 'Home shows what you owe and what you’re owed, overall, per friend and per group, in birr.',
   },
   {
-    icon: '✨',
+    icon: <Sparkles size={19} strokeWidth={1.75} />,
     title: 'Fewer payments',
     body: '“Simplify” finds the smallest number of payments that settles a whole group, so nobody pays back and forth. “Who owes whom” still shows each person’s real debts before simplifying.',
   },
   {
-    icon: '✅',
+    icon: <CheckCircle2 size={19} strokeWidth={1.75} />,
     title: 'Settle up',
     body: 'When someone pays you back, in cash, telebirr or by bank, record it in full or in part and the balance updates.',
   },
   {
-    icon: '📷',
+    icon: <Camera size={19} strokeWidth={1.75} />,
     title: 'Receipts',
     body: 'Attach a photo of the receipt to an expense, so everyone on it can see it later.',
   },
   {
-    icon: '🔎',
+    icon: <Search size={19} strokeWidth={1.75} />,
     title: 'Activity and search',
     body: 'Every expense and payment in one timeline, and search to find any of them by name, category or note.',
   },
   {
-    icon: '🔔',
+    icon: <Bell size={19} strokeWidth={1.75} />,
     title: 'Notifications',
     body: 'Know when a friend adds you to an expense, invites you to a group or settles up. Choose which ones you get.',
   },
@@ -219,17 +228,7 @@ export default function GuidePage() {
     <main className="fade-in mx-auto flex max-w-5xl flex-col gap-16 px-5 py-10 md:gap-20 md:px-8 md:py-16">
       {/* Hero */}
       <section className="flex flex-col items-center gap-6 text-center">
-        <div
-          className="neo-raised-lg flex h-[88px] w-[88px] items-center justify-center rounded-[28px]"
-          aria-hidden
-        >
-          <span
-            className="font-display text-[2.1rem] font-extrabold tracking-tighter"
-            style={gradientText}
-          >
-            AB
-          </span>
-        </div>
+        <Logomark size={80} />
         <div className="flex flex-col gap-3">
           <h1
             className="font-display text-[2.2rem] font-extrabold leading-tight tracking-tight md:text-[3rem]"
@@ -237,7 +236,7 @@ export default function GuidePage() {
           >
             Remember every expense.
             <br />
-            <span style={gradientText}>Forget the confusion.</span>
+            <span style={accentText}>Forget the confusion.</span>
           </h1>
           <p
             className="mx-auto max-w-xl text-[1rem] leading-relaxed md:text-[1.1rem]"
@@ -275,7 +274,7 @@ export default function GuidePage() {
             <li key={step.title} className="neo-raised-sm flex flex-col gap-2.5 rounded-[20px] p-5">
               <span
                 className="font-display flex h-8 w-8 items-center justify-center rounded-full text-[0.85rem] font-bold text-white"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}
+                style={{ background: '#c2410c' }}
               >
                 {i + 1}
               </span>
@@ -297,7 +296,8 @@ export default function GuidePage() {
           {FEATURES.map((f) => (
             <div key={f.title} className="neo-raised-sm flex gap-4 rounded-[20px] p-5">
               <div
-                className="neo-inset-sm flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-[1.3rem]"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+                style={{ background: 'var(--accent-light)', color: 'var(--accent)' }}
                 aria-hidden
               >
                 {f.icon}
@@ -403,8 +403,8 @@ export default function GuidePage() {
         style={dim}
       >
         <p>
-          <span className="font-display font-bold" style={gradientText}>
-            ABRO
+          <span className="font-display font-bold" style={accentText}>
+            abro
           </span>{' '}
           · Remember every expense. Forget the confusion.
         </p>

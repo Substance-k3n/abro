@@ -178,7 +178,7 @@ function Dashboard({
   };
 
   return (
-    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-5xl md:px-8 md:py-8">
+    <div className="px-5 py-6 md:mx-auto md:max-w-5xl md:px-8 md:py-8">
       <Header view={view} />
 
       <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">

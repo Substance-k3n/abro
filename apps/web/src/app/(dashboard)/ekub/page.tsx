@@ -79,7 +79,7 @@ export default function EkubListPage() {
   const mine = ekubs.filter((e) => e.myStatus !== 'INVITED');
 
   return (
-    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
+    <div className="px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       <Link
         href="/groups"
         className="mb-3 flex items-center gap-1 text-[0.85rem] font-medium md:hidden"

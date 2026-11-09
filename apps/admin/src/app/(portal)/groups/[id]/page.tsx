@@ -4,6 +4,7 @@
 // active members first, then invites and people who left. No balances,
 // expense names or amounts: those stay between the group's members.
 
+import { GroupIcon } from '@abro/ui';
 import { ArrowLeft, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
@@ -69,9 +70,9 @@ export default function GroupPage() {
       <section className="card mb-6 flex flex-wrap items-start gap-5 p-6">
         <span
           aria-hidden
-          className="bg-page flex size-16 shrink-0 items-center justify-center rounded-2xl text-3xl"
+          className="bg-page text-ink-2 flex size-16 shrink-0 items-center justify-center rounded-2xl"
         >
-          {t.icon}
+          <GroupIcon icon={t.icon} size={28} />
         </span>
         <div className="min-w-0 flex-1">
           <h1 className="font-display text-2xl font-semibold">{g.name}</h1>
@@ -110,49 +111,51 @@ export default function GroupPage() {
           </h2>
           <span className="text-ink-3 text-sm">Balances stay private to the group</span>
         </header>
-        <table className="w-full text-sm">
-          <thead className="text-ink-3 text-left text-xs">
-            <tr>
-              <th className="px-5 py-2.5 font-medium">Person</th>
-              <th className="px-5 py-2.5 font-medium">Email</th>
-              <th className="px-5 py-2.5 font-medium">In the group</th>
-              <th className="px-5 py-2.5 font-medium">Since</th>
-            </tr>
-          </thead>
-          <tbody>
-            {g.members.map((m) => (
-              <tr key={m.userId} className="border-line border-t">
-                <td className="px-5 py-3">
-                  <Link
-                    href={`/users/${m.userId}`}
-                    className="flex items-center gap-3 hover:underline"
-                  >
-                    <Avatar name={m.displayName} url={m.avatarUrl} size={30} />
-                    <span className="min-w-0">
-                      <span className="block truncate font-medium">{m.displayName}</span>
-                      {m.username && (
-                        <span className="text-ink-3 block text-xs">@{m.username}</span>
-                      )}
-                    </span>
-                  </Link>
-                </td>
-                <td className="text-ink-2 px-5 py-3">{m.email ?? '—'}</td>
-                <td className="px-5 py-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {m.status === 'ACTIVE' && m.role === 'ADMIN' && (
-                      <Badge tone="accent">Group admin</Badge>
-                    )}
-                    {m.status === 'ACTIVE' && m.role === 'MEMBER' && <Badge>Member</Badge>}
-                    {m.status === 'INVITED' && <Badge tone="warn">Invited</Badge>}
-                    {m.status === 'LEFT' && <Badge>Left</Badge>}
-                    {m.suspendedAt && <Badge tone="bad">Suspended</Badge>}
-                  </div>
-                </td>
-                <td className="text-ink-2 px-5 py-3">{dateOnly(m.joinedAt)}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-ink-3 text-left text-xs">
+              <tr>
+                <th className="px-5 py-2.5 font-medium">Person</th>
+                <th className="px-5 py-2.5 font-medium">Email</th>
+                <th className="px-5 py-2.5 font-medium">In the group</th>
+                <th className="px-5 py-2.5 font-medium">Since</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {g.members.map((m) => (
+                <tr key={m.userId} className="border-line border-t">
+                  <td className="px-5 py-3">
+                    <Link
+                      href={`/users/${m.userId}`}
+                      className="flex items-center gap-3 hover:underline"
+                    >
+                      <Avatar name={m.displayName} url={m.avatarUrl} size={30} />
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{m.displayName}</span>
+                        {m.username && (
+                          <span className="text-ink-3 block text-xs">@{m.username}</span>
+                        )}
+                      </span>
+                    </Link>
+                  </td>
+                  <td className="text-ink-2 px-5 py-3">{m.email ?? '—'}</td>
+                  <td className="px-5 py-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {m.status === 'ACTIVE' && m.role === 'ADMIN' && (
+                        <Badge tone="accent">Group admin</Badge>
+                      )}
+                      {m.status === 'ACTIVE' && m.role === 'MEMBER' && <Badge>Member</Badge>}
+                      {m.status === 'INVITED' && <Badge tone="warn">Invited</Badge>}
+                      {m.status === 'LEFT' && <Badge>Left</Badge>}
+                      {m.suspendedAt && <Badge tone="bad">Suspended</Badge>}
+                    </div>
+                  </td>
+                  <td className="text-ink-2 px-5 py-3">{dateOnly(m.joinedAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </>
   );
