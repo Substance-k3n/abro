@@ -86,15 +86,15 @@
   --page-bg: var(--neo-bg);
   --nav-shadow: 0 -1px 0 var(--border-med), 0 -8px 20px -12px rgba(0, 0, 0, 0.14);
 
-  /* A paper grain on the page background only (never on cards/panels --
-     those stay clean so the texture reads as "the page itself", like a
-     ledger sheet, not a decorative overlay sitting on top of content).
-     Pure black noise at ~14% alpha, via feTurbulence -> feColorMatrix so
-     the opacity is exact regardless of how a browser renders
-     turbulence's own alpha channel. (First pass at 7% wasn't visible in
-     practice -- Chrome renders feTurbulence noticeably fainter than the
-     reference raster used to tune it.) */
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.14 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* A hairline square grid on the page background only (never on
+     cards/panels) -- ledger/graph-paper ruling, same technique as the
+     admin portal's .grid-texture (globals.css there), just ink-on-light
+     instead of white-on-dark. Replaces an earlier noise-grain attempt:
+     a semi-transparent fill over the whole page visibly darkened/dirtied
+     the base color against the pure-white sidebar; a grid's lines cover
+     almost no area, so the page stays the same color with a faint
+     pattern on it instead of a different, grayer color. */
+  --page-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M24 0H0V24' fill='none' stroke='%23000000' stroke-opacity='0.05'/%3E%3C/svg%3E");
 
   color-scheme: light;
 }
@@ -148,10 +148,9 @@
   --page-bg: var(--neo-bg);
   --nav-shadow: 0 -1px 0 var(--border-med), 0 -8px 20px -12px rgba(0, 0, 0, 0.55);
 
-  /* Same grain, white instead of black -- black noise on a dark page
-     would be invisible. Slightly higher alpha (dark surfaces need a
-     touch more to read at all). */
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.16 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* Same grid, white lines instead of ink -- black on a dark page would
+     be invisible. */
+  --page-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M24 0H0V24' fill='none' stroke='%23ffffff' stroke-opacity='0.06'/%3E%3C/svg%3E");
 
   color-scheme: dark;
 }
@@ -165,7 +164,7 @@ html,
 body {
   min-height: 100%;
   background-color: var(--page-bg);
-  background-image: var(--grain);
+  background-image: var(--page-pattern);
   font-family: var(--font-body);
   color: var(--t-secondary);
   /* No rubber-band bounce pulling the whole app past its edges (iOS). */
