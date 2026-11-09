@@ -80,7 +80,7 @@ export default function BalanceBreakdownPage() {
   const tone = direction === 'owed' ? 'var(--c-green)' : 'var(--c-red)';
 
   return (
-    <div className="fade-in flex flex-col gap-5 px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
+    <div className="flex flex-col gap-5 px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <button
         onClick={() => router.back()}
         className="flex items-center gap-1 self-start text-[0.85rem] font-medium"

@@ -194,7 +194,7 @@ export default function ActivityPage() {
     .filter((a) => !q || a.title.toLowerCase().includes(q) || a.sub.toLowerCase().includes(q));
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
+    <div className="hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <h2
         className="font-display mb-5 text-[1.6rem] font-semibold tracking-tight"
         style={{ color: 'var(--t-primary)' }}

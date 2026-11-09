@@ -138,7 +138,7 @@ export default function NewEkubPage() {
   };
 
   return (
-    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
+    <div className="px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <button
         onClick={() => router.back()}
         className="mb-4 flex items-center gap-1 text-[0.85rem] font-medium"

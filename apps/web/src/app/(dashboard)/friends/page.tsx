@@ -137,7 +137,7 @@ export default function FriendsPage() {
   const isEmpty = (showOwedToYou ? unsettledCount : 0) + (showSettled ? settled.length : 0) === 0;
 
   return (
-    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
+    <div className="px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       {/* Header */}
       <div className="mb-5 flex items-center justify-between">
         <h2

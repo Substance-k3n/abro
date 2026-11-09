@@ -108,7 +108,7 @@ export default function AddFriendPage() {
   };
 
   return (
-    <div className="fade-in px-5 py-6 md:px-8 md:py-8">
+    <div className="px-5 py-6 md:px-8 md:py-8">
       <BackButton onBack={() => router.push('/friends')} label="Friends" />
 
       <div className="mx-auto max-w-md">

@@ -129,7 +129,7 @@ export default function BalancesPage() {
   const isEmpty = visibleFriendCount + visibleGroupCount === 0;
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
+    <div className="hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       {/* Header */}
       <h2
         className="font-display mb-5 text-[1.6rem] font-semibold tracking-tight"

@@ -29,7 +29,7 @@ export default function AuthCallbackPage() {
   }, [router]);
 
   return (
-    <main className="fade-in flex min-h-screen flex-col items-center justify-center px-7">
+    <main className="flex min-h-screen flex-col items-center justify-center px-7">
       <div
         className="h-8 w-8 rounded-full border-2"
         style={{

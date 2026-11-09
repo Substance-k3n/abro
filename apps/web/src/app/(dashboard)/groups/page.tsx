@@ -192,7 +192,7 @@ export default function GroupsPage() {
   const settledGroups = cards.filter((g) => g.balance === 0n);
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
+    <div className="hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       <div className="mb-6 flex items-center justify-between">
         <h2
           className="font-display text-[1.6rem] font-semibold tracking-tight"

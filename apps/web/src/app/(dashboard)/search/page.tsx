@@ -366,7 +366,7 @@ export default function SearchPage() {
   ) : null;
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
+    <div className="hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       {/* Header */}
       <BackButton onBack={() => router.push('/home')} />
       <div className="relative mb-5">

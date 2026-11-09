@@ -121,7 +121,7 @@ function VerifyEmailForm() {
   }
 
   return (
-    <main className="fade-in flex min-h-screen flex-col items-center px-7 py-16 sm:justify-center sm:py-20">
+    <main className="flex min-h-screen flex-col items-center px-7 py-16 sm:justify-center sm:py-20">
       <div
         className="neo-raised-lg mb-7 flex h-[72px] w-[72px] items-center justify-center rounded-[24px]"
         aria-hidden

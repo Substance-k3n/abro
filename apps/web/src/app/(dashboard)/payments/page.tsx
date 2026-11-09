@@ -132,7 +132,7 @@ export default function PaymentsPage() {
   };
 
   return (
-    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
+    <div className="px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       <div className="mb-5 flex items-center justify-between gap-2">
         <button
           onClick={() => router.back()}

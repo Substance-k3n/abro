@@ -93,7 +93,7 @@ function RecordReceived() {
 
   if (!target || target.outstanding <= 0n) {
     return (
-      <div className="fade-in px-5 py-6 md:mx-auto md:max-w-md md:px-8 md:py-8">
+      <div className="px-5 py-6 md:mx-auto md:max-w-md md:px-8 md:py-8">
         {back}
         <p className="text-[0.9rem]" style={{ color: 'var(--t-muted)' }}>
           {target
@@ -111,7 +111,7 @@ function RecordReceived() {
 
   if (done !== null) {
     return (
-      <div className="fade-in px-5 py-6 md:mx-auto md:max-w-md md:px-8 md:py-8">
+      <div className="px-5 py-6 md:mx-auto md:max-w-md md:px-8 md:py-8">
         <h2
           className="font-display mb-2 text-[1.3rem] font-extrabold"
           style={{ color: 'var(--t-primary)' }}
@@ -152,7 +152,7 @@ function RecordReceived() {
   };
 
   return (
-    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-md md:px-8 md:py-8">
+    <div className="px-5 py-6 md:mx-auto md:max-w-md md:px-8 md:py-8">
       {back}
       <h2
         className="font-display mb-4 text-[1.3rem] font-extrabold"

@@ -170,7 +170,7 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="fade-in hide-scroll">
+    <div className="hide-scroll">
       {/* Header -- full-bleed across whatever width the viewport gives
           main (not boxed into the content column below it), so desktop
           gets an actual top band instead of a floating row of icons in

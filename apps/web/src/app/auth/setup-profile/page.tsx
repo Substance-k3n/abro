@@ -145,7 +145,7 @@ export default function SetupProfilePage() {
   };
 
   return (
-    <main className="fade-in flex min-h-screen flex-col px-7 py-12 sm:py-16">
+    <main className="flex min-h-screen flex-col px-7 py-12 sm:py-16">
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col">
         <div className="mb-8">
           <h2

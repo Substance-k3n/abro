@@ -282,7 +282,7 @@ export default function EkubPage() {
   };
 
   return (
-    <div className="fade-in px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
+    <div className="px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
       <Link
         href="/ekub"
         className="mb-4 flex items-center gap-1 text-[0.85rem] font-medium"

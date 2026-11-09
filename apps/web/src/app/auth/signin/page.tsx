@@ -100,7 +100,7 @@ function SignInForm() {
   };
 
   return (
-    <main className="fade-in flex min-h-screen flex-col px-7 py-12 sm:items-center sm:justify-center sm:py-16">
+    <main className="flex min-h-screen flex-col px-7 py-12 sm:items-center sm:justify-center sm:py-16">
       <div className="mx-auto w-full max-w-sm">
         <div className="mb-8 flex flex-col items-center text-center sm:mb-10">
           <Logomark size={40} className="mb-5" />
