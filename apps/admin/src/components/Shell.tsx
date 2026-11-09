@@ -12,7 +12,6 @@ import {
   LogOut,
   type LucideIcon,
   Menu,
-  Mic,
   ScrollText,
   ShieldCheck,
   Users,
@@ -42,7 +41,6 @@ const WORKSPACE_NAV: NavItem[] = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, need: 'overview.view' },
   { href: '/users', label: 'Users', icon: Users, need: 'users.view' },
   { href: '/groups', label: 'Groups', icon: Boxes, need: 'groups.view' },
-  { href: '/voice', label: 'Voice', icon: Mic, need: 'overview.view' },
 ];
 const GOVERNANCE_NAV: NavItem[] = [
   { href: '/roles', label: 'Roles & Permissions', icon: ShieldCheck, need: 'admins.view' },

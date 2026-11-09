@@ -1,7 +1,7 @@
 'use client';
 
 // Audit log (ADR-028): every change an admin made, newest first --
-// suspensions, sign-outs, voice switches, role changes -- with who, to
+// suspensions, sign-outs, role changes -- with who, to
 // whom, when, from which IP, and the details (a suspension's reason, a
 // role's from -> to). Filter by admin, action or person (?target= from a
 // user's page); 50 at a time with "Load more". The log is append-only:

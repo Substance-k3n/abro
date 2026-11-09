@@ -32,9 +32,6 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "sharp"
-    ],
-    "overrides": {
-      "@tezaz/core": "file:vendor/tezaz/tezaz-core-0.2.1-65c98dc.tgz"
-    }
+    ]
   }
 }

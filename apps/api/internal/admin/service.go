@@ -16,7 +16,6 @@ import (
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/httpx"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
-	"github.com/Substance-k3n/abro/apps/api/internal/voice"
 )
 
 // Audit actions. Stable strings: the portal labels them and filters by them.
@@ -38,19 +37,17 @@ type Service struct {
 	pool   *pgxpool.Pool
 	q      *db.Queries
 	owners []string
-	voice  *voice.Service
 }
 
-// NewService: ownerEmails is ADMIN_EMAILS, comma-separated; voiceSvc
-// answers who has voice and whether it's set up at all.
-func NewService(pool *pgxpool.Pool, ownerEmails string, voiceSvc *voice.Service) *Service {
+// NewService: ownerEmails is ADMIN_EMAILS, comma-separated.
+func NewService(pool *pgxpool.Pool, ownerEmails string) *Service {
 	owners := []string{}
 	for _, e := range strings.Split(ownerEmails, ",") {
 		if e = apitypes.NormalizeEmail(e); e != "" {
 			owners = append(owners, e)
 		}
 	}
-	return &Service{pool: pool, q: db.New(pool), owners: owners, voice: voiceSvc}
+	return &Service{pool: pool, q: db.New(pool), owners: owners}
 }
 
 func (s *Service) isOwner(p db.Profile) bool {
@@ -217,12 +214,7 @@ func (s *Service) GetUser(ctx context.Context, id pgtype.UUID) (apitypes.AdminUs
 	if err != nil {
 		return apitypes.AdminUserDetail{}, err
 	}
-	v, err := s.userVoice(ctx, p)
-	if err != nil {
-		return apitypes.AdminUserDetail{}, err
-	}
 	d := apitypes.AdminUserDetail{
-		Voice:            v,
 		ID:               idutil.String(p.ID),
 		DisplayName:      p.DisplayName,
 		Email:            optText(p.Email),

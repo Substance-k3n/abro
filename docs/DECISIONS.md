@@ -7,6 +7,39 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-030: Voice commands removed -- a clean slate for a fresh integration
+
+**Status:** Accepted (user request, 2026-11-09). Retires ADR-027 and the
+voice part of ADR-028.
+
+**Context:** Voice was wired in during the Tezaz pilot: a packed SDK in
+`vendor/tezaz`, a Go module minting tokens and re-publishing a hand-kept
+action list, testers via `VOICE_TESTERS`, and admin switches and stats.
+Tezaz now installs from npm and picks up a site's actions by itself, so
+most of that wiring is no longer how it's meant to be used. Kidus wants
+to integrate it again himself, step by step, to see how easy it is.
+
+**Decision:** remove every piece of it:
+
+- web: `VoiceAssistant`, `components/voice/*`, `lib/voice-api.ts`, the
+  `voice:manifest` script and its CI check, the `@tezaz/*` dependencies,
+  `vendor/tezaz` and the Dockerfile and pnpm override that installed them;
+- API: `internal/voice` (`/voice`, `/voice/token`), the `TEZAZ_*` and
+  `VOICE_TESTERS` settings;
+- admin: the Voice page, the per-person switch, the voice tile and
+  series on the overview, the `voice.manage` permission and its routes;
+- data: migration 0025 drops `voice_sessions`, `voice_access` and
+  `app_settings` (it only ever held `voice_mode`). Usage history is lost
+  on purpose.
+
+Old audit entries keep their readable labels in the portal.
+
+**Consequences:** ABRO has no voice until it's integrated again, which
+will get its own ADR. On Render, the four voice variables can be
+deleted; nothing reads them.
+
+---
+
 ## ADR-029: Group payments the simplified way or the real way -- the payer picks
 
 **Status:** Accepted (user request and approval, 2026-11-05). Widens ADR-010.
@@ -39,7 +72,7 @@ offers only the simplified plan until its own PR.
 
 **Status:** Accepted (user request, 2026-11-05). API in two PRs
 (roles/suspensions/audit, then overview/groups/voice); the portal app
-(`apps/admin`) follows in its own PRs.
+(`apps/admin`) follows in its own PRs. Its voice part is retired by ADR-030.
 
 **Context:** ABRO had no site-wide admin. Group admins run their own
 groups. Voice access is an email list in Render, and there was no way to
@@ -112,7 +145,7 @@ Admins sign in to the portal at least twice a day.
 
 ## ADR-027: Voice commands through Tezaz -- testers only, tokens from the API
 
-**Status:** Accepted (user request, 2026-10-27). Pilot.
+**Status:** Superseded by ADR-030 (2026-11-09). Was: accepted (user request, 2026-10-27), pilot.
 
 **Context:** The user wants to try voice commands ("open the Bole
 group", "add 300 birr for lunch") in a real app. Tezaz, the user's

@@ -1,25 +1,18 @@
 package admin
 
 import (
-	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/Substance-k3n/abro/apps/api/internal/apitypes"
-	"github.com/Substance-k3n/abro/apps/api/internal/auth"
 	"github.com/Substance-k3n/abro/apps/api/internal/db"
 	"github.com/Substance-k3n/abro/apps/api/internal/idutil"
-	"github.com/Substance-k3n/abro/apps/api/internal/voice"
 )
 
 func TestRangeStart(t *testing.T) {
@@ -81,7 +74,6 @@ func TestOverview(t *testing.T) {
 		VALUES ('Deleted', 'food', 777, 'ETB', $1, 'EQUAL', now(), now())`, a)
 	exec(`INSERT INTO settlement_requests (payer_id, recipient_id, amount, currency, created_at)
 		VALUES ($1, $2, 100, 'ETB', now() - interval '8 days'), ($1, $2, 100, 'ETB', now())`, a, c)
-	exec(`INSERT INTO voice_sessions (user_id) VALUES ($1), ($1)`, a)
 
 	after, err := svc.Overview(f.ctx, 7)
 	require.NoError(t, err)
@@ -100,15 +92,12 @@ func TestOverview(t *testing.T) {
 	assert.EqualValues(t, 1, d(before.Queue.StaleConfirmations, after.Queue.StaleConfirmations))
 	assert.EqualValues(t, 1, d(before.Queue.PendingInvites, after.Queue.PendingInvites), "not in the deleted group")
 	assert.EqualValues(t, 1, d(before.Queue.StaleInvites, after.Queue.StaleInvites))
-	assert.EqualValues(t, 2, d(before.Voice.Sessions, after.Voice.Sessions))
-	assert.EqualValues(t, 1, d(before.Voice.Users, after.Voice.Users))
 
 	tb, ta := before.Series[6], after.Series[6]
 	assert.Equal(t, time.Now().In(addis).Format(time.DateOnly), ta.Day)
 	assert.EqualValues(t, 2, ta.Signups-tb.Signups)
 	assert.EqualValues(t, 2, ta.Expenses-tb.Expenses)
 	assert.EqualValues(t, 1, ta.Settlements-tb.Settlements)
-	assert.EqualValues(t, 2, ta.VoiceSessions-tb.VoiceSessions)
 
 	cat := func(o apitypes.AdminOverview, name string) int64 {
 		for _, r := range o.Categories {
@@ -201,160 +190,4 @@ func TestGroups(t *testing.T) {
 	missing, _ := idutil.Parse("00000000-0000-0000-0000-000000000002")
 	_, err = f.svc.GetGroup(f.ctx, missing)
 	assert.Equal(t, "GROUP_NOT_FOUND", errCode(t, err))
-}
-
-// withVoiceMode runs fn with voice_mode set to mode and puts the setting
-// back afterwards: it's one global row in a shared dev database.
-func withVoiceMode(t *testing.T, f *fixture, mode string, fn func()) {
-	t.Helper()
-	var old *string
-	var v string
-	if err := f.pool.QueryRow(f.ctx, `SELECT value FROM app_settings WHERE key = 'voice_mode'`).Scan(&v); err == nil {
-		old = &v
-	}
-	_, err := f.pool.Exec(f.ctx, `INSERT INTO app_settings (key, value) VALUES ('voice_mode', $1)
-		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, mode)
-	require.NoError(t, err)
-	defer func() {
-		if old == nil {
-			f.pool.Exec(f.ctx, `DELETE FROM app_settings WHERE key = 'voice_mode'`)
-		} else {
-			f.pool.Exec(f.ctx, `UPDATE app_settings SET value = $1 WHERE key = 'voice_mode'`, *old)
-		}
-	}()
-	fn()
-}
-
-func TestVoiceAccess(t *testing.T) {
-	f := setup(t)
-	actor := f.admin(f.withRole("admin", db.AdminRoleADMIN))
-	tester := f.person("tester") // in VOICE_TESTERS (setup)
-	granted := f.person("granted")
-	plain := f.person("plain")
-	suspended := f.person("suspended")
-	require.NoError(t, f.svc.Suspend(f.ctx, actor, suspended.ID, "x", ""))
-
-	require.NoError(t, f.svc.GrantVoice(f.ctx, actor, granted.ID, "1.2.3.4"))
-	assert.Equal(t, "VOICE_ALREADY_ON", errCode(t, f.svc.GrantVoice(f.ctx, actor, granted.ID, "")))
-	assert.Equal(t, "TARGET_SUSPENDED", errCode(t, f.svc.GrantVoice(f.ctx, actor, suspended.ID, "")))
-	assert.Equal(t, ActionVoiceGrant, f.auditFor(granted)[0].Action)
-
-	allowed := func(p db.Profile) bool {
-		t.Helper()
-		ok, err := f.voice.Allowed(f.ctx, f.q, p)
-		require.NoError(t, err)
-		return ok
-	}
-	access := func(p db.Profile) string {
-		t.Helper()
-		d, err := f.svc.GetUser(f.ctx, p.ID)
-		require.NoError(t, err)
-		return d.Voice.Access
-	}
-
-	withVoiceMode(t, f, voice.ModeListed, func() {
-		assert.True(t, allowed(tester))
-		assert.True(t, allowed(granted))
-		assert.False(t, allowed(plain))
-		assert.Equal(t, "tester", access(tester))
-		assert.Equal(t, "granted", access(granted))
-		assert.Equal(t, "none", access(plain))
-
-		v, err := f.svc.Voice(f.ctx)
-		require.NoError(t, err)
-		assert.True(t, v.Configured)
-		assert.Equal(t, "listed", v.Mode)
-		assert.Equal(t, []string{f.tag + "-tester@abro.test"}, v.Testers)
-		got := map[string]string{}
-		for _, u := range v.Users {
-			got[u.UserID] = u.Access
-		}
-		assert.Equal(t, "tester", got[idutil.String(tester.ID)])
-		assert.Equal(t, "granted", got[idutil.String(granted.ID)])
-		_, listed := got[idutil.String(plain.ID)]
-		assert.False(t, listed)
-	})
-	withVoiceMode(t, f, voice.ModeOff, func() {
-		assert.False(t, allowed(tester), "off beats VOICE_TESTERS")
-		assert.False(t, allowed(granted))
-		assert.Equal(t, "off", access(granted))
-	})
-	withVoiceMode(t, f, voice.ModeEveryone, func() {
-		assert.True(t, allowed(plain))
-		assert.Equal(t, "everyone", access(plain))
-	})
-
-	require.NoError(t, f.svc.RevokeVoice(f.ctx, actor, granted.ID, ""))
-	assert.Equal(t, "VOICE_NOT_GRANTED", errCode(t, f.svc.RevokeVoice(f.ctx, actor, granted.ID, "")))
-	assert.Equal(t, ActionVoiceRevoke, f.auditFor(granted)[0].Action)
-	withVoiceMode(t, f, voice.ModeListed, func() {
-		assert.False(t, allowed(granted))
-	})
-
-	t.Run("unconfigured voice is unavailable for everyone", func(t *testing.T) {
-		svc := NewService(f.pool, "", voice.NewService("", "", "", "*"))
-		d, err := svc.GetUser(f.ctx, tester.ID)
-		require.NoError(t, err)
-		assert.Equal(t, "unavailable", d.Voice.Access)
-	})
-}
-
-func TestSetVoiceMode(t *testing.T) {
-	f := setup(t)
-	actor := f.admin(f.withRole("admin", db.AdminRoleADMIN))
-	withVoiceMode(t, f, voice.ModeListed, func() {
-		require.NoError(t, f.svc.SetVoiceMode(f.ctx, actor, voice.ModeOff, ""))
-		mode, err := voice.Mode(f.ctx, f.q)
-		require.NoError(t, err)
-		assert.Equal(t, voice.ModeOff, mode)
-		assert.Equal(t, "MODE_UNCHANGED", errCode(t, f.svc.SetVoiceMode(f.ctx, actor, voice.ModeOff, "")))
-		assert.Equal(t, "INVALID_MODE", errCode(t, f.svc.SetVoiceMode(f.ctx, actor, "loud", "")))
-
-		rows, err := f.q.ListAdminAudit(f.ctx, db.ListAdminAuditParams{ActorID: actor.Profile.ID, Lim: 5})
-		require.NoError(t, err)
-		require.Len(t, rows, 1)
-		assert.Equal(t, ActionVoiceMode, rows[0].Action)
-		assert.Equal(t, "setting", rows[0].TargetType)
-		assert.False(t, rows[0].TargetID.Valid)
-		var details map[string]any
-		require.NoError(t, json.Unmarshal(rows[0].Details, &details))
-		assert.Equal(t, map[string]any{"setting": "voice_mode", "from": "listed", "to": "off"}, details)
-	})
-}
-
-// TestVoiceTokenIsCounted: a token handed out is a voice session the
-// portal can count; a refused one isn't.
-func TestVoiceTokenIsCounted(t *testing.T) {
-	f := setup(t)
-	relay := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte(`{"token":"tok","expiresAt":1793102859417}`))
-	}))
-	defer relay.Close()
-	tester := f.person("tester")
-	plain := f.person("plain")
-	svc := voice.NewService(relay.URL, "tz_sec_test_x", "https://app.test", tester.Email.String)
-	r := chi.NewRouter()
-	r.Route("/voice", voice.NewHandler(svc, f.q).Mount)
-	count := func(p db.Profile) int {
-		var n int
-		require.NoError(t, f.pool.QueryRow(context.Background(),
-			`SELECT count(*) FROM voice_sessions WHERE user_id = $1`, p.ID).Scan(&n))
-		return n
-	}
-
-	withVoiceMode(t, f, voice.ModeListed, func() {
-		for _, c := range []struct {
-			who  db.Profile
-			code int
-			want int
-		}{{tester, http.StatusOK, 1}, {plain, http.StatusForbidden, 0}} {
-			token, _ := f.session(c.who)
-			req := httptest.NewRequest(http.MethodPost, "/voice/token", nil)
-			req.AddCookie(&http.Cookie{Name: auth.SessionCookie, Value: token})
-			rec := httptest.NewRecorder()
-			r.ServeHTTP(rec, req)
-			assert.Equal(t, c.code, rec.Code)
-			assert.Equal(t, c.want, count(c.who))
-		}
-	})
 }
