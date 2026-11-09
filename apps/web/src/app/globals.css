@@ -177,6 +177,20 @@ body {
   text-size-adjust: 100%;
 }
 
+/* A soft color wash behind the auth cards (sign-in, OTP) -- the one
+   place a gradient is purely decorative rather than a UI fill, kept
+   very faint and brand-colored instead of a stock illustration or a
+   literal 3D render. Radial, centered on the card, fading out well
+   before the page edges so it never fights the grid pattern or reads
+   as a colored page. */
+.auth-glow {
+  background-image: radial-gradient(
+    ellipse 480px 320px at 50% 38%,
+    color-mix(in srgb, var(--accent) 10%, transparent),
+    transparent 70%
+  );
+}
+
 /* ===================== PHONE / INSTALLED-APP POLISH ===================== */
 /* viewport-fit=cover (app/layout.tsx) lets ABRO draw edge to edge on
    phones with a notch; these insets keep content out from under it and
@@ -470,11 +484,11 @@ body {
    this is the one thing on the screen, so it gets to be the one bold
    element (2026-11-09 feedback: wanted a more "visible response"). */
 .otp-box {
-  width: 46px;
-  height: 54px;
+  width: 50px;
+  height: 58px;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 1.3rem;
+  font-size: 1.4rem;
   font-weight: 700;
   background: var(--neo-bg2);
   border: 1.5px solid var(--border-sub);

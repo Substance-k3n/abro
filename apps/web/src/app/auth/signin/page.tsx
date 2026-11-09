@@ -100,25 +100,29 @@ function SignInForm() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col px-5 py-12 sm:items-center sm:justify-center sm:py-16">
-      <div className="mx-auto w-full max-w-[380px]">
-        <div className="mb-9 flex flex-col items-center text-center sm:mb-11">
-          <Logomark size={48} className="mb-6" />
-          <h2
-            className="font-display text-[2.1rem] font-bold leading-[1.1] tracking-tight"
-            style={{ color: 'var(--t-primary)' }}
-          >
-            Welcome back
-          </h2>
-          <p className="mt-2 text-[0.92rem]" style={{ color: 'var(--t-muted)' }}>
-            Sign in to your ABRO account
-          </p>
+    <main className="auth-glow flex min-h-screen flex-col items-center justify-center px-5 py-12">
+      <div className="neo-raised-lg flex w-full max-w-[380px] flex-col items-center rounded-[28px] p-6 sm:p-8">
+        <div
+          className="mb-5 flex h-16 w-16 items-center justify-center rounded-[20px]"
+          style={{ background: 'var(--accent-light)' }}
+        >
+          <Logomark size={34} />
         </div>
 
-        <form onSubmit={submit} className="flex flex-col gap-4">
+        <h2
+          className="font-display text-center text-[1.4rem] font-bold tracking-tight"
+          style={{ color: 'var(--t-primary)' }}
+        >
+          Welcome back
+        </h2>
+        <p className="mb-6 mt-1.5 text-center text-[0.85rem]" style={{ color: 'var(--t-muted)' }}>
+          Sign in to your ABRO account
+        </p>
+
+        <form onSubmit={submit} className="flex w-full flex-col gap-4">
           <a
             href={googleSignInUrl()}
-            className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold"
+            className="neo-btn flex items-center justify-center gap-3 rounded-full px-4 py-3.5 text-sm font-semibold"
             style={{ color: 'var(--t-secondary)' }}
           >
             <GoogleIcon /> Continue with Google
@@ -161,7 +165,7 @@ function SignInForm() {
           <button
             type="submit"
             disabled={submitting}
-            className="neo-btn-accent font-display mt-1 rounded-[18px] px-4 py-4 text-base font-semibold"
+            className="neo-btn-accent font-display mt-1 rounded-full px-4 py-4 text-base font-semibold"
           >
             {submitting ? 'Sending code…' : 'Continue'}
           </button>
