@@ -211,7 +211,7 @@ export default function FriendsPage() {
                         onClick={() => respond(r, true)}
                         disabled={busy}
                         aria-label={`Accept ${r.from.displayName}`}
-                        className="neo-btn-accent flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-60"
+                        className="neo-btn-accent flex h-9 w-9 items-center justify-center rounded-xl"
                       >
                         <Check size={16} strokeWidth={2.25} />
                       </button>

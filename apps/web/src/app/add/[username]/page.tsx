@@ -158,7 +158,7 @@ export default function AddFromInvitePage() {
                   type="button"
                   onClick={() => add(view.person)}
                   disabled={sending}
-                  className="neo-btn-accent font-display flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-[0.95rem] font-semibold disabled:opacity-60"
+                  className="neo-btn-accent font-display flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-3.5 text-[0.95rem] font-semibold"
                 >
                   <UserPlus size={18} strokeWidth={2.25} />
                   {sending ? 'Sending…' : 'Add as friend'}

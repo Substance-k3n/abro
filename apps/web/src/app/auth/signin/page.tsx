@@ -25,11 +25,38 @@
 // banner, not a toast/modal (no toast system exists yet anywhere in this
 // app).
 
+import { Logomark } from '@abro/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
 import { ApiError, googleSignInUrl } from '~/lib/api-client';
 import { requestOtp } from '~/lib/auth-api';
+
+// Google's actual four-color "G" glyph (brand guideline SVG, not a
+// styled letter) -- a text "G" read as a placeholder, not a real
+// sign-in option.
+function GoogleIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
+      <path
+        fill="#4285F4"
+        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62Z"
+      />
+      <path
+        fill="#34A853"
+        d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M3.97 10.72A5.4 5.4 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.59-2.59C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58Z"
+      />
+    </svg>
+  );
+}
 
 const OAUTH_ERRORS: Record<string, string> = {
   oauth_state: 'Google sign-in expired. Please try again.',
@@ -54,7 +81,8 @@ function SignInForm() {
   const errorParam = searchParams.get('error');
   const oauthError = errorParam ? (OAUTH_ERRORS[errorParam] ?? OAUTH_ERRORS.google) : null;
 
-  const [email, setEmail] = useState('');
+  // Prefilled when bounced back here from verify-email's "wrong email" link.
+  const [email, setEmail] = useState(searchParams.get('email') ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,11 +100,12 @@ function SignInForm() {
   };
 
   return (
-    <main className="fade-in flex min-h-screen flex-col px-7 py-12 sm:py-16">
+    <main className="fade-in flex min-h-screen flex-col px-7 py-12 sm:items-center sm:justify-center sm:py-16">
       <div className="mx-auto w-full max-w-sm">
-        <div className="mb-9">
+        <div className="mb-8 flex flex-col items-center text-center sm:mb-10">
+          <Logomark size={40} className="mb-5" />
           <h2
-            className="font-display text-[2rem] font-extrabold tracking-tighter"
+            className="font-display text-[1.7rem] font-bold tracking-tight"
             style={{ color: 'var(--t-primary)' }}
           >
             Welcome back
@@ -89,20 +118,23 @@ function SignInForm() {
         <form onSubmit={submit} className="flex flex-col gap-4">
           <a
             href={googleSignInUrl()}
-            className="neo-btn flex items-center justify-center gap-2.5 rounded-2xl px-4 py-3.5 text-sm font-medium"
+            className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold"
             style={{ color: 'var(--t-secondary)' }}
           >
-            <span className="text-lg">G</span> Continue with Google
+            <GoogleIcon /> Continue with Google
           </a>
 
           <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--t-dim)' }}>
-            <div className="h-px flex-1" style={{ background: 'var(--neo-dark)', opacity: 0.5 }} />
-            or
-            <div className="h-px flex-1" style={{ background: 'var(--neo-dark)', opacity: 0.5 }} />
+            <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
+            or sign in with email
+            <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
           </div>
 
           {(oauthError || error) && (
-            <p className="text-center text-[0.8rem] font-medium" style={{ color: 'var(--c-red)' }}>
+            <p
+              className="rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
+              style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
+            >
               {error ?? oauthError}
             </p>
           )}
@@ -129,7 +161,7 @@ function SignInForm() {
           <button
             type="submit"
             disabled={submitting}
-            className="neo-btn-accent font-display mt-1 rounded-[18px] px-4 py-4 text-base font-semibold disabled:opacity-60"
+            className="neo-btn-accent font-display mt-1 rounded-[18px] px-4 py-4 text-base font-semibold"
           >
             {submitting ? 'Sending code…' : 'Continue'}
           </button>

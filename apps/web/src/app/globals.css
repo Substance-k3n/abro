@@ -463,11 +463,21 @@ body {
   outline: none;
   border-radius: 14px;
   color: var(--t-primary);
-  transition: border-color 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .otp-box:focus {
   border-color: var(--accent);
+}
+
+/* A digit that's been entered reads as "locked in" at a glance, not
+   just the same empty box with different text -- the six boxes are
+   otherwise identical, so this is the only progress signal there is. */
+.otp-box-filled {
+  border-color: var(--accent);
+  background: var(--accent-light);
 }
 
 /* Fonts, fed by next/font/local in layout.tsx */

@@ -471,7 +471,7 @@ export default function EkubPage() {
                         onClick={() =>
                           act(() => recordEkubPayment(id, o.recipientMemberId, 'PAID'))
                         }
-                        className="neo-btn-accent rounded-xl px-3 py-2 text-[0.78rem] font-semibold disabled:opacity-50"
+                        className="neo-btn-accent rounded-xl px-3 py-2 text-[0.78rem] font-semibold"
                       >
                         I paid
                       </button>
@@ -640,7 +640,7 @@ export default function EkubPage() {
                     ),
                   )
                 }
-                className="neo-btn-accent flex-1 rounded-xl py-2.5 text-[0.85rem] font-semibold disabled:opacity-50"
+                className="neo-btn-accent flex-1 rounded-xl py-2.5 text-[0.85rem] font-semibold"
               >
                 Save turns
               </button>
@@ -724,7 +724,7 @@ export default function EkubPage() {
                       ),
                     )
                   }
-                  className="neo-btn-accent flex-1 rounded-xl py-2.5 text-[0.85rem] font-semibold disabled:opacity-50"
+                  className="neo-btn-accent flex-1 rounded-xl py-2.5 text-[0.85rem] font-semibold"
                 >
                   Start
                 </button>

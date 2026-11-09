@@ -274,7 +274,7 @@ export default function GroupsPage() {
                     onClick={() => respond(invite, true)}
                     disabled={busy}
                     aria-label={`Join ${invite.group.name}`}
-                    className="neo-btn-accent flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-60"
+                    className="neo-btn-accent flex h-9 w-9 items-center justify-center rounded-xl"
                   >
                     <Check size={16} strokeWidth={2.25} />
                   </button>
