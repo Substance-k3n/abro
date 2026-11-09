@@ -164,6 +164,24 @@ const SPLIT_TYPES: Record<SplitMethod, CreateExpenseInput['splitType']> = {
   shares: 'SHARES',
 };
 
+/** Where each non-equal method's own numbers are edited -- the review
+ * step's "Edit" (and its own Back button) land here instead of the
+ * method-picker screen, which has nothing to edit on it. Shared between
+ * split/page.tsx (picking a method navigates straight to its route) and
+ * review/page.tsx (editing one navigates back to it). */
+export const SPLIT_METHOD_ROUTE: Record<Exclude<SplitMethod, 'equal'>, string> = {
+  exact: '/expenses/new/split/exact',
+  percentage: '/expenses/new/split/percentage',
+  shares: '/expenses/new/split/shares',
+};
+
+/** The step-4 route that actually has `draft.splitMethod`'s inputs on
+ * it: the method-picker for "equal" (nothing more to configure), the
+ * dedicated screen for anything else. */
+export function splitStepRoute(method: SplitMethod): string {
+  return method === 'equal' ? '/expenses/new/split' : SPLIT_METHOD_ROUTE[method];
+}
+
 /** The draft as POST /expenses' body. `ME` becomes `meId` here and
  * nowhere earlier (see expense-draft.tsx). Only the split method's own
  * inputs are sent -- apps/api recomputes every share from them, so the

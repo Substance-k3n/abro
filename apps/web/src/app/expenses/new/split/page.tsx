@@ -31,7 +31,7 @@ import { useRouter } from 'next/navigation';
 
 import { useExpenseDirectory } from '~/lib/expense-directory';
 import { ME, type SplitMethod, useExpenseDraft } from '~/lib/expense-draft';
-import { computeShares, parseAmount } from '~/lib/expense-split';
+import { SPLIT_METHOD_ROUTE, computeShares, parseAmount } from '~/lib/expense-split';
 
 const METHODS: { id: SplitMethod; label: string; desc: string; icon: React.ReactNode }[] = [
   {
@@ -60,12 +60,6 @@ const METHODS: { id: SplitMethod; label: string; desc: string; icon: React.React
   },
 ];
 
-const METHOD_ROUTE: Record<Exclude<SplitMethod, 'equal'>, string> = {
-  exact: '/expenses/new/split/exact',
-  percentage: '/expenses/new/split/percentage',
-  shares: '/expenses/new/split/shares',
-};
-
 export default function AddExpenseSplitPage() {
   const router = useRouter();
   const { draft, update } = useExpenseDraft();
@@ -77,7 +71,7 @@ export default function AddExpenseSplitPage() {
   const selectMethod = (method: SplitMethod) => {
     update({ splitMethod: method });
     if (method !== 'equal') {
-      router.push(METHOD_ROUTE[method]);
+      router.push(SPLIT_METHOD_ROUTE[method]);
     }
   };
 
