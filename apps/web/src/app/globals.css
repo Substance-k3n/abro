@@ -86,6 +86,14 @@
   --page-bg: var(--neo-bg);
   --nav-shadow: 0 -1px 0 var(--border-med), 0 -8px 20px -12px rgba(0, 0, 0, 0.14);
 
+  /* A paper grain on the page background only (never on cards/panels --
+     those stay clean so the texture reads as "the page itself", like a
+     ledger sheet, not a decorative overlay sitting on top of content).
+     Pure black noise at ~7% alpha, via feTurbulence -> feColorMatrix so
+     the opacity is exact regardless of how a browser renders
+     turbulence's own alpha channel. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
   color-scheme: light;
 }
 
@@ -138,6 +146,11 @@
   --page-bg: var(--neo-bg);
   --nav-shadow: 0 -1px 0 var(--border-med), 0 -8px 20px -12px rgba(0, 0, 0, 0.55);
 
+  /* Same grain, white instead of black -- black noise on a dark page
+     would be invisible. Slightly higher alpha (dark surfaces need a
+     touch more to read at all). */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
   color-scheme: dark;
 }
 
@@ -149,7 +162,8 @@
 html,
 body {
   min-height: 100%;
-  background: var(--page-bg);
+  background-color: var(--page-bg);
+  background-image: var(--grain);
   font-family: var(--font-body);
   color: var(--t-secondary);
   /* No rubber-band bounce pulling the whole app past its edges (iOS). */
