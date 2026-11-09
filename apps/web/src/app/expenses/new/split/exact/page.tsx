@@ -156,7 +156,7 @@ export default function AddExpenseExactSplitPage() {
       <button
         onClick={() => router.push('/expenses/new/review')}
         disabled={!valid}
-        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+        className="neo-btn-accent font-display rounded-2xl px-5 py-3.5 text-[0.95rem] font-semibold disabled:cursor-not-allowed"
       >
         Next
       </button>

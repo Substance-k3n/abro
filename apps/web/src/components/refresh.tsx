@@ -157,9 +157,12 @@ export function Row({
     </>
   );
   const cls = 'panel-row flex w-full items-center gap-3 px-4 py-3.5 text-left';
+  // Hover only on desktop (md:) -- a touch screen has no hover, so this
+  // never leaves a row "stuck" highlighted after a tap.
+  const interactive = `${cls} transition-colors md:hover:bg-black/[0.02] active:bg-black/[0.03]`;
   if (href) {
     return (
-      <Link href={href} className={`${cls} transition-colors active:bg-black/[0.03]`}>
+      <Link href={href} className={interactive}>
         {body}
       </Link>
     );
@@ -169,7 +172,7 @@ export function Row({
       <button
         type="button"
         onClick={onClick}
-        className={`${cls} border-none bg-transparent transition-colors active:bg-black/[0.03]`}
+        className={`${interactive} border-none bg-transparent`}
       >
         {body}
       </button>

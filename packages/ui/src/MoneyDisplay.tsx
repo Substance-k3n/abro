@@ -55,9 +55,9 @@ export function AmountBadge({ amount, dir, currency = ETB, className = '' }: Amo
     <span
       className={`rounded-lg px-2 py-1 font-mono text-xs font-semibold ${className}`}
       style={{
-        background: '#eff1f5',
+        background: 'var(--neo-bg2)',
         color: 'var(--t-muted)',
-        boxShadow: 'inset 2px 2px 5px #c5cad1, inset -2px -2px 5px #fff',
+        border: '1px solid var(--border-sub)',
       }}
     >
       {formatted}

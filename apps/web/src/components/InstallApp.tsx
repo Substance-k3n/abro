@@ -83,7 +83,7 @@ export function InstallApp({ variant }: { variant: 'row' | 'banner' }) {
     <div className="neo-raised-sm mb-5 flex items-start gap-3 rounded-[18px] p-4">
       <div
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white"
-        style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7)' }}
+        style={{ background: '#c2410c' }}
         aria-hidden
       >
         <Download size={18} strokeWidth={2} />

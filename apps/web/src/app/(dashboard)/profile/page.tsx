@@ -115,7 +115,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="fade-in flex flex-col gap-5 px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
+    <div className="flex flex-col gap-5 px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <h2
         className="font-display text-[1.5rem] font-extrabold tracking-tighter"
         style={{ color: 'var(--t-primary)' }}

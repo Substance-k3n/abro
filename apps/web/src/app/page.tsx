@@ -1,3 +1,4 @@
+import { Logomark } from '@abro/ui';
 import Link from 'next/link';
 
 // AUTH-01 (Splash/Landing) — docs/ABRO_FRONTEND_SPEC.md §2.
@@ -10,12 +11,6 @@ import Link from 'next/link';
 // Tailwind's @theme is a Phase 1 follow-up; hoisted to module scope for now
 // so they aren't recreated every render.
 
-const logoTextStyle = {
-  background: 'linear-gradient(135deg, #6366f1, #a855f7)',
-  WebkitBackgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
-} as const;
-
 const primaryTextStyle = { color: 'var(--t-primary)' } as const;
 const mutedTextStyle = { color: 'var(--t-muted)' } as const;
 const dimTextStyle = { color: 'var(--t-dim)' } as const;
@@ -26,24 +21,14 @@ export default function SplashPage() {
       <div />
 
       <div className="flex flex-col items-center gap-6 text-center">
-        <div
-          className="neo-raised-lg flex h-[100px] w-[100px] items-center justify-center rounded-[32px]"
-          aria-hidden
-        >
-          <span
-            className="font-display text-4xl font-extrabold tracking-tighter"
-            style={logoTextStyle}
-          >
-            AB
-          </span>
-        </div>
+        <Logomark size={96} />
 
         <div>
           <h1
-            className="font-display text-[2.6rem] font-extrabold leading-[1.1] tracking-tighter"
+            className="font-display text-[2.6rem] font-extrabold leading-[1.1] tracking-tight"
             style={primaryTextStyle}
           >
-            ABRO
+            abro
           </h1>
           <p className="mx-auto mt-2 max-w-[240px] text-base" style={mutedTextStyle}>
             Remember every expense.

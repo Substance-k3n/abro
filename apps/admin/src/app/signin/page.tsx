@@ -6,6 +6,7 @@
 // account must be an admin (GET /admin/me); if it isn't, it's signed
 // straight back out, so no non-admin session is left on the admin site.
 
+import { Logomark } from '@abro/ui';
 import { ArrowLeft, Mail, ShieldCheck } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
@@ -15,6 +16,7 @@ import { ApiError } from '~/lib/api';
 import { safeNext } from '~/lib/session';
 
 const RESEND_AFTER_S = 60;
+const EMPTY_CODE = ['', '', '', '', '', ''];
 
 // Why the portal sent you here (?why=, from apps/api's session limits or
 // the portal's own idle lock).
@@ -38,11 +40,11 @@ function SignIn() {
   const why = WHY[params.get('why') ?? ''];
   const [step, setStep] = useState<'email' | 'code'>('email');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
+  const [code, setCode] = useState<string[]>(EMPTY_CODE);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wait, setWait] = useState(0);
-  const codeRef = useRef<HTMLInputElement>(null);
+  const digitRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Already signed in as an admin: straight in.
   useEffect(() => {
@@ -65,9 +67,9 @@ function SignIn() {
     try {
       await requestCode(email.trim().toLowerCase());
       setStep('code');
-      setCode('');
+      setCode(EMPTY_CODE);
       setWait(RESEND_AFTER_S);
-      setTimeout(() => codeRef.current?.focus(), 0);
+      setTimeout(() => digitRefs.current[0]?.focus(), 0);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not send the code.');
     } finally {
@@ -94,21 +96,51 @@ function SignIn() {
       router.replace(next);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not sign in.');
-      setCode('');
-      codeRef.current?.focus();
+      setCode(EMPTY_CODE);
+      digitRefs.current[0]?.focus();
     } finally {
       setBusy(false);
     }
   };
 
+  const setDigit = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) {
+      return;
+    }
+    const next = [...code];
+    next[index] = value.slice(-1);
+    setCode(next);
+    if (value && index < 5) {
+      digitRefs.current[index + 1]?.focus();
+    }
+    if (next.every((d) => d)) {
+      void verify(next.join(''));
+    }
+  };
+
+  const onDigitKeyDown = (index: number, event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Backspace' && !code[index] && index > 0) {
+      digitRefs.current[index - 1]?.focus();
+    }
+  };
+
   return (
-    <div className="bg-side flex min-h-screen items-center justify-center p-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <div className="font-display text-4xl font-semibold tracking-tight text-white">ABRO</div>
-          <div className="text-side-muted mt-1 text-sm">Admin Portal</div>
+    <div className="flex min-h-screen flex-col md:flex-row">
+      {/* Brand panel -- its own full surface, not a card floating on it. */}
+      <div className="bg-side grid-texture relative flex shrink-0 items-center justify-center overflow-hidden px-6 py-14 md:w-[42%] md:py-0">
+        <div className="relative flex flex-col items-center gap-3 text-center">
+          <Logomark size={44} />
+          <div className="font-display text-2xl font-semibold tracking-tight text-white">abro</div>
+          <div className="text-side-muted -mt-1 text-sm">Admin Portal</div>
+          <p className="text-side-muted mt-10 flex items-center justify-center gap-1.5 text-xs">
+            <ShieldCheck className="size-3.5" aria-hidden /> Every admin action is recorded.
+          </p>
         </div>
-        <div className="card p-7 shadow-2xl shadow-black/30">
+      </div>
+
+      {/* Form panel */}
+      <div className="flex flex-1 items-center justify-center px-6 py-12 md:py-0">
+        <div className="w-full max-w-sm">
           {step === 'email' ? (
             <form
               onSubmit={(e) => {
@@ -116,7 +148,7 @@ function SignIn() {
                 void send();
               }}
             >
-              <h1 className="font-display text-xl font-semibold">Sign in</h1>
+              <h1 className="font-display text-2xl font-semibold">Sign in</h1>
               <p className="text-ink-3 mt-1 text-sm">We&apos;ll email you a 6-digit code.</p>
               {why && !error && (
                 <p
@@ -163,8 +195,8 @@ function SignIn() {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
-                if (code.length === 6) {
-                  void verify(code);
+                if (code.every((d) => d)) {
+                  void verify(code.join(''));
                 }
               }}
             >
@@ -178,30 +210,30 @@ function SignIn() {
               >
                 <ArrowLeft className="size-4" aria-hidden /> Change email
               </button>
-              <h1 className="font-display mt-3 text-xl font-semibold">Enter your code</h1>
+              <h1 className="font-display mt-3 text-2xl font-semibold">Enter your code</h1>
               <p className="text-ink-3 mt-1 text-sm">
                 Sent to <span className="text-ink font-medium">{email.trim().toLowerCase()}</span>
               </p>
-              <label htmlFor="code" className="label mt-6 block">
-                6-digit code
-              </label>
-              <input
-                id="code"
-                ref={codeRef}
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                maxLength={6}
-                className="input mt-1.5 text-center font-mono text-xl tracking-[0.5em]"
-                value={code}
-                disabled={busy}
-                onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, '').slice(0, 6);
-                  setCode(v);
-                  if (v.length === 6) {
-                    void verify(v);
-                  }
-                }}
-              />
+              <span className="label mt-6 block">6-digit code</span>
+              <div className="mt-1.5 flex justify-between gap-2">
+                {code.map((digit, index) => (
+                  <input
+                    key={`code-digit-${index}`}
+                    ref={(el) => {
+                      digitRefs.current[index] = el;
+                    }}
+                    inputMode="numeric"
+                    maxLength={1}
+                    autoComplete={index === 0 ? 'one-time-code' : 'off'}
+                    aria-label={`Digit ${index + 1} of 6`}
+                    className="border-line-strong text-ink focus:border-accent focus:ring-accent/20 h-12 w-11 rounded-lg border bg-white text-center font-mono text-lg font-semibold outline-none focus:ring-2 disabled:opacity-60"
+                    value={digit}
+                    disabled={busy}
+                    onChange={(e) => setDigit(index, e.target.value)}
+                    onKeyDown={(e) => onDigitKeyDown(index, e)}
+                  />
+                ))}
+              </div>
               {error && (
                 <p role="alert" className="bg-bad-soft text-bad mt-4 rounded-lg px-3 py-2 text-sm">
                   {error}
@@ -210,7 +242,7 @@ function SignIn() {
               <button
                 type="submit"
                 className="btn btn-primary mt-6 w-full"
-                disabled={busy || code.length !== 6}
+                disabled={busy || code.some((d) => !d)}
               >
                 {busy ? 'Checking…' : 'Sign in'}
               </button>
@@ -225,9 +257,6 @@ function SignIn() {
             </form>
           )}
         </div>
-        <p className="text-side-muted mt-6 flex items-center justify-center gap-1.5 text-xs">
-          <ShieldCheck className="size-3.5" aria-hidden /> Every admin action is recorded.
-        </p>
       </div>
     </div>
   );

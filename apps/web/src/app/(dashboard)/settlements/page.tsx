@@ -155,7 +155,7 @@ export default function SettlementsPage() {
     });
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
+    <div className="hide-scroll px-5 py-6 md:mx-auto md:max-w-2xl md:px-8 md:py-8">
       <div className="mb-5 flex items-center justify-between">
         <button
           onClick={() => router.back()}

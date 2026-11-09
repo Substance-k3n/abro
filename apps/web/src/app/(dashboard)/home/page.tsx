@@ -170,190 +170,229 @@ export default function HomePage() {
   ];
 
   return (
-    <div className="fade-in hide-scroll px-5 py-6 md:mx-auto md:max-w-5xl md:px-8 md:py-8">
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {/* Profile lives here on phones (the bottom bar has Friends instead). */}
-          <Link href="/profile" aria-label="Your profile">
-            <Avatar
-              initials={initialsOf(profile.displayName)}
-              color={colorForId(profile.id)}
-              size={44}
-              src={photoSrc(profile.avatarUrl)}
-            />
-          </Link>
-          <div>
-            <p className="text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
-              {greeting()}
-            </p>
-            <h2
-              className="font-display text-[1.3rem] font-semibold tracking-tight"
-              style={{ color: 'var(--t-primary)' }}
-            >
-              {profile.displayName}
-            </h2>
-          </div>
-        </div>
-        <div className="flex gap-2.5">
-          <Link
-            href="/notifications"
-            aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'}
-            className="neo-btn relative flex h-[42px] w-[42px] items-center justify-center rounded-2xl"
-          >
-            <Bell size={20} strokeWidth={1.8} />
-            {unreadCount > 0 && (
-              <span
-                className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[0.62rem] font-bold text-white"
-                style={{ background: 'var(--owe)' }}
+    <div className="hide-scroll">
+      {/* Header -- full-bleed across whatever width the viewport gives
+          main (not boxed into the content column below it), so desktop
+          gets an actual top band instead of a floating row of icons in
+          the middle of the page. */}
+      <div
+        className="px-5 py-5 md:px-8 md:py-6"
+        style={{ borderBottom: '1px solid var(--border-sub)' }}
+      >
+        <div className="flex items-center justify-between md:mx-auto md:max-w-6xl">
+          <div className="flex items-center gap-3">
+            {/* Profile lives here on phones (the bottom bar has Friends instead). */}
+            <Link href="/profile" aria-label="Your profile">
+              <Avatar
+                initials={initialsOf(profile.displayName)}
+                color={colorForId(profile.id)}
+                size={44}
+                src={photoSrc(profile.avatarUrl)}
+              />
+            </Link>
+            <div>
+              <p className="text-[0.8rem]" style={{ color: 'var(--t-dim)' }}>
+                {greeting()}
+              </p>
+              <h2
+                className="font-display text-[1.3rem] font-semibold tracking-tight"
+                style={{ color: 'var(--t-primary)' }}
               >
-                {unreadCount > 99 ? '99+' : unreadCount}
-              </span>
-            )}
-          </Link>
-          <Link
-            href="/settings"
-            aria-label="Settings"
-            className="neo-btn flex h-[42px] w-[42px] items-center justify-center rounded-2xl"
-          >
-            <Settings size={19} strokeWidth={1.8} />
-          </Link>
+                {profile.displayName}
+              </h2>
+            </div>
+          </div>
+          <div className="flex gap-2.5">
+            <Link
+              href="/notifications"
+              aria-label={
+                unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+              }
+              className="neo-btn relative flex h-[42px] w-[42px] items-center justify-center rounded-2xl"
+            >
+              <Bell size={20} strokeWidth={1.8} />
+              {unreadCount > 0 && (
+                <span
+                  className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[0.62rem] font-bold text-white"
+                  style={{ background: 'var(--owe)' }}
+                >
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </Link>
+            <Link
+              href="/settings"
+              aria-label="Settings"
+              className="neo-btn flex h-[42px] w-[42px] items-center justify-center rounded-2xl"
+            >
+              <Settings size={19} strokeWidth={1.8} />
+            </Link>
+          </div>
         </div>
       </div>
 
-      <InstallApp variant="banner" />
-      <PushNotifications variant="banner" />
+      <div className="px-5 py-6 md:mx-auto md:max-w-6xl md:px-8 md:py-8">
+        <InstallApp variant="banner" />
+        <PushNotifications variant="banner" />
 
-      {toConfirm.length > 0 && (
-        <Panel className="mb-4">
-          <Row
-            href="/payments"
-            leading={
-              <Tile tint="var(--accent-light)" color="var(--accent)">
-                <Wallet size={19} strokeWidth={2} />
-              </Tile>
-            }
-            title={
-              toConfirm.length === 1
-                ? `${toConfirm[0]!.payer.displayName.split(' ')[0]} says they paid you`
-                : `${toConfirm.length} payments to confirm`
-            }
-            sub="Confirm once the money has reached you"
-            trailing={<Amount value={toConfirmTotal} tone="owed" />}
-            chevron
-          />
-        </Panel>
-      )}
-
-      <div className="md:grid md:grid-cols-[1.25fr_1fr] md:items-start md:gap-7">
-        <div>
-          <HeroBalance
-            net={net}
-            owedTotal={owedTotal}
-            oweTotal={oweTotal}
-            onOwed={() => router.push('/balances/owed')}
-            onOwe={() => router.push('/balances/owe')}
-          />
-
-          {/* Actions: one main one, three quieter ones */}
-          <div className="mb-7 mt-4 grid grid-cols-[1.7fr_1fr_1fr_1fr] gap-2.5">
-            <Link
-              href="/expenses/new"
-              className="neo-btn-accent flex items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl px-2 py-4 text-[0.86rem] font-semibold"
-            >
-              <Plus size={18} strokeWidth={2.2} />
-              Add expense
-            </Link>
-            {SECONDARY_ACTIONS.map((action) => (
-              <Link
-                key={action.label}
-                href={action.href}
-                className="neo-btn flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2.5 text-center"
-                style={{ color: 'var(--t-secondary)' }}
-              >
-                <action.icon size={18} strokeWidth={1.9} />
-                <span className="text-[0.68rem] font-medium leading-tight">{action.label}</span>
-              </Link>
-            ))}
-          </div>
-
-          {/* Recent activity sits under the hero on wide screens */}
-          <div className="hidden md:block">
-            <RecentActivity
-              rows={activityRows}
-              expenses={recentActivity}
-              onOpen={(id) => router.push(`/expenses/${id}`)}
+        {toConfirm.length > 0 && (
+          <Panel className="mb-4">
+            <Row
+              href="/payments"
+              leading={
+                <Tile tint="var(--accent-light)" color="var(--accent)">
+                  <Wallet size={19} strokeWidth={2} />
+                </Tile>
+              }
+              title={
+                toConfirm.length === 1
+                  ? `${toConfirm[0]!.payer.displayName.split(' ')[0]} says they paid you`
+                  : `${toConfirm.length} payments to confirm`
+              }
+              sub="Confirm once the money has reached you"
+              trailing={<Amount value={toConfirmTotal} tone="owed" />}
+              chevron
             />
+          </Panel>
+        )}
+
+        <div className="md:grid md:grid-cols-[1.25fr_1fr] md:items-start md:gap-7">
+          <div>
+            <HeroBalance
+              net={net}
+              owedTotal={owedTotal}
+              oweTotal={oweTotal}
+              onOwed={() => router.push('/balances/owed')}
+              onOwe={() => router.push('/balances/owe')}
+            />
+
+            {/* Actions: one main one, three quieter ones */}
+            <div className="mb-7 mt-4 grid grid-cols-[1.7fr_1fr_1fr_1fr] gap-2.5">
+              <Link
+                href="/expenses/new"
+                className="neo-btn-accent flex items-center justify-center gap-1.5 whitespace-nowrap rounded-2xl px-2 py-4 text-[0.86rem] font-semibold"
+              >
+                <Plus size={18} strokeWidth={2.2} />
+                Add expense
+              </Link>
+              {SECONDARY_ACTIONS.map((action) => (
+                <Link
+                  key={action.label}
+                  href={action.href}
+                  className="neo-btn flex flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2.5 text-center"
+                  style={{ color: 'var(--t-secondary)' }}
+                >
+                  <action.icon size={18} strokeWidth={1.9} />
+                  <span className="text-[0.68rem] font-medium leading-tight">{action.label}</span>
+                </Link>
+              ))}
+            </div>
+
+            {/* Recent activity sits under the hero on wide screens */}
+            <div className="hidden md:block">
+              <RecentActivity
+                rows={activityRows}
+                expenses={recentActivity}
+                onOpen={(id) => router.push(`/expenses/${id}`)}
+              />
+            </div>
           </div>
-        </div>
 
-        <div>
-          <section className="mb-7">
-            <SectionHeader title="Balances" href="/balances" />
-            {people.length === 0 ? (
-              <Panel>
-                <Row
-                  leading={
-                    <Tile tint="var(--owed-soft)" color="var(--owed)">
-                      <Handshake size={19} strokeWidth={1.9} />
-                    </Tile>
-                  }
-                  title="All settled with friends"
-                  sub="New IOUs and shared bills show up here."
-                />
-              </Panel>
-            ) : (
-              <Panel>
-                {people.map(({ f, owed }) => (
-                  <Row
-                    key={f.id}
-                    href={`/friends/${f.id}`}
-                    leading={
-                      <Avatar initials={f.initials} color={f.color} size={40} src={f.photo} />
-                    }
-                    title={f.name}
-                    sub={owed ? 'owes you' : 'you owe'}
-                    subTone={owed ? 'owed' : 'owe'}
-                    trailing={
-                      <Amount value={owed ? f.owes : f.iOwe} tone={owed ? 'owed' : 'owe'} />
-                    }
-                  />
-                ))}
-              </Panel>
-            )}
-          </section>
-
-          {groupsWithBalance.length > 0 && (
+          <div>
             <section className="mb-7">
-              <SectionHeader title="Groups" href="/groups" />
-              <Panel>
-                {groupsWithBalance.map((g) => (
+              <SectionHeader title="Balances" href="/balances" />
+              {people.length === 0 ? (
+                <Panel>
                   <Row
-                    key={g.id}
-                    href={`/groups/${g.id}`}
+                    href={friends.length === 0 ? '/friends/add' : undefined}
                     leading={
-                      <Tile tint={g.groupType.tint} color={g.groupType.color}>
-                        <GroupPicture photo={g.photo} icon={g.groupType.icon} size={19} />
+                      <Tile tint="var(--owed-soft)" color="var(--owed)">
+                        <Handshake size={19} strokeWidth={1.9} />
                       </Tile>
                     }
-                    title={g.name}
-                    sub={g.balance > 0n ? "you're owed" : 'you owe'}
-                    subTone={g.balance > 0n ? 'owed' : 'owe'}
-                    trailing={<Amount value={g.balance} tone={g.balance > 0n ? 'owed' : 'owe'} />}
+                    title={
+                      friends.length === 0 ? 'Add your first friend' : 'All settled with friends'
+                    }
+                    sub={
+                      friends.length === 0
+                        ? 'Split a bill or send an IOU once you have'
+                        : 'New IOUs and shared bills show up here.'
+                    }
+                    chevron={friends.length === 0}
                   />
-                ))}
-              </Panel>
+                </Panel>
+              ) : (
+                <Panel>
+                  {people.map(({ f, owed }) => (
+                    <Row
+                      key={f.id}
+                      href={`/friends/${f.id}`}
+                      leading={
+                        <Avatar initials={f.initials} color={f.color} size={40} src={f.photo} />
+                      }
+                      title={f.name}
+                      sub={owed ? 'owes you' : 'you owe'}
+                      subTone={owed ? 'owed' : 'owe'}
+                      trailing={
+                        <Amount value={owed ? f.owes : f.iOwe} tone={owed ? 'owed' : 'owe'} />
+                      }
+                    />
+                  ))}
+                </Panel>
+              )}
             </section>
-          )}
-        </div>
-      </div>
 
-      <div className="md:hidden">
-        <RecentActivity
-          rows={activityRows}
-          expenses={recentActivity}
-          onOpen={(id) => router.push(`/expenses/${id}`)}
-        />
+            {groupsWithBalance.length > 0 ? (
+              <section className="mb-7">
+                <SectionHeader title="Groups" href="/groups" />
+                <Panel>
+                  {groupsWithBalance.map((g) => (
+                    <Row
+                      key={g.id}
+                      href={`/groups/${g.id}`}
+                      leading={
+                        <Tile tint={g.groupType.tint} color={g.groupType.color}>
+                          <GroupPicture photo={g.photo} icon={g.groupType.icon} size={19} />
+                        </Tile>
+                      }
+                      title={g.name}
+                      sub={g.balance > 0n ? "you're owed" : 'you owe'}
+                      subTone={g.balance > 0n ? 'owed' : 'owe'}
+                      trailing={<Amount value={g.balance} tone={g.balance > 0n ? 'owed' : 'owe'} />}
+                    />
+                  ))}
+                </Panel>
+              </section>
+            ) : (
+              groups.length === 0 && (
+                <section className="mb-7">
+                  <SectionHeader title="Groups" />
+                  <Panel>
+                    <Row
+                      href="/groups/new"
+                      leading={
+                        <Tile tint="var(--accent-light)" color="var(--accent)">
+                          <Users size={19} strokeWidth={1.9} />
+                        </Tile>
+                      }
+                      title="Start a shared tab"
+                      sub="For a trip, a household, an ekub -- anything with recurring costs"
+                      chevron
+                    />
+                  </Panel>
+                </section>
+              )
+            )}
+          </div>
+        </div>
+
+        <div className="md:hidden">
+          <RecentActivity
+            rows={activityRows}
+            expenses={recentActivity}
+            onOpen={(id) => router.push(`/expenses/${id}`)}
+          />
+        </div>
       </div>
     </div>
   );
