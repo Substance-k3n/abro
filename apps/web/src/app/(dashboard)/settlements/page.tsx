@@ -180,7 +180,7 @@ export default function SettlementsPage() {
         />
       </div>
 
-      <div className="neo-inset-sm hide-scroll mb-5 flex gap-1 overflow-x-auto rounded-[14px] p-1">
+      <div className="neo-inset-sm hide-scroll scroll-fade-x mb-5 flex gap-1 overflow-x-auto rounded-[14px] p-1">
         {FILTERS.map((f) => (
           <button
             key={f.key}
