@@ -148,7 +148,7 @@ function AddExpenseDetailsForm() {
         >
           Category
         </label>
-        <div className="hide-scroll -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 md:-mx-8 md:px-8">
+        <div className="hide-scroll scroll-fade-x -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 md:-mx-8 md:px-8">
           {CATEGORIES.map((c) => (
             <button
               key={c.label}
@@ -185,7 +185,7 @@ function AddExpenseDetailsForm() {
         >
           Group
         </label>
-        <div className="hide-scroll -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 md:-mx-8 md:px-8">
+        <div className="hide-scroll scroll-fade-x -mx-5 flex gap-2 overflow-x-auto px-5 pb-1 md:-mx-8 md:px-8">
           <button
             onClick={() => selectGroup(null)}
             className={`cat-pill shrink-0 border-none ${draft.groupId === null ? 'selected' : ''}`}

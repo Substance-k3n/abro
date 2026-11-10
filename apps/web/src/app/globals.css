@@ -304,7 +304,10 @@ body {
 .neo-btn-green:disabled {
   background: var(--border-med);
   border-color: var(--border-med);
-  color: var(--t-dim);
+  /* --t-dim measured ~2.6:1 here (real screenshot, 2026-11-10) -- too
+     close to its own background to read as a label at all, just a
+     gray pill. --t-muted clears 4.2:1+ against it in both themes. */
+  color: var(--t-muted);
   cursor: not-allowed;
 }
 
@@ -376,6 +379,18 @@ body {
 .hide-scroll {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* A horizontally-scrolling chip/pill row (category picker, filter
+   tabs) otherwise just gets hard-clipped at the viewport edge --
+   mid-word, with nothing to suggest there's more to scroll to
+   (2026-11-10 feedback: noticed on the category row). A right-edge
+   fade is the common affordance for "this continues". Not applied to
+   .hide-scroll itself, which is also used for plain vertical page
+   scroll containers where a horizontal fade would make no sense. */
+.scroll-fade-x {
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, black calc(100% - 28px), transparent 100%);
 }
 
 /* Tab selector */

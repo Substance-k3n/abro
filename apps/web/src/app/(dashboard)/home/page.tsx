@@ -169,6 +169,8 @@ export default function HomePage() {
     ...youOwe.map((f) => ({ f, owed: false })),
   ];
 
+  const recentPeople = deriveRecentPeople(recentActivity, friends, profile.id);
+
   return (
     <div className="hide-scroll">
       {/* Header -- full-bleed across whatever width the viewport gives
@@ -288,6 +290,8 @@ export default function HomePage() {
               ))}
             </div>
 
+            <RecentPeople people={recentPeople} />
+
             {/* Recent activity sits under the hero on wide screens */}
             <div className="hidden md:block">
               <RecentActivity
@@ -395,6 +399,76 @@ export default function HomePage() {
         </div>
       </div>
     </div>
+  );
+}
+
+const MAX_RECENT_PEOPLE = 8;
+
+/** Whoever you've actually split with most recently, most recent
+ * first -- derived from the recent-activity data this screen already
+ * loaded (no extra request), then padded out with the rest of your
+ * friends if there's room. A quick-glance "jump to this person"
+ * strip, not a feature this app doesn't have (inspired by a wallet
+ * app's "Recent Transfers" row, 2026-11-10 -- kept the idea, not the
+ * card/balance chrome around it, since ABRO has no stored balance or
+ * card to show). */
+function deriveRecentPeople(
+  recentActivity: AuthExpense[],
+  friends: FriendListItem[],
+  meId: string,
+): AuthProfile[] {
+  const seen = new Set<string>([meId]);
+  const recent: AuthProfile[] = [];
+  for (const expense of recentActivity) {
+    for (const p of expense.participants) {
+      if (!seen.has(p.user.id)) {
+        seen.add(p.user.id);
+        recent.push(p.user);
+      }
+    }
+  }
+  for (const { friend } of friends) {
+    if (recent.length >= MAX_RECENT_PEOPLE) {
+      break;
+    }
+    if (!seen.has(friend.id)) {
+      seen.add(friend.id);
+      recent.push(friend);
+    }
+  }
+  return recent.slice(0, MAX_RECENT_PEOPLE);
+}
+
+function RecentPeople({ people }: { people: AuthProfile[] }) {
+  if (people.length === 0) {
+    return null;
+  }
+  return (
+    <section className="mb-7">
+      <SectionHeader title="People" href="/friends" />
+      <div className="hide-scroll scroll-fade-x -mx-5 flex gap-4 overflow-x-auto px-5 pb-1 md:-mx-8 md:px-8">
+        {people.map((p) => (
+          <Link
+            key={p.id}
+            href={`/friends/${p.id}`}
+            className="flex w-16 shrink-0 flex-col items-center gap-1.5"
+          >
+            <Avatar
+              initials={initialsOf(p.displayName)}
+              color={colorForId(p.id)}
+              size={52}
+              src={photoSrc(p.avatarUrl)}
+            />
+            <span
+              className="w-full truncate text-center text-[0.74rem] font-medium"
+              style={{ color: 'var(--t-secondary)' }}
+            >
+              {p.displayName.split(' ')[0]}
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }
 

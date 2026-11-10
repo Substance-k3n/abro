@@ -8,7 +8,13 @@
 // person renders the same color everywhere and across reloads, without
 // needing to store one.
 
-const AVATAR_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#14b8a6', '#8b5cf6', '#f43f5e'];
+// Two of these were the old indigo/violet brand's own hues (#6366f1,
+// #8b5cf6); the first replacement (#0ea5e9 sky-blue, #14b8a6 teal) had
+// the same problem one level up -- it's not the exact old shade that
+// reads wrong, it's the whole blue/cyan/teal family next to a warm
+// orange brand (2026-11-10 feedback). Every color here is warm or
+// neutral now: rose, pink, gold, olive, mustard-brown, rose-red.
+const AVATAR_COLORS = ['#be185d', '#ec4899', '#f59e0b', '#4d7c0f', '#a16207', '#f43f5e'];
 
 export function initialsOf(displayName: string): string {
   const trimmed = displayName.trim();
