@@ -8,7 +8,11 @@
 // person renders the same color everywhere and across reloads, without
 // needing to store one.
 
-const AVATAR_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#14b8a6', '#8b5cf6', '#f43f5e'];
+// Two of these were the old indigo/violet brand's own hues (#6366f1,
+// #8b5cf6) -- replaced with #0ea5e9/#a16207, since a leftover brand
+// color showing up as "just some person's avatar color" still reads as
+// an unfinished rebrand (2026-11-10 feedback).
+const AVATAR_COLORS = ['#0ea5e9', '#ec4899', '#f59e0b', '#14b8a6', '#a16207', '#f43f5e'];
 
 export function initialsOf(displayName: string): string {
   const trimmed = displayName.trim();
