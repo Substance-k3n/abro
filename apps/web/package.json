@@ -13,6 +13,7 @@
   "dependencies": {
     "@abro/types": "workspace:*",
     "@abro/ui": "workspace:*",
+    "@tezaz/react": "0.4.0",
     "lucide-react": "^1.45.0",
     "next": "15.5.18",
     "qrcode": "^1.5.4",

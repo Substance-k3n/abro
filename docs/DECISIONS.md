@@ -7,6 +7,34 @@ understand why the repo looks the way it does instead of following
 
 ---
 
+## ADR-031: Voice commands again, the package way (@tezaz/react)
+
+**Status:** Accepted (user request, 2026-11-09). Follows ADR-030.
+
+**Context:** ADR-030 cleared the pilot wiring so voice could be integrated
+again the way Tezaz is now meant to be used: from npm, with the site
+registering its own actions.
+
+**Decision:** web-only. `components/Voice.tsx` wraps the app in
+`TezazProvider` (relay `wss://tezaz.onrender.com/v1/session`, `am-ET`) in
+the root layout and renders `<TezazWidget project=…>` once, so its look
+comes from the Tezaz console. It registers three capabilities that call
+what the app already does: `open_page` (main screens), `open_group` (by
+name, via `listGroups`) and `start_expense` (opens `/expenses/new`,
+optionally for a group). None writes or moves money, so none needs a
+confirmation; anything that does must be registered `dangerous: true`.
+
+**Alternatives:** a backend token route (`token`) as Tezaz recommends for
+production -- not yet; the dev public key with page tokens keeps this a
+pure web change.
+
+**Consequences:** the session uses the dev public key in the page, so
+voice is open to every visitor until we move to backend tokens. No API,
+admin or migration changes. Tezaz's default `apiActions` stays on, so
+actions published in the Tezaz console can also run from the page.
+
+---
+
 ## ADR-030: Voice commands removed -- a clean slate for a fresh integration
 
 **Status:** Accepted (user request, 2026-11-09). Retires ADR-027 and the

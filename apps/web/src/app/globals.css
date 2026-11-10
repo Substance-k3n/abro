@@ -177,6 +177,20 @@ body {
   text-size-adjust: 100%;
 }
 
+/* A soft color wash behind the auth cards (sign-in, OTP) -- the one
+   place a gradient is purely decorative rather than a UI fill, kept
+   very faint and brand-colored instead of a stock illustration or a
+   literal 3D render. Radial, centered on the card, fading out well
+   before the page edges so it never fights the grid pattern or reads
+   as a colored page. */
+.auth-glow {
+  background-image: radial-gradient(
+    ellipse 480px 320px at 50% 38%,
+    color-mix(in srgb, var(--accent) 10%, transparent),
+    transparent 70%
+  );
+}
+
 /* ===================== PHONE / INSTALLED-APP POLISH ===================== */
 /* viewport-fit=cover (app/layout.tsx) lets ABRO draw edge to edge on
    phones with a notch; these insets keep content out from under it and
@@ -464,35 +478,78 @@ body {
   }
 }
 
-/* OTP input, used by email verification */
+/* OTP input, used by email verification. Raised off the page (real
+   shadow, not the flat inset the old version used) so each box reads
+   as a tappable object, bigger and bolder than a typical input --
+   this is the one thing on the screen, so it gets to be the one bold
+   element (2026-11-09 feedback: wanted a more "visible response"). */
 .otp-box {
-  width: 48px;
-  height: 56px;
+  width: 50px;
+  height: 58px;
   text-align: center;
   font-family: var(--font-mono);
-  font-size: 1.25rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  background: var(--neo-bg);
-  border: 1px solid var(--border-med);
+  font-size: 1.4rem;
+  font-weight: 700;
+  background: var(--neo-bg2);
+  border: 1.5px solid var(--border-sub);
   outline: none;
   border-radius: 14px;
   color: var(--t-primary);
+  box-shadow: 0 2px 8px -3px rgba(0, 0, 0, 0.12);
   transition:
     border-color 0.15s ease,
-    background-color 0.15s ease;
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+/* Chrome/Safari paint their own autofill styling (a tinted background,
+   sometimes a text color that doesn't apply until the field is
+   interacted with) over whatever this class sets, once
+   autoComplete="one-time-code" below tells them these are fillable --
+   reported as "can't see it's filled till I click on it". Forcing both
+   back to this class's own colors, and defeating Chrome's
+   autofill-background transition trick with a very long one of our
+   own (the standard workaround -- there's no "turn off autofill
+   styling" property). */
+.otp-box:-webkit-autofill {
+  -webkit-text-fill-color: var(--t-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--neo-bg2) inset;
+  box-shadow: 0 0 0 1000px var(--neo-bg2) inset;
+  transition: background-color 9999s ease-in-out 0s;
 }
 
 .otp-box:focus {
   border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-light);
 }
 
 /* A digit that's been entered reads as "locked in" at a glance, not
    just the same empty box with different text -- the six boxes are
-   otherwise identical, so this is the only progress signal there is. */
+   otherwise identical, so this is the only progress signal there is.
+   The pop plays once per fill (the class is only added once a digit
+   lands), not on every render. */
 .otp-box-filled {
   border-color: var(--accent);
-  background: var(--accent-light);
+  box-shadow: 0 4px 12px -4px color-mix(in srgb, var(--accent) 45%, transparent);
+  animation: otpPop 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes otpPop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .otp-box-filled {
+    animation: none;
+  }
 }
 
 /* Fonts, fed by next/font/local in layout.tsx */

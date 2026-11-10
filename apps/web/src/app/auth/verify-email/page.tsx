@@ -25,7 +25,7 @@
 // The address is shown masked (maskEmail in ~/lib/format.ts) -- enough to
 // recognize which inbox to check without printing it in full on screen.
 
-import { Mail } from 'lucide-react';
+import { Logomark } from '@abro/ui';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
@@ -86,13 +86,25 @@ function VerifyEmailForm() {
   }, [otp, email]);
 
   const handleChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) {
+    const digits = value.replace(/\D/g, '');
+    if (digits.length > 1) {
+      // The OS/browser autofilled or the user pasted the whole code into
+      // one box -- spread it across all six from the start instead of
+      // keeping only the last character of whatever landed here (what
+      // this used to do; looked like the box filled itself with a wrong,
+      // random digit rather than actually accepting the code).
+      const next = digits.slice(0, 6).split('');
+      while (next.length < 6) {
+        next.push('');
+      }
+      setOtp(next);
+      inputRefs.current[Math.min(digits.length, 6) - 1]?.focus();
       return;
     }
     const next = [...otp];
-    next[index] = value.slice(-1);
+    next[index] = digits;
     setOtp(next);
-    if (value && index < 5) {
+    if (digits && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
@@ -121,74 +133,84 @@ function VerifyEmailForm() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center px-7 py-16 sm:justify-center sm:py-20">
-      <div
-        className="neo-raised-lg mb-7 flex h-[72px] w-[72px] items-center justify-center rounded-[24px]"
-        aria-hidden
-      >
-        <Mail size={32} strokeWidth={1.5} color="var(--accent)" />
-      </div>
-
-      <h2
-        className="font-display text-center text-[1.8rem] font-bold tracking-tight"
-        style={{ color: 'var(--t-primary)' }}
-      >
-        Check your email
-      </h2>
-      <p className="mt-2 text-center text-sm leading-relaxed" style={{ color: 'var(--t-muted)' }}>
-        We sent a 6-digit code to
-        <br />
-        <strong style={{ color: 'var(--t-secondary)' }}>{maskEmail(email)}</strong>
-      </p>
-      <button
-        type="button"
-        onClick={() => router.push(`/auth/signin?email=${encodeURIComponent(email)}`)}
-        className="mb-6 mt-1 text-[0.78rem] font-semibold"
-        style={{ color: 'var(--accent)' }}
-      >
-        Wrong email? Change it
-      </button>
-
-      {error && (
-        <p
-          className="mb-4 rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
-          style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
+    <main className="auth-glow flex min-h-screen flex-col items-center justify-center px-5 py-12">
+      <div className="neo-raised-lg flex w-full max-w-[380px] flex-col items-center rounded-[28px] p-6 sm:p-8">
+        <div
+          className="mb-5 flex h-16 w-16 items-center justify-center rounded-[20px]"
+          style={{ background: 'var(--accent-light)' }}
         >
-          {error}
+          <Logomark size={34} />
+        </div>
+
+        <h2
+          className="font-display text-center text-[1.4rem] font-bold tracking-tight"
+          style={{ color: 'var(--t-primary)' }}
+        >
+          Enter the code
+        </h2>
+        <p className="mt-1.5 text-center text-[0.85rem]" style={{ color: 'var(--t-muted)' }}>
+          We&apos;ve sent a code to{' '}
+          <strong style={{ color: 'var(--t-secondary)' }}>{maskEmail(email)}</strong>
         </p>
-      )}
 
-      <div className="mb-8 flex gap-2.5">
-        {otp.map((digit, index) => (
-          <input
-            // Fixed 6-slot positional layout that never reorders — index is the
-            // correct, stable identity for "digit N of the code", not a code smell here.
-            key={`otp-digit-${index}`}
-            ref={(el) => {
-              inputRefs.current[index] = el;
-            }}
-            className={`otp-box ${digit ? 'otp-box-filled' : ''}`}
-            type="text"
-            inputMode="numeric"
-            maxLength={1}
-            value={digit}
-            disabled={verifying}
-            onChange={(e) => handleChange(index, e.target.value)}
-            onKeyDown={(e) => handleKeyDown(index, e)}
-            aria-label={`Digit ${index + 1} of 6`}
-          />
-        ))}
+        {error && (
+          <p
+            className="mt-4 rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
+            style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
+          >
+            {error}
+          </p>
+        )}
+
+        <div className="mb-5 mt-6 flex gap-2.5">
+          {otp.map((digit, index) => (
+            <input
+              // Fixed 6-slot positional layout that never reorders — index is the
+              // correct, stable identity for "digit N of the code", not a code smell here.
+              key={`otp-digit-${index}`}
+              ref={(el) => {
+                inputRefs.current[index] = el;
+              }}
+              className={`otp-box ${digit ? 'otp-box-filled' : ''}`}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={digit}
+              disabled={verifying}
+              onChange={(e) => handleChange(index, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(index, e)}
+              aria-label={`Digit ${index + 1} of 6`}
+            />
+          ))}
+        </div>
+
+        <p className="text-[0.82rem]" style={{ color: 'var(--t-muted)' }}>
+          Didn&apos;t get a code?{' '}
+          <button
+            type="button"
+            onClick={resend}
+            disabled={cooldown > 0}
+            className="font-semibold disabled:opacity-50"
+            style={{ color: cooldown > 0 ? 'var(--t-muted)' : 'var(--accent)' }}
+          >
+            {cooldown > 0
+              ? `Resend in 0:${cooldown.toString().padStart(2, '0')}`
+              : 'Click to resend.'}
+          </button>
+        </p>
+
+        <div className="my-5 h-px w-full" style={{ background: 'var(--border-sub)' }} />
+
+        <button
+          type="button"
+          onClick={() => router.push(`/auth/signin?email=${encodeURIComponent(email)}`)}
+          className="text-[0.82rem] font-medium"
+          style={{ color: 'var(--t-dim)' }}
+        >
+          Wrong email? <span style={{ color: 'var(--t-secondary)' }}>Change it</span>
+        </button>
       </div>
-
-      <button
-        type="button"
-        onClick={resend}
-        disabled={cooldown > 0}
-        className="text-[0.85rem] font-medium disabled:opacity-50"
-        style={{ color: 'var(--accent)' }}
-      >
-        {cooldown > 0 ? `Resend code (0:${cooldown.toString().padStart(2, '0')})` : 'Resend code'}
-      </button>
     </main>
   );
 }
