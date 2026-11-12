@@ -86,16 +86,6 @@
   --page-bg: var(--neo-bg);
   --nav-shadow: 0 -1px 0 var(--border-med), 0 -8px 20px -12px rgba(0, 0, 0, 0.14);
 
-  /* A hairline square grid on the page background only (never on
-     cards/panels) -- ledger/graph-paper ruling, same technique as the
-     admin portal's .grid-texture (globals.css there), just ink-on-light
-     instead of white-on-dark. Replaces an earlier noise-grain attempt:
-     a semi-transparent fill over the whole page visibly darkened/dirtied
-     the base color against the pure-white sidebar; a grid's lines cover
-     almost no area, so the page stays the same color with a faint
-     pattern on it instead of a different, grayer color. */
-  --page-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M24 0H0V24' fill='none' stroke='%23000000' stroke-opacity='0.025'/%3E%3C/svg%3E");
-
   color-scheme: light;
 }
 
@@ -148,10 +138,6 @@
   --page-bg: var(--neo-bg);
   --nav-shadow: 0 -1px 0 var(--border-med), 0 -8px 20px -12px rgba(0, 0, 0, 0.55);
 
-  /* Same grid, white lines instead of ink -- black on a dark page would
-     be invisible. */
-  --page-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24'%3E%3Cpath d='M24 0H0V24' fill='none' stroke='%23ffffff' stroke-opacity='0.03'/%3E%3C/svg%3E");
-
   color-scheme: dark;
 }
 
@@ -164,7 +150,6 @@ html,
 body {
   min-height: 100%;
   background-color: var(--page-bg);
-  background-image: var(--page-pattern);
   font-family: var(--font-body);
   color: var(--t-secondary);
   /* No rubber-band bounce pulling the whole app past its edges (iOS). */
