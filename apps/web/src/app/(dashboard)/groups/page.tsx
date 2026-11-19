@@ -31,9 +31,8 @@
 // and this is where they join. Accepting reloads the page (the group
 // now appears below); declining just drops the invite.
 
-import { EmptyState, GroupIcon } from '@abro/ui';
-import { Check, ChevronRight, PiggyBank, Plus, Users, X } from 'lucide-react';
-import Link from 'next/link';
+import { GroupIcon } from '@abro/ui';
+import { Check, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
@@ -50,21 +49,10 @@ import {
   listGroupInvites,
   listGroups,
 } from '~/lib/groups-api';
-import { GroupPicture } from '~/components/GroupPicture';
-import { Amount, SectionHeader } from '~/components/refresh';
+import { type GroupCardData, GroupsView } from '~/components/groups/GroupsView';
+import { SectionHeader } from '~/components/refresh';
+import { type AuthExpense, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
 import { useApiRefresh } from '~/lib/use-api-refresh';
-
-interface GroupCardData {
-  id: string;
-  name: string;
-  /** Positive = the group owes you (no sign conversion -- see
-   * ~/lib/balances-api.ts's header comment). */
-  balance: bigint;
-  memberCount: number;
-  lastActivityAt: string;
-  groupType: ReturnType<typeof groupTypeFor>;
-  photo: string | null;
-}
 
 function toCards(groups: GroupListItem[], balances: BalancesSummary): GroupCardData[] {
   const byId = new Map(groups.map((g) => [g.id, g]));
@@ -82,63 +70,10 @@ function toCards(groups: GroupListItem[], balances: BalancesSummary): GroupCardD
   });
 }
 
-function GroupCard({ group }: { group: GroupCardData }) {
-  const isSettled = group.balance === 0n;
-
-  return (
-    <Link
-      href={`/groups/${group.id}`}
-      className="neo-raised flex items-start gap-3.5 rounded-[20px] p-4"
-    >
-      <div
-        className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-2xl"
-        style={{
-          background: group.groupType.tint,
-          color: group.groupType.color,
-        }}
-      >
-        <GroupPicture photo={group.photo} icon={group.groupType.icon} size={24} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2">
-          <p
-            className="font-display truncate text-[1rem] font-semibold tracking-tight"
-            style={{ color: 'var(--t-primary)' }}
-          >
-            {group.name}
-          </p>
-          <span
-            className="neo-flat shrink-0 rounded-lg px-2 py-0.5 text-[0.68rem] font-semibold"
-            style={{ color: 'var(--t-muted)' }}
-          >
-            {group.groupType.label}
-          </span>
-        </div>
-        <p className="mb-2.5 text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
-          {group.memberCount} {group.memberCount === 1 ? 'member' : 'members'} · Active{' '}
-          {formatShortDate(group.lastActivityAt)}
-        </p>
-        <div className="flex items-baseline justify-between">
-          <p
-            className="text-[0.78rem]"
-            style={{
-              color: isSettled ? 'var(--t-dim)' : group.balance > 0n ? 'var(--owed)' : 'var(--owe)',
-            }}
-          >
-            {isSettled ? 'All square' : group.balance > 0n ? "You're owed" : 'You owe'}
-          </p>
-          {!isSettled && (
-            <Amount value={group.balance} tone={group.balance > 0n ? 'owed' : 'owe'} size="md" />
-          )}
-        </div>
-      </div>
-    </Link>
-  );
-}
-
 export default function GroupsPage() {
   const [cards, setCards] = useState<GroupCardData[] | null>(null);
   const [invites, setInvites] = useState<GroupInvite[]>([]);
+  const [recent, setRecent] = useState<{ expenses: AuthExpense[]; myId: string } | null>(null);
   const [myId, setMyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyInvite, setBusyInvite] = useState<string | null>(null);
@@ -146,11 +81,19 @@ export default function GroupsPage() {
 
   const load = () => {
     setError(null);
-    Promise.all([listGroups(), getBalancesSummary(), listGroupInvites(), me()])
-      .then(([groups, balances, pending, profile]) => {
+    Promise.all([
+      listGroups(),
+      getBalancesSummary(),
+      listGroupInvites(),
+      me(),
+      // Best-effort: the list works without the activity strip.
+      listExpenses({ limit: 20 }).catch(() => [] as AuthExpense[]),
+    ])
+      .then(([groups, balances, pending, profile, expenses]) => {
         setCards(toCards(groups, balances));
         setInvites(pending);
         setMyId(profile.id);
+        setRecent({ expenses, myId: profile.id });
       })
       .catch((err) => {
         setError(err instanceof ApiError ? err.message : 'Could not load your groups.');
@@ -188,133 +131,69 @@ export default function GroupsPage() {
     return <LoadingState />;
   }
 
-  const activeGroups = cards.filter((g) => g.balance !== 0n);
-  const settledGroups = cards.filter((g) => g.balance === 0n);
+  const groupNameById = new Map(cards.map((g) => [g.id, g.name]));
+  const activity = (recent?.expenses ?? [])
+    .filter((e) => e.groupId !== null && groupNameById.has(e.groupId))
+    .slice(0, 4)
+    .map((e) => ({ id: e.id, display: toActivityDisplay(e, recent!.myId, groupNameById) }));
 
-  return (
-    <div className="hide-scroll px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
-      <div className="mb-6 flex items-center justify-between">
-        <h2
-          className="font-display text-[1.6rem] font-semibold tracking-tight"
-          style={{ color: 'var(--t-primary)' }}
-        >
-          Groups
-        </h2>
-        <Link
-          href="/groups/new"
-          className="neo-btn-accent flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[0.8rem] font-semibold"
-        >
-          <Plus size={14} strokeWidth={2.5} />
-          New group
-        </Link>
-      </div>
-
-      {/* Ekub has no bottom-bar slot; on a phone this is the way in (ADR-024). */}
-      <Link href="/ekub" className="neo-raised mb-6 flex items-center gap-3 rounded-2xl px-4 py-3">
-        <div
-          className="neo-raised-sm flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          style={{ color: 'var(--accent)' }}
-        >
-          <PiggyBank size={20} strokeWidth={1.8} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="text-[0.92rem] font-semibold" style={{ color: 'var(--t-primary)' }}>
-            Ekub
+  const inviteList =
+    invites.length > 0 ? (
+      <div className="mb-6">
+        <SectionHeader title={`Group invites (${invites.length})`} />
+        {inviteError && (
+          <p className="mb-2 text-[0.85rem]" role="alert" style={{ color: 'var(--owe)' }}>
+            {inviteError}
           </p>
-          <p className="truncate text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
-            Rotating savings: everyone puts in, one turn takes the pot
-          </p>
-        </div>
-        <ChevronRight size={18} style={{ color: 'var(--t-dim)' }} />
-      </Link>
-
-      {invites.length > 0 && (
-        <div className="mb-6">
-          <SectionHeader title={`Group invites (${invites.length})`} />
-          {inviteError && (
-            <p className="mb-2 text-[0.85rem]" role="alert" style={{ color: 'var(--owe)' }}>
-              {inviteError}
-            </p>
-          )}
-          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-            {invites.map((invite) => {
-              const type = groupTypeFor(invite.group.type);
-              const busy = busyInvite === invite.group.id;
-              return (
+        )}
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+          {invites.map((invite) => {
+            const type = groupTypeFor(invite.group.type);
+            const busy = busyInvite === invite.group.id;
+            return (
+              <div
+                key={invite.group.id}
+                className="neo-raised flex items-center gap-3 rounded-2xl px-4 py-3"
+              >
                 <div
-                  key={invite.group.id}
-                  className="neo-raised flex items-center gap-3 rounded-2xl px-4 py-3"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                  style={{ background: type.tint, color: type.color }}
                 >
-                  <div
-                    className="neo-raised-sm flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                    style={{ color: type.color }}
-                  >
-                    <GroupIcon icon={type.icon} size={20} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p
-                      className="truncate text-[0.92rem] font-semibold"
-                      style={{ color: 'var(--t-primary)' }}
-                    >
-                      {invite.group.name}
-                    </p>
-                    <p className="truncate text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
-                      {type.label} · invited {formatShortDate(invite.invitedAt)}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => respond(invite, false)}
-                    disabled={busy}
-                    aria-label={`Decline ${invite.group.name}`}
-                    className="neo-btn flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-60"
-                  >
-                    <X size={16} strokeWidth={2.25} style={{ color: 'var(--owe)' }} />
-                  </button>
-                  <button
-                    onClick={() => respond(invite, true)}
-                    disabled={busy}
-                    aria-label={`Join ${invite.group.name}`}
-                    className="neo-btn-accent flex h-9 w-9 items-center justify-center rounded-xl"
-                  >
-                    <Check size={16} strokeWidth={2.25} />
-                  </button>
+                  <GroupIcon icon={type.icon} size={20} />
                 </div>
-              );
-            })}
-          </div>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="truncate text-[0.92rem] font-semibold"
+                    style={{ color: 'var(--t-primary)' }}
+                  >
+                    {invite.group.name}
+                  </p>
+                  <p className="truncate text-[0.75rem]" style={{ color: 'var(--t-dim)' }}>
+                    {type.label} · invited {formatShortDate(invite.invitedAt)}
+                  </p>
+                </div>
+                <button
+                  onClick={() => respond(invite, false)}
+                  disabled={busy}
+                  aria-label={`Decline ${invite.group.name}`}
+                  className="neo-btn flex h-11 w-11 items-center justify-center rounded-xl disabled:opacity-60"
+                >
+                  <X size={16} strokeWidth={2.25} style={{ color: 'var(--owe)' }} />
+                </button>
+                <button
+                  onClick={() => respond(invite, true)}
+                  disabled={busy}
+                  aria-label={`Join ${invite.group.name}`}
+                  className="neo-btn-accent flex h-11 w-11 items-center justify-center rounded-xl"
+                >
+                  <Check size={16} strokeWidth={2.25} />
+                </button>
+              </div>
+            );
+          })}
         </div>
-      )}
+      </div>
+    ) : null;
 
-      {cards.length === 0 ? (
-        <EmptyState
-          icon={<Users size={26} strokeWidth={1.5} />}
-          title="No groups yet"
-          description="Create a group to start splitting expenses with friends."
-        />
-      ) : (
-        <div className="flex flex-col gap-6">
-          {activeGroups.length > 0 && (
-            <div>
-              <SectionHeader title="With a balance" />
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {activeGroups.map((g) => (
-                  <GroupCard key={g.id} group={g} />
-                ))}
-              </div>
-            </div>
-          )}
-          {settledGroups.length > 0 && (
-            <div>
-              <SectionHeader title="All square" />
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                {settledGroups.map((g) => (
-                  <GroupCard key={g.id} group={g} />
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  return <GroupsView cards={cards} activity={activity} invites={inviteList} />;
 }
