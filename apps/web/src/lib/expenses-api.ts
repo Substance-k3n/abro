@@ -214,17 +214,21 @@ export function toActivityDisplay(
   // myself only), the row is just my spending.
   const share = BigInt(myShare);
   const lent = iPaid ? BigInt(expense.amount) - share : 0n;
+  // A group expense is visible to every member, including ones it doesn't
+  // involve (two of three roommates split a bill). That is not a debt of
+  // mine: neutral, no amount, and a sub line that says why.
+  const notInIt = !iPaid && !expense.participants.some((p) => p.user.id === meId);
 
   return {
     category: expense.category,
     title: expense.name,
     sub: groupName
-      ? `${groupName} • ${SPLIT_LABELS[expense.splitType] ?? expense.splitType}`
+      ? `${groupName} • ${notInIt ? "You're not in this split" : (SPLIT_LABELS[expense.splitType] ?? expense.splitType)}`
       : otherNames
         ? `You & ${otherNames}`
         : 'Just you',
     amount: lent > 0n ? lent : share,
-    dir: iPaid ? (lent > 0n ? 'receive' : 'paid') : 'owe',
+    dir: iPaid ? (lent > 0n ? 'receive' : 'paid') : notInIt ? 'paid' : 'owe',
     time,
   };
 }
