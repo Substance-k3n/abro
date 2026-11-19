@@ -128,7 +128,7 @@ export function HomeView(p: HomeViewProps) {
             >
               <Link
                 href="/settle"
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white px-3 py-3 text-[0.88rem] font-semibold transition-transform active:scale-[0.98]"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white px-3 py-2.5 text-[0.88rem] font-semibold transition-transform active:scale-[0.98]"
                 style={{ color: '#9c3209' }}
               >
                 <Handshake size={18} strokeWidth={2} aria-hidden />
@@ -136,7 +136,7 @@ export function HomeView(p: HomeViewProps) {
               </Link>
               <Link
                 href="/expenses/new?type=iou"
-                className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/[0.16] px-3 py-3 text-[0.88rem] font-semibold text-white transition-colors active:bg-white/25"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white/[0.16] px-3 py-2.5 text-[0.88rem] font-semibold text-white transition-colors active:bg-white/25"
               >
                 <Receipt size={18} strokeWidth={2} aria-hidden />
                 IOU
