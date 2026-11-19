@@ -466,7 +466,10 @@ body {
 
 /* OTP input, used by email verification */
 .otp-box {
-  width: 48px;
+  /* Fills its grid cell: six fixed 48px boxes plus gaps were 338px, wider
+     than a 320px phone. */
+  width: 100%;
+  min-width: 0;
   height: 56px;
   text-align: center;
   font-family: var(--font-mono);
