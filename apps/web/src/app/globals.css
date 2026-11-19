@@ -27,8 +27,8 @@
   /* Surface tones -- --neo-bg is the page, --neo-bg2 (plain white) is
      cards/buttons that sit on it. --neo-dark is the skeleton-loading
      pulse color only (LoadStates.tsx). */
-  --neo-bg: #f5f7f5;
-  --neo-dark: #d9dbd9;
+  --neo-bg: #f8f7f4;
+  --neo-dark: #dedcd8;
   --neo-bg2: #ffffff;
 
   /* Status colors */

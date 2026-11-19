@@ -30,7 +30,7 @@ const SIZES = {
   xl: { num: 'text-[2.75rem] leading-none', cur: 'text-[1rem]' },
 } as const;
 
-function digits(value: MinorUnits): string {
+export function digits(value: MinorUnits): string {
   const abs = value < 0n ? -value : value;
   return toDecimal(abs, ETB.decimalDigits).toLocaleString('en-US', {
     minimumFractionDigits: ETB.decimalDigits,
@@ -215,12 +215,15 @@ export function HeroBalance({
   oweTotal,
   onOwed,
   onOwe,
+  children,
 }: {
   net: MinorUnits;
   owedTotal: MinorUnits;
   oweTotal: MinorUnits;
   onOwed: () => void;
   onOwe: () => void;
+  /** Actions along the bottom of the card (Home: Settle up, IOU...). */
+  children?: ReactNode;
 }) {
   const settled = net === 0n && owedTotal === 0n && oweTotal === 0n;
   const total = owedTotal + oweTotal;
@@ -256,6 +259,7 @@ export function HeroBalance({
           </div>
         </>
       )}
+      {children && <div className="mt-4 flex gap-2.5">{children}</div>}
     </section>
   );
 }
