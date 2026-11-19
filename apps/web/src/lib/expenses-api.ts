@@ -206,6 +206,15 @@ export function toActivityDisplay(
     .map((u) => u.displayName.split(' ')[0])
     .join(', ');
 
+  // What I paid is not what I'm owed: if I covered 900 and my own share was
+  // 300, the others owe me 600, and that is the figure that matters on a
+  // row (green, "owed to you"). It used to show my 300 share, in neutral
+  // colour, next to rows that showed what I owe in red -- two different
+  // meanings for the same column. If nothing comes back to me (I paid for
+  // myself only), the row is just my spending.
+  const share = BigInt(myShare);
+  const lent = iPaid ? BigInt(expense.amount) - share : 0n;
+
   return {
     category: expense.category,
     title: expense.name,
@@ -214,8 +223,8 @@ export function toActivityDisplay(
       : otherNames
         ? `You & ${otherNames}`
         : 'Just you',
-    amount: BigInt(myShare),
-    dir: iPaid ? 'paid' : 'owe',
+    amount: lent > 0n ? lent : share,
+    dir: iPaid ? (lent > 0n ? 'receive' : 'paid') : 'owe',
     time,
   };
 }
