@@ -11,25 +11,14 @@
 // links; chips and tiles stay neutral, and green/red mean money only.
 
 import { Avatar, EmptyState, Logomark } from '@abro/ui';
-import {
-  Bell,
-  CalendarDays,
-  CheckCircle2,
-  Handshake,
-  PiggyBank,
-  Plus,
-  Receipt,
-  Search,
-  UserPlus,
-  Users,
-  Wallet,
-} from 'lucide-react';
+import { Bell, Handshake, Plus, Receipt, Search, UserPlus, Users, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import type { MinorUnits } from '@abro/types';
 
 import { ActivityRow } from '~/components/ActivityRow';
+import { EkubCard, type EkubCardData } from '~/components/ekub/EkubCard';
 import { GroupPicture } from '~/components/GroupPicture';
 import { InstallApp } from '~/components/InstallApp';
 import { PushNotifications } from '~/components/PushNotifications';
@@ -47,23 +36,6 @@ import type { FriendRow, GroupRow } from '~/lib/balances-api';
 import type { ActivityDisplay } from '~/lib/expenses-api';
 import type { GroupType } from '~/lib/groups-api';
 
-export interface HomeEkub {
-  id: string;
-  name: string;
-  memberCount: number;
-  /** "500.00 ETB monthly" -- what each turn puts in, and how often. */
-  contribution: string;
-  currentRound: number;
-  totalRounds: number;
-  /** "Mon 2 Mar", or null before a date is set. */
-  nextDue: string | null;
-  /** Who takes the pot this round. */
-  recipient: string | null;
-  members: { id: string; initials: string; color: string; photo: string | null }[];
-  /** Still to put in this round, formatted ("500.00 ETB"), or null. */
-  toPay: string | null;
-}
-
 export type HomeGroup = GroupRow & { groupType: GroupType & { tint: string } };
 
 export interface HomeViewProps {
@@ -73,7 +45,7 @@ export interface HomeViewProps {
   owedTotal: MinorUnits;
   oweTotal: MinorUnits;
   friends: FriendRow[];
-  ekub: HomeEkub | null;
+  ekub: EkubCardData | null;
   groups: HomeGroup[];
   activity: { id: string; display: ActivityDisplay }[];
   /** Payments others say they made to you, waiting for you to confirm. */
@@ -155,9 +127,10 @@ export function HomeView(p: HomeViewProps) {
             </div>
 
             {p.ekub && (
-              <div className="mt-7">
+              <section className="mt-7">
+                <SectionHeader title="Ekub" href="/ekub" />
                 <EkubCard ekub={p.ekub} />
-              </div>
+              </section>
             )}
 
             <div className="mt-7 hidden md:block">
@@ -332,110 +305,6 @@ function FriendsStrip({ friends }: { friends: FriendRow[] }) {
           );
         })}
       </div>
-    </section>
-  );
-}
-
-function EkubCard({ ekub }: { ekub: HomeEkub }) {
-  const pct = ekub.totalRounds > 0 ? Math.round((ekub.currentRound / ekub.totalRounds) * 100) : 0;
-  const extra = ekub.memberCount - ekub.members.length;
-  return (
-    <section>
-      <SectionHeader title="Ekub" href="/ekub" />
-      <Link href={`/ekub/${ekub.id}`} className="neo-raised block rounded-[22px] p-4">
-        <div className="flex items-start gap-3">
-          <Tile tint="var(--accent-light)" color="var(--accent)" size={44}>
-            <PiggyBank size={21} strokeWidth={1.9} />
-          </Tile>
-          <div className="min-w-0 flex-1">
-            <p
-              className="truncate text-[0.98rem] font-semibold"
-              style={{ color: 'var(--t-primary)' }}
-            >
-              {ekub.name}
-            </p>
-            <p className="mt-0.5 truncate text-[0.78rem]" style={{ color: 'var(--t-dim)' }}>
-              {ekub.memberCount} members &middot; {ekub.contribution}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-3.5 rounded-2xl p-3" style={{ background: 'var(--neo-bg)' }}>
-          <div className="flex items-baseline justify-between text-[0.8rem]">
-            <span className="font-semibold" style={{ color: 'var(--t-primary)' }}>
-              Round {ekub.currentRound} of {ekub.totalRounds}
-            </span>
-            <span style={{ color: 'var(--t-muted)' }}>{pct}% done</span>
-          </div>
-          <div
-            className="mt-2 flex gap-1"
-            role="progressbar"
-            aria-valuemin={0}
-            aria-valuemax={ekub.totalRounds}
-            aria-valuenow={ekub.currentRound}
-            aria-label="Ekub progress"
-          >
-            {Array.from({ length: ekub.totalRounds }, (_, i) => (
-              <span
-                key={i}
-                className="h-1.5 flex-1 rounded-full"
-                style={{
-                  background: i < ekub.currentRound ? 'var(--accent)' : 'var(--border-med)',
-                }}
-              />
-            ))}
-          </div>
-          <div
-            className="mt-2.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[0.76rem]"
-            style={{ color: 'var(--t-muted)' }}
-          >
-            {ekub.nextDue && (
-              <span className="inline-flex items-center gap-1">
-                <CalendarDays size={14} strokeWidth={1.9} aria-hidden />
-                Due {ekub.nextDue}
-              </span>
-            )}
-            {ekub.recipient && (
-              <span className="inline-flex items-center gap-1">
-                <CheckCircle2 size={14} strokeWidth={1.9} aria-hidden />
-                Takes the pot: {ekub.recipient}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-3.5 flex items-center justify-between">
-          <div className="flex items-center">
-            {ekub.members.map((m, i) => (
-              <span
-                key={m.id}
-                className={`rounded-[11px] ${i === 0 ? '' : '-ml-2'}`}
-                style={{ boxShadow: '0 0 0 2px var(--neo-bg2)' }}
-              >
-                <Avatar initials={m.initials} color={m.color} size={30} src={m.photo} />
-              </span>
-            ))}
-            {extra > 0 && (
-              <span
-                className="-ml-2 flex h-[30px] min-w-[30px] items-center justify-center rounded-full px-1 text-[0.7rem] font-semibold"
-                style={{ background: 'var(--neo-bg)', color: 'var(--t-muted)' }}
-              >
-                +{extra}
-              </span>
-            )}
-          </div>
-          <span
-            className="rounded-xl px-3.5 py-2 text-[0.82rem] font-semibold"
-            style={
-              ekub.toPay
-                ? { background: '#c2410c', color: '#fff' }
-                : { background: 'var(--neo-bg)', color: 'var(--t-primary)' }
-            }
-          >
-            {ekub.toPay ? `Pay ${ekub.toPay}` : 'Open'}
-          </span>
-        </div>
-      </Link>
     </section>
   );
 }

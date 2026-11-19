@@ -21,7 +21,7 @@
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
-import { type HomeEkub, HomeView, type HomeViewProps } from '~/components/home/HomeView';
+import { HomeView, type HomeViewProps } from '~/components/home/HomeView';
 import { ApiError } from '~/lib/api-client';
 import { type AuthProfile, me } from '~/lib/auth-api';
 import {
@@ -31,8 +31,8 @@ import {
   deriveGroupRows,
   getBalancesSummary,
 } from '~/lib/balances-api';
-import { type Ekub, type EkubDetail, getEkub, listEkubs } from '~/lib/ekubs-api';
-import { cadenceLabel, ekubMoney, formatDay, myPosition, turns } from '~/lib/ekub-view';
+import { type EkubDetail, listEkubs } from '~/lib/ekubs-api';
+import { loadRunningEkubs, toEkubCard } from '~/lib/ekub-card';
 import { type AuthExpense, listExpenses, toActivityDisplay } from '~/lib/expenses-api';
 import { type FriendListItem, listFriends } from '~/lib/friends-api';
 import { type AuthGroup, groupTypeFor, listGroups } from '~/lib/groups-api';
@@ -53,44 +53,15 @@ interface HomeData {
   ekub: EkubDetail | null;
 }
 
-/** The first ekub that is running and that I take part in, with its full
- * detail. Never throws: Home is more important than this card. */
+/** The first ekub that is running and that I take part in. Never throws:
+ * Home is more important than this card. */
 async function loadActiveEkub(): Promise<EkubDetail | null> {
   try {
-    const list: Ekub[] = await listEkubs();
-    const active = list.find((e) => e.status === 'ACTIVE' && e.myStatus === 'ACTIVE');
-    return active ? await getEkub(active.id) : null;
+    const [first] = await loadRunningEkubs(await listEkubs());
+    return first ?? null;
   } catch {
     return null;
   }
-}
-
-function toHomeEkub(d: EkubDetail): HomeEkub {
-  const round = Math.max(d.currentRound, 1);
-  const position = myPosition(d);
-  // What I still have to put in this round (nothing recorded yet).
-  const due = (position?.toPay ?? [])
-    .filter((o) => o.round === d.currentRound && o.status === 'DUE')
-    .reduce((sum, o) => sum + o.amount, 0n);
-  const taking = turns(d)[round - 1] ?? [];
-  const active = d.members.filter((m) => m.status === 'ACTIVE');
-  return {
-    id: d.id,
-    name: d.name,
-    memberCount: active.length,
-    contribution: `${ekubMoney(d.slotAmount, d)} ${cadenceLabel(d.cadence)}`,
-    currentRound: round,
-    totalRounds: d.rounds.length,
-    nextDue: d.rounds[round - 1]?.dueDate ? formatDay(d.rounds[round - 1]!.dueDate!) : null,
-    recipient: taking.length > 0 ? taking.map((m) => m.displayName.split(' ')[0]).join(', ') : null,
-    members: active.slice(0, 3).map((m) => ({
-      id: m.id,
-      initials: initialsOf(m.displayName),
-      color: colorForId(m.userId),
-      photo: photoSrc(m.avatarUrl),
-    })),
-    toPay: due > 0n ? ekubMoney(due, d) : null,
-  };
 }
 
 export default function HomePage() {
@@ -171,7 +142,7 @@ export default function HomePage() {
     owedTotal,
     oweTotal,
     friends: orderedFriends,
-    ekub: data.ekub ? toHomeEkub(data.ekub) : null,
+    ekub: data.ekub ? toEkubCard(data.ekub) : null,
     groups: groupRows,
     activity: recentActivity.map((e) => ({
       id: e.id,
