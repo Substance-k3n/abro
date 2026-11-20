@@ -25,10 +25,17 @@
 // banner, not a toast/modal (no toast system exists yet anywhere in this
 // app).
 
-import { Logomark } from '@abro/ui';
+import { ArrowRight, Loader2, Lock, Mail } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
+import {
+  AuthCard,
+  AuthHeading,
+  AuthShell,
+  BrandTile,
+  ErrorNote,
+} from '~/components/auth/AuthShell';
 import { ApiError, googleSignInUrl } from '~/lib/api-client';
 import { requestOtp } from '~/lib/auth-api';
 
@@ -90,9 +97,10 @@ function SignInForm() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
+    const address = email.trim();
     try {
-      await requestOtp(email);
-      router.push(`/auth/verify-email?email=${encodeURIComponent(email)}`);
+      await requestOtp(address);
+      router.push(`/auth/verify-email?email=${encodeURIComponent(address)}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.');
       setSubmitting(false);
@@ -100,44 +108,29 @@ function SignInForm() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col px-7 py-12 sm:items-center sm:justify-center sm:py-16">
-      <div className="mx-auto w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center text-center sm:mb-10">
-          <Logomark size={40} className="mb-5" />
-          <h2
-            className="font-display text-[1.7rem] font-bold tracking-tight"
-            style={{ color: 'var(--t-primary)' }}
-          >
-            Welcome back
-          </h2>
-          <p className="mt-1.5 text-sm" style={{ color: 'var(--t-muted)' }}>
-            Sign in to your ABRO account
-          </p>
-        </div>
+    <AuthShell>
+      <BrandTile />
+      <AuthHeading title="Welcome to ABRO">
+        Sign in, or create your account, in one step. No password to remember.
+      </AuthHeading>
 
+      <AuthCard>
         <form onSubmit={submit} className="flex flex-col gap-4">
           <a
             href={googleSignInUrl()}
-            className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-sm font-semibold"
-            style={{ color: 'var(--t-secondary)' }}
+            className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-[0.9rem] font-semibold"
+            style={{ color: 'var(--t-primary)' }}
           >
             <GoogleIcon /> Continue with Google
           </a>
 
           <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--t-dim)' }}>
             <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
-            or sign in with email
+            or use your email
             <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
           </div>
 
-          {(oauthError || error) && (
-            <p
-              className="rounded-xl px-3.5 py-2.5 text-center text-[0.8rem] font-medium"
-              style={{ color: 'var(--c-red-text)', background: 'var(--red-bg)' }}
-            >
-              {error ?? oauthError}
-            </p>
-          )}
+          {(oauthError || error) && <ErrorNote>{error ?? oauthError}</ErrorNote>}
 
           <div>
             <label
@@ -147,26 +140,55 @@ function SignInForm() {
             >
               Email address
             </label>
-            <input
-              id="email"
-              className="neo-input"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <Mail
+                size={18}
+                strokeWidth={1.9}
+                className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
+                style={{ color: 'var(--t-dim)' }}
+                aria-hidden
+              />
+              <input
+                id="email"
+                className="neo-input pl-11"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                autoCapitalize="none"
+                spellCheck={false}
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           <button
             type="submit"
             disabled={submitting}
-            className="neo-btn-accent font-display mt-1 rounded-[18px] px-4 py-4 text-base font-semibold"
+            className="neo-btn-accent font-display flex items-center justify-center gap-2 rounded-2xl px-4 py-3.5 text-[0.98rem] font-semibold"
           >
-            {submitting ? 'Sending code…' : 'Continue'}
+            {submitting ? (
+              <>
+                <Loader2 size={18} className="animate-spin" aria-hidden /> Sending code…
+              </>
+            ) : (
+              <>
+                Continue <ArrowRight size={18} strokeWidth={2.2} aria-hidden />
+              </>
+            )}
           </button>
         </form>
-      </div>
-    </main>
+      </AuthCard>
+
+      <p
+        className="mt-5 flex items-center justify-center gap-1.5 text-center text-[0.78rem]"
+        style={{ color: 'var(--t-dim)' }}
+      >
+        <Lock size={13} strokeWidth={2} aria-hidden />
+        We will email you a 6-digit code. It takes a few seconds.
+      </p>
+    </AuthShell>
   );
 }
