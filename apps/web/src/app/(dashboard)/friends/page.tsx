@@ -33,13 +33,13 @@
 // own `onClick` + router.push rather than being wrapped in a Link
 // (which would nest a button inside an anchor).
 
-import { Avatar, EmptyState } from '@abro/ui';
-import { Check, Plus, Search, UserX, X } from 'lucide-react';
-import Link from 'next/link';
+import { Avatar } from '@abro/ui';
+import { Check, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErrorState, LoadingState } from '~/components/LoadStates';
-import { Amount, Panel, Row, SectionHeader } from '~/components/refresh';
+import { FriendsView } from '~/components/friends/FriendsView';
+import { Panel, Row, SectionHeader } from '~/components/refresh';
 import { ApiError } from '~/lib/api-client';
 import { deriveFriendRows, getBalancesSummary } from '~/lib/balances-api';
 import {
@@ -52,25 +52,10 @@ import {
 } from '~/lib/friends-api';
 import { colorForId, initialsOf } from '~/lib/identity';
 import { photoSrc } from '~/lib/photos';
+import { remindFriend } from '~/lib/reminders-api';
 import { useApiRefresh } from '~/lib/use-api-refresh';
 
-type FriendsTab = 'unsettled' | 'settled' | 'all';
-
-const EMPTY_TITLES: Record<FriendsTab, string> = {
-  unsettled: 'All settled up',
-  settled: 'Nobody settled yet',
-  all: 'No friends yet',
-};
-
-const EMPTY_DESCRIPTIONS: Record<FriendsTab, string> = {
-  unsettled: "You don't owe anyone and nobody owes you.",
-  settled: 'Friends you have no balance with show here.',
-  all: 'Add a friend to start splitting expenses.',
-};
-
 export default function FriendsPage() {
-  const [search, setSearch] = useState('');
-  const [chosenTab, setTab] = useState<FriendsTab | null>(null);
   const [friends, setFriends] = useState<FriendListItem[] | null>(null);
   const [rows, setRows] = useState<ReturnType<typeof deriveFriendRows> | null>(null);
   const [requests, setRequests] = useState<IncomingFriendRequest[]>([]);
@@ -122,207 +107,68 @@ export default function FriendsPage() {
     return <LoadingState />;
   }
 
-  const query = search.trim().toLowerCase();
-  const filtered = query ? rows.filter((f) => f.name.toLowerCase().includes(query)) : rows;
+  // Reminders are rate limited by the API (429 + a plain-English message);
+  // that message is shown as is.
+  const remind = async (friendId: string): Promise<string | null> => {
+    try {
+      await remindFriend(friendId);
+      return null;
+    } catch (err) {
+      return err instanceof ApiError ? err.message : 'Could not send the reminder.';
+    }
+  };
 
-  const owedToYou = filtered.filter((f) => f.owes > 0n);
-  const youOwe = filtered.filter((f) => f.iOwe > 0n);
-  const settled = filtered.filter((f) => f.owes === 0n && f.iOwe === 0n);
-
-  const unsettledCount = owedToYou.length + youOwe.length;
-  // Until you pick a tab: Unsettled if anyone has a balance, else All.
-  const tab: FriendsTab = chosenTab ?? (unsettledCount > 0 ? 'unsettled' : 'all');
-  const showOwedToYou = tab !== 'settled';
-  const showSettled = tab !== 'unsettled';
-  const isEmpty = (showOwedToYou ? unsettledCount : 0) + (showSettled ? settled.length : 0) === 0;
-
-  return (
-    <div className="px-5 py-6 md:mx-auto md:max-w-4xl md:px-8 md:py-8">
-      {/* Header */}
-      <div className="mb-5 flex items-center justify-between">
-        <h2
-          className="font-display text-[1.6rem] font-semibold tracking-tight"
-          style={{ color: 'var(--t-primary)' }}
-        >
-          Friends
-        </h2>
-        <Link
-          href="/friends/add"
-          className="neo-btn-accent font-display flex items-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-semibold"
-        >
-          <Plus size={16} strokeWidth={2.25} />
-          Add friend
-        </Link>
-      </div>
-
-      {/* Search */}
-      <div className="relative mb-6 max-w-md">
-        <Search
-          size={17}
-          strokeWidth={2}
-          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2"
-          style={{ color: 'var(--t-dim)' }}
-        />
-        <input
-          type="search"
-          className="neo-input pl-11"
-          placeholder="Search friends…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          aria-label="Search friends"
-        />
-      </div>
-
-      {requests.length > 0 && (
-        <div className="mb-6">
-          <SectionHeader title={`Friend requests (${requests.length})`} />
-          {requestError && (
-            <p className="mb-2 px-1 text-[0.85rem]" role="alert" style={{ color: 'var(--owe)' }}>
-              {requestError}
-            </p>
-          )}
-          <Panel className="md:max-w-xl">
-            {requests.map((r) => {
-              const busy = busyRequest === r.friendshipId;
-              return (
-                <Row
-                  key={r.friendshipId}
-                  leading={
-                    <Avatar
-                      initials={initialsOf(r.from.displayName)}
-                      color={colorForId(r.from.id)}
-                      size={40}
-                      src={photoSrc(r.from.avatarUrl)}
-                    />
-                  }
-                  title={r.from.displayName}
-                  sub="wants to be friends"
-                  trailing={
-                    <span className="flex gap-2">
-                      <button
-                        onClick={() => respond(r, false)}
-                        disabled={busy}
-                        aria-label={`Decline ${r.from.displayName}`}
-                        className="neo-btn flex h-9 w-9 items-center justify-center rounded-xl disabled:opacity-60"
-                      >
-                        <X size={16} strokeWidth={2.25} style={{ color: 'var(--owe)' }} />
-                      </button>
-                      <button
-                        onClick={() => respond(r, true)}
-                        disabled={busy}
-                        aria-label={`Accept ${r.from.displayName}`}
-                        className="neo-btn-accent flex h-9 w-9 items-center justify-center rounded-xl"
-                      >
-                        <Check size={16} strokeWidth={2.25} />
-                      </button>
-                    </span>
-                  }
-                />
-              );
-            })}
-          </Panel>
-        </div>
-      )}
-
-      <div className="neo-inset-sm mb-5 flex max-w-md gap-1 rounded-2xl p-1" role="tablist">
-        {(
-          [
-            ['unsettled', `Unsettled (${unsettledCount})`],
-            ['settled', `Settled (${settled.length})`],
-            ['all', 'All'],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            role="tab"
-            aria-selected={tab === id}
-            onClick={() => setTab(id)}
-            className={`neo-tab flex-1 rounded-xl border-none py-2 text-[0.8rem] font-medium ${
-              tab === id ? 'active' : ''
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {isEmpty ? (
-        <EmptyState
-          icon={<UserX size={26} strokeWidth={1.5} />}
-          title={search ? 'No friends found' : EMPTY_TITLES[tab]}
-          description={
-            search
-              ? `No friends match "${search}".`
-              : rows.length === 0
-                ? 'Add a friend to start splitting expenses.'
-                : EMPTY_DESCRIPTIONS[tab]
-          }
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-7 md:grid-cols-2 md:items-start">
-          {showOwedToYou && owedToYou.length > 0 && (
-            <section>
-              <SectionHeader title="Owe you" />
-              <Panel>
-                {owedToYou.map((f) => (
-                  <Row
-                    key={f.id}
-                    href={`/friends/${f.id}`}
-                    leading={
-                      <Avatar initials={f.initials} color={f.color} size={40} src={f.photo} />
-                    }
-                    title={f.name}
-                    sub="owes you"
-                    subTone="owed"
-                    trailing={<Amount value={f.owes} tone="owed" />}
+  const requestList =
+    requests.length > 0 ? (
+      <div className="mb-6">
+        <SectionHeader title={`Friend requests (${requests.length})`} />
+        {requestError && (
+          <p className="mb-2 px-1 text-[0.85rem]" role="alert" style={{ color: 'var(--owe)' }}>
+            {requestError}
+          </p>
+        )}
+        <Panel className="md:max-w-xl">
+          {requests.map((r) => {
+            const busy = busyRequest === r.friendshipId;
+            return (
+              <Row
+                key={r.friendshipId}
+                leading={
+                  <Avatar
+                    initials={initialsOf(r.from.displayName)}
+                    color={colorForId(r.from.id)}
+                    size={40}
+                    src={photoSrc(r.from.avatarUrl)}
                   />
-                ))}
-              </Panel>
-            </section>
-          )}
+                }
+                title={r.from.displayName}
+                sub="wants to be friends"
+                trailing={
+                  <span className="flex gap-2">
+                    <button
+                      onClick={() => respond(r, false)}
+                      disabled={busy}
+                      aria-label={`Decline ${r.from.displayName}`}
+                      className="neo-btn flex h-11 w-11 items-center justify-center rounded-xl disabled:opacity-60"
+                    >
+                      <X size={16} strokeWidth={2.25} style={{ color: 'var(--owe)' }} />
+                    </button>
+                    <button
+                      onClick={() => respond(r, true)}
+                      disabled={busy}
+                      aria-label={`Accept ${r.from.displayName}`}
+                      className="neo-btn-accent flex h-11 w-11 items-center justify-center rounded-xl"
+                    >
+                      <Check size={16} strokeWidth={2.25} />
+                    </button>
+                  </span>
+                }
+              />
+            );
+          })}
+        </Panel>
+      </div>
+    ) : null;
 
-          {showOwedToYou && youOwe.length > 0 && (
-            <section>
-              <SectionHeader title="You owe" />
-              <Panel>
-                {youOwe.map((f) => (
-                  <Row
-                    key={f.id}
-                    href={`/friends/${f.id}`}
-                    leading={
-                      <Avatar initials={f.initials} color={f.color} size={40} src={f.photo} />
-                    }
-                    title={f.name}
-                    sub="you owe"
-                    subTone="owe"
-                    trailing={<Amount value={f.iOwe} tone="owe" />}
-                  />
-                ))}
-              </Panel>
-            </section>
-          )}
-
-          {showSettled && settled.length > 0 && (
-            <section>
-              <SectionHeader title="Settled up" />
-              <Panel>
-                {settled.map((f) => (
-                  <Row
-                    key={f.id}
-                    href={`/friends/${f.id}`}
-                    leading={
-                      <Avatar initials={f.initials} color={f.color} size={40} src={f.photo} />
-                    }
-                    title={f.name}
-                    sub="all square"
-                    chevron
-                  />
-                ))}
-              </Panel>
-            </section>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  return <FriendsView rows={rows} requests={requestList} onRemind={remind} />;
 }

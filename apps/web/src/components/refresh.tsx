@@ -27,10 +27,10 @@ const SIZES = {
   sm: { num: 'text-[0.95rem]', cur: 'text-[0.68rem]' },
   md: { num: 'text-[1.1rem]', cur: 'text-[0.72rem]' },
   lg: { num: 'text-[1.6rem]', cur: 'text-[0.8rem]' },
-  xl: { num: 'text-[2.75rem] leading-none', cur: 'text-[1rem]' },
+  xl: { num: 'text-[2rem] leading-none md:text-[2.75rem]', cur: 'text-[0.9rem] md:text-[1rem]' },
 } as const;
 
-function digits(value: MinorUnits): string {
+export function digits(value: MinorUnits): string {
   const abs = value < 0n ? -value : value;
   return toDecimal(abs, ETB.decimalDigits).toLocaleString('en-US', {
     minimumFractionDigits: ETB.decimalDigits,
@@ -215,18 +215,24 @@ export function HeroBalance({
   oweTotal,
   onOwed,
   onOwe,
+  children,
 }: {
   net: MinorUnits;
   owedTotal: MinorUnits;
   oweTotal: MinorUnits;
   onOwed: () => void;
   onOwe: () => void;
+  /** Actions along the bottom of the card (Home: Settle up, IOU...). */
+  children?: ReactNode;
 }) {
   const settled = net === 0n && owedTotal === 0n && oweTotal === 0n;
   const total = owedTotal + oweTotal;
   const owedPct = total > 0n ? Number((owedTotal * 1000n) / total) / 10 : 50;
   return (
-    <section className="neo-card-accent rounded-[28px] p-6 text-white" aria-label="Your balance">
+    <section
+      className="neo-card-accent rounded-[24px] p-4 text-white md:rounded-[28px] md:p-6"
+      aria-label="Your balance"
+    >
       {settled ? (
         <div className="hero-settled flex items-center gap-3 py-3">
           <CheckCircle2 size={34} strokeWidth={1.8} aria-hidden />
@@ -244,18 +250,22 @@ export function HeroBalance({
                 ? 'Overall, you owe'
                 : "Overall, you're even"}
           </p>
-          <p className="mt-2">
+          <p className="mt-1 md:mt-2">
             <Amount value={net} size="xl" color="#fff" />
           </p>
-          <div className="mt-5 h-1 overflow-hidden rounded-full bg-white/20" aria-hidden>
+          <div
+            className="mt-5 hidden h-1 overflow-hidden rounded-full bg-white/20 md:block"
+            aria-hidden
+          >
             <div className="h-full rounded-full bg-white/85" style={{ width: `${owedPct}%` }} />
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2.5">
+          <div className="mt-3 grid grid-cols-2 gap-2 md:mt-4 md:gap-2.5">
             <HeroTile label="Owed to you" value={owedTotal} onClick={onOwed} />
             <HeroTile label="You owe" value={oweTotal} onClick={onOwe} align="end" />
           </div>
         </>
       )}
+      {children && <div className="mt-3 flex gap-2 md:mt-4 md:gap-2.5">{children}</div>}
     </section>
   );
 }
@@ -275,7 +285,7 @@ function HeroTile({
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-col rounded-2xl border-none bg-white/[0.12] px-3.5 py-3 text-white transition-colors active:bg-white/20 ${
+      className={`flex flex-col rounded-2xl border-none bg-white/[0.12] px-3 py-2 text-white transition-colors active:bg-white/20 md:px-3.5 md:py-3 ${
         align === 'end' ? 'items-end text-right' : 'items-start text-left'
       }`}
     >

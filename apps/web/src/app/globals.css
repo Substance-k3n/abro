@@ -27,8 +27,8 @@
   /* Surface tones -- --neo-bg is the page, --neo-bg2 (plain white) is
      cards/buttons that sit on it. --neo-dark is the skeleton-loading
      pulse color only (LoadStates.tsx). */
-  --neo-bg: #f5f7f5;
-  --neo-dark: #d9dbd9;
+  --neo-bg: #f8f7f4;
+  --neo-dark: #dedcd8;
   --neo-bg2: #ffffff;
 
   /* Status colors */
@@ -175,6 +175,40 @@ body {
   /* Stop iOS enlarging text on rotation. */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+}
+
+/* ========================= ACCESSIBILITY ========================= */
+/* Keyboard focus was invisible: nothing styled :focus-visible and the
+   field classes set outline: none. One ring for everything focusable; it
+   only shows for keyboard / switch users, never on a tap or mouse click. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Fields already signal focus with an accent border, so the ring sits
+   flush against it instead of floating 2px away. The hero amount entry
+   has no box at all -- its caret is the focus cue. */
+.neo-input:focus-visible,
+.otp-box:focus-visible {
+  outline-offset: 0;
+}
+.amount-hero-input:focus-visible {
+  outline: none;
+}
+
+/* People who ask their OS for less motion get none: this catches every
+   animation and transition (skeleton shimmer, sheets, toasts), including
+   ones added later, on top of the per-effect rules below. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* ===================== PHONE / INSTALLED-APP POLISH ===================== */
@@ -466,7 +500,10 @@ body {
 
 /* OTP input, used by email verification */
 .otp-box {
-  width: 48px;
+  /* Fills its grid cell: six fixed 48px boxes plus gaps were 338px, wider
+     than a 320px phone. */
+  width: 100%;
+  min-width: 0;
   height: 56px;
   text-align: center;
   font-family: var(--font-mono);
