@@ -34,7 +34,9 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    if (!apiProxyTarget) return [];
+    if (!apiProxyTarget) {
+      return [];
+    }
     return [{ source: '/api/:path*', destination: `${apiProxyTarget}/:path*` }];
   },
 };
