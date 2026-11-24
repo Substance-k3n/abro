@@ -103,10 +103,7 @@ export function FriendsView({ rows, requests, onRemind }: FriendsViewProps) {
       {rows.length > 0 && (
         <section className="neo-raised mb-5 rounded-[22px] p-4" aria-label="Balance with friends">
           <div className="flex items-start justify-between gap-3">
-            <p
-              className="text-[0.7rem] font-semibold uppercase tracking-[0.08em]"
-              style={{ color: 'var(--t-dim)' }}
-            >
+            <p className="section-label" style={{ color: 'var(--t-dim)' }}>
               Balance with friends
             </p>
             {net !== 0n && (

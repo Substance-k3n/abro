@@ -315,10 +315,7 @@ export default function ExpenseDetailPage() {
 
       {/* Paid by */}
       <div className="neo-raised-sm mb-4 rounded-[18px] p-4">
-        <p
-          className="font-display mb-3 text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-          style={{ color: 'var(--t-dim)' }}
-        >
+        <p className="section-label mb-3" style={{ color: 'var(--t-dim)' }}>
           {expense.splitType === 'INTEREST' ? 'Owed to' : 'Paid by'}
         </p>
         <div className="flex items-center gap-2.5">
@@ -338,10 +335,7 @@ export default function ExpenseDetailPage() {
       {/* Split details */}
       <div className="neo-raised-sm mb-4 rounded-[18px] p-4">
         <div className="mb-3 flex items-center justify-between">
-          <p
-            className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <p className="section-label" style={{ color: 'var(--t-dim)' }}>
             Split
           </p>
           <span
@@ -409,10 +403,7 @@ export default function ExpenseDetailPage() {
       {/* Notes */}
       {expense.notes && (
         <div className="neo-raised-sm mb-4 rounded-[18px] p-4">
-          <p
-            className="font-display mb-2 text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <p className="section-label mb-2" style={{ color: 'var(--t-dim)' }}>
             Note
           </p>
           <p className="text-[0.85rem] leading-relaxed" style={{ color: 'var(--t-secondary)' }}>

@@ -444,6 +444,15 @@ body {
    a layer, this padding beat pl-11 and the first letters typed sat
    under the search icon (phone-trial feedback, 2026-10-07). */
 @layer components {
+  /* The small heading above a group of rows ("Paid by", "Owed to you"). Sentence case:
+     all-caps labels shout and read as template chrome. Colour comes from the element. */
+  .section-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: 0;
+  }
+
   /* UI refresh: one raised panel per list, rows split by a hairline
      (instead of a raised card per row), and money in the display face
      with aligned digits. */

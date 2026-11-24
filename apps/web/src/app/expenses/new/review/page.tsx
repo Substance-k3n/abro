@@ -111,10 +111,7 @@ export default function AddExpenseReviewPage() {
       {/* Expense details */}
       <div className="neo-raised-sm rounded-[18px] p-4">
         <div className="mb-3 flex items-center justify-between">
-          <p
-            className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <p className="section-label" style={{ color: 'var(--t-dim)' }}>
             Expense details
           </p>
           <button
@@ -155,10 +152,7 @@ export default function AddExpenseReviewPage() {
       {/* Paid by */}
       <div className="neo-raised-sm rounded-[18px] p-4">
         <div className="mb-3 flex items-center justify-between">
-          <p
-            className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <p className="section-label" style={{ color: 'var(--t-dim)' }}>
             Paid by
           </p>
           <button
@@ -193,10 +187,7 @@ export default function AddExpenseReviewPage() {
           that actually changes this, not the split-method screen). */}
       <div className="neo-raised-sm rounded-[18px] p-4">
         <div className="mb-3 flex items-center justify-between">
-          <p
-            className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <p className="section-label" style={{ color: 'var(--t-dim)' }}>
             Participants
           </p>
           <button
@@ -229,10 +220,7 @@ export default function AddExpenseReviewPage() {
       {/* Split breakdown */}
       <div className="neo-raised-sm rounded-[18px] p-4">
         <div className="mb-3 flex items-center justify-between">
-          <p
-            className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <p className="section-label" style={{ color: 'var(--t-dim)' }}>
             Split
           </p>
           <div className="flex items-center gap-2">

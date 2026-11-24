@@ -295,10 +295,7 @@ function GroupMembers({
 
       {invited.length > 0 && (
         <div className="mt-6">
-          <p
-            className="mb-2 pl-1 text-[0.72rem] font-bold uppercase tracking-[0.06em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <p className="section-label mb-2 pl-1" style={{ color: 'var(--t-dim)' }}>
             Invited · {invited.length}
           </p>
           <div className="flex flex-col gap-2">

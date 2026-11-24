@@ -207,10 +207,7 @@ const FAQ = [
 function SectionTitle({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <div className="mb-6 flex flex-col gap-1.5">
-      <p
-        className="font-display text-[0.75rem] font-bold uppercase tracking-[0.08em]"
-        style={{ color: 'var(--accent)' }}
-      >
+      <p className="section-label" style={{ color: 'var(--accent)' }}>
         {eyebrow}
       </p>
       <h2

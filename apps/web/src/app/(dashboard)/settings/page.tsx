@@ -176,10 +176,7 @@ const THEME_OPTIONS: { value: ThemeChoice; label: string }[] = [
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="neo-raised-sm flex flex-col gap-1 rounded-3xl p-3">
-      <p
-        className="font-display px-1 pb-1 text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-        style={{ color: 'var(--t-dim)' }}
-      >
+      <p className="section-label px-1 pb-1" style={{ color: 'var(--t-dim)' }}>
         {title}
       </p>
       {children}
