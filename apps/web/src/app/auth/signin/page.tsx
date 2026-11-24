@@ -38,6 +38,7 @@ import {
 } from '~/components/auth/AuthShell';
 import { ApiError, googleSignInUrl } from '~/lib/api-client';
 import { requestOtp } from '~/lib/auth-api';
+import { useEmbedded } from '~/lib/embedded';
 
 // Google's actual four-color "G" glyph (brand guideline SVG, not a
 // styled letter) -- a text "G" read as a placeholder, not a real
@@ -92,6 +93,7 @@ function SignInForm() {
   const [email, setEmail] = useState(searchParams.get('email') ?? '');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const embedded = useEmbedded();
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -116,19 +118,24 @@ function SignInForm() {
 
       <AuthCard>
         <form onSubmit={submit} className="flex flex-col gap-4">
-          <a
-            href={googleSignInUrl()}
-            className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-[0.9rem] font-semibold"
-            style={{ color: 'var(--t-primary)' }}
-          >
-            <GoogleIcon /> Continue with Google
-          </a>
+          {/* Google won't sign anyone in from inside another app (lib/embedded.ts) */}
+          {!embedded && (
+            <>
+              <a
+                href={googleSignInUrl()}
+                className="neo-btn flex items-center justify-center gap-3 rounded-2xl px-4 py-3.5 text-[0.9rem] font-semibold"
+                style={{ color: 'var(--t-primary)' }}
+              >
+                <GoogleIcon /> Continue with Google
+              </a>
 
-          <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--t-dim)' }}>
-            <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
-            or use your email
-            <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
-          </div>
+              <div className="flex items-center gap-3 text-xs" style={{ color: 'var(--t-dim)' }}>
+                <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
+                or use your email
+                <div className="h-px flex-1" style={{ background: 'var(--border-med)' }} />
+              </div>
+            </>
+          )}
 
           {(oauthError || error) && <ErrorNote>{error ?? oauthError}</ErrorNote>}
 
