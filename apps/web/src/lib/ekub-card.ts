@@ -26,7 +26,11 @@ export function dueThisRound(d: EkubDetail): bigint {
 }
 
 export function toEkubCard(d: EkubDetail): EkubCardData {
-  const round = Math.max(d.currentRound, 1);
+  // Past the last due date the API's current round runs on (5 of 4); the
+  // ekub is over then (the API refuses new turns with EKUB_FINISHED), so the
+  // card shows the last round as done instead of a round that doesn't exist.
+  const finished = d.rounds.length > 0 && d.currentRound > d.rounds.length;
+  const round = finished ? d.rounds.length : Math.max(d.currentRound, 1);
   const position = myPosition(d);
   const due = dueThisRound(d);
   const taking = turns(d)[round - 1] ?? [];
@@ -40,11 +44,16 @@ export function toEkubCard(d: EkubDetail): EkubCardData {
     contribution: `${ekubMoney(d.slotAmount, d)} ${cadenceLabel(d.cadence)}`,
     currentRound: round,
     totalRounds: d.rounds.length,
-    nextDue: roundDue ? formatDay(roundDue) : null,
-    recipient: taking.length > 0 ? taking.map((m) => m.displayName.split(' ')[0]).join(', ') : null,
-    yourTurn: position
-      ? `Round ${position.me.slotPosition}${myTurnDue ? ` · ${formatDay(myTurnDue)}` : ''}`
-      : null,
+    finished,
+    nextDue: !finished && roundDue ? formatDay(roundDue) : null,
+    recipient:
+      !finished && taking.length > 0
+        ? taking.map((m) => m.displayName.split(' ')[0]).join(', ')
+        : null,
+    yourTurn:
+      !finished && position
+        ? `Round ${position.me.slotPosition}${myTurnDue ? ` · ${formatDay(myTurnDue)}` : ''}`
+        : null,
     members: active.slice(0, 3).map((m) => ({
       id: m.id,
       initials: initialsOf(m.displayName),

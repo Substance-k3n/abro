@@ -232,10 +232,7 @@ function Greeting({ firstName }: { firstName: string }) {
   return (
     <div className="mb-5 flex items-end justify-between gap-3">
       <div className="min-w-0">
-        <p
-          className="text-[0.72rem] font-semibold uppercase tracking-[0.08em]"
-          style={{ color: 'var(--accent)' }}
-        >
+        <p className="section-label" style={{ color: 'var(--accent)' }}>
           {greeting()}
         </p>
         <h1
@@ -338,10 +335,7 @@ function GroupCard({ g }: { g: HomeGroup }) {
         {g.name}
       </p>
       <div className="mt-2.5 rounded-xl px-2.5 py-2" style={{ background: 'var(--neo-bg)' }}>
-        <p
-          className="text-[0.64rem] font-semibold uppercase tracking-[0.06em]"
-          style={{ color: 'var(--t-dim)' }}
-        >
+        <p className="section-label" style={{ color: 'var(--t-dim)' }}>
           {owed ? 'You get back' : owe ? 'You pay' : 'All square'}
         </p>
         <div className="mt-0.5">

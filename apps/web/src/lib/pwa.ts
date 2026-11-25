@@ -13,6 +13,8 @@
 
 import { useEffect, useState } from 'react';
 
+import { isEmbedded } from './embedded';
+
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -44,6 +46,10 @@ function isIos(): boolean {
 function currentState(): InstallState {
   if (installedNow || isStandalone()) {
     return 'installed';
+  }
+  // inside a wallet's mini-app frame the wallet is the app
+  if (isEmbedded()) {
+    return 'unavailable';
   }
   if (deferredPrompt) {
     return 'prompt';

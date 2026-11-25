@@ -11,7 +11,8 @@
 // a payment, saving an expense) must be registered with `dangerous: true`.
 
 import { TezazProvider, TezazWidget, useCapability } from '@tezaz/react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useSyncExternalStore } from 'react';
 
 import { listGroups } from '~/lib/groups-api';
 
@@ -42,8 +43,54 @@ export function VoiceProvider({ children }: { children: React.ReactNode }) {
     >
       {children}
       <VoiceCapabilities />
-      <TezazWidget project={PUBLIC_KEY} />
+      <VoiceOrb />
     </TezazProvider>
+  );
+}
+
+// The orb only makes sense where its commands work: the signed-in tabs. On
+// the landing page, sign-in and the step-by-step forms (whose Save buttons
+// sit at the bottom) it only covered things.
+const ORB_PAGES = [
+  '/home',
+  '/friends',
+  '/groups',
+  '/activity',
+  '/balances',
+  '/payments',
+  '/notifications',
+  '/search',
+  '/ekub',
+  '/profile',
+  '/settings',
+];
+// Below md the bottom navigation (BottomNav, ~80px plus the safe area) takes
+// the bottom edge; the orb sits above it instead of on the Activity tab.
+const PHONE = '(max-width: 767px)';
+const onPhone = (cb: () => void) => {
+  const mq = window.matchMedia(PHONE);
+  mq.addEventListener('change', cb);
+  return () => mq.removeEventListener('change', cb);
+};
+
+function VoiceOrb() {
+  const path = usePathname() ?? '';
+  const phone = useSyncExternalStore(
+    onPhone,
+    () => window.matchMedia(PHONE).matches,
+    () => false,
+  );
+  const signedInTab = ORB_PAGES.some((p) => path === p || path.startsWith(`${p}/`));
+  const inFlow = /\/(new|edit)(\/|$)/.test(path) || path.includes('/settle');
+  if (!signedInTab || inFlow) {
+    return null;
+  }
+  return (
+    <TezazWidget
+      project={PUBLIC_KEY}
+      offset={phone ? { x: 16, y: 104 } : 24}
+      launcher={{ size: phone ? 52 : 60 }}
+    />
   );
 }
 

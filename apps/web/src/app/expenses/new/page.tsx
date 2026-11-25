@@ -90,10 +90,7 @@ function AddExpenseDetailsForm() {
 
       {/* Amount -- the hero figure. What this screen exists to record. */}
       <div className="flex flex-col items-center gap-2 py-2">
-        <span
-          className="text-[0.78rem] font-semibold uppercase tracking-wide"
-          style={{ color: 'var(--t-dim)' }}
-        >
+        <span className="section-label" style={{ color: 'var(--t-dim)' }}>
           Amount
         </span>
         <div className="flex items-baseline justify-center gap-2">

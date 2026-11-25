@@ -143,10 +143,7 @@ export function ReceiptSection({
   return (
     <div className="neo-raised-sm mb-4 rounded-[18px] p-4">
       <div className="mb-3 flex items-center justify-between">
-        <p
-          className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-          style={{ color: 'var(--t-dim)' }}
-        >
+        <p className="section-label" style={{ color: 'var(--t-dim)' }}>
           Receipt
         </p>
         {canManage && (

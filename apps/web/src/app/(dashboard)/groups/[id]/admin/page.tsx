@@ -522,10 +522,7 @@ function Card({ title, sub, children }: { title: string; sub?: string; children:
 
 function SubHeading({ children }: { children: ReactNode }) {
   return (
-    <p
-      className="mb-2 pl-1 text-[0.7rem] font-bold uppercase tracking-[0.06em]"
-      style={{ color: 'var(--t-dim)' }}
-    >
+    <p className="section-label mb-2 pl-1" style={{ color: 'var(--t-dim)' }}>
       {children}
     </p>
   );

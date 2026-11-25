@@ -85,10 +85,7 @@ export function GroupsView({ cards, activity, invites }: GroupsViewProps) {
 
       {cards.length > 0 && (
         <section className="neo-raised mb-5 rounded-[22px] p-4" aria-label="Overall balance">
-          <p
-            className="text-[0.7rem] font-semibold uppercase tracking-[0.08em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <p className="section-label" style={{ color: 'var(--t-dim)' }}>
             Overall balance
           </p>
           <p className="mt-1">

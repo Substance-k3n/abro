@@ -157,10 +157,7 @@ export default function NewEkubPage() {
         {/* Amount per turn -- the hero figure. The number every turn puts
             in and every turn takes out. */}
         <div className="flex flex-col items-center gap-2 py-2">
-          <span
-            className="text-[0.78rem] font-semibold uppercase tracking-wide"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <span className="section-label" style={{ color: 'var(--t-dim)' }}>
             Amount per turn
           </span>
           <div className="flex items-baseline justify-center gap-2">

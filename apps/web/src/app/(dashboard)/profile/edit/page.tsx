@@ -223,10 +223,7 @@ function ProfileForm({ initial }: { initial: AuthProfile }) {
 
 function SectionTitle({ children }: { children: ReactNode }) {
   return (
-    <p
-      className="font-display px-1 text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-      style={{ color: 'var(--t-dim)' }}
-    >
+    <p className="section-label px-1" style={{ color: 'var(--t-dim)' }}>
       {children}
     </p>
   );

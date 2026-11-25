@@ -18,6 +18,8 @@ export interface EkubCardData {
   contribution: string;
   currentRound: number;
   totalRounds: number;
+  /** Every round's due date has passed. */
+  finished: boolean;
   /** "Mon 2 Mar", or null before a date is set. */
   nextDue: string | null;
   /** Who takes the pot this round. */
@@ -30,7 +32,9 @@ export interface EkubCardData {
 }
 
 export function EkubCard({ ekub }: { ekub: EkubCardData }) {
-  const pct = ekub.totalRounds > 0 ? Math.round((ekub.currentRound / ekub.totalRounds) * 100) : 0;
+  // rounds before the current one are over; the current one is still collecting
+  const over = ekub.finished ? ekub.totalRounds : ekub.currentRound - 1;
+  const pct = ekub.totalRounds > 0 ? Math.round((over / ekub.totalRounds) * 100) : 0;
   const extra = ekub.memberCount - ekub.members.length;
   return (
     <Link href={`/ekub/${ekub.id}`} className="neo-raised block rounded-[22px] p-4">
@@ -54,7 +58,9 @@ export function EkubCard({ ekub }: { ekub: EkubCardData }) {
       <div className="mt-3.5 rounded-2xl p-3" style={{ background: 'var(--neo-bg)' }}>
         <div className="flex items-baseline justify-between text-[0.8rem]">
           <span className="font-semibold" style={{ color: 'var(--t-primary)' }}>
-            Round {ekub.currentRound} of {ekub.totalRounds}
+            {ekub.finished
+              ? `All ${ekub.totalRounds} rounds over`
+              : `Round ${ekub.currentRound} of ${ekub.totalRounds}`}
           </span>
           <span style={{ color: 'var(--t-muted)' }}>{pct}% done</span>
         </div>
@@ -63,7 +69,7 @@ export function EkubCard({ ekub }: { ekub: EkubCardData }) {
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={ekub.totalRounds}
-          aria-valuenow={ekub.currentRound}
+          aria-valuenow={over}
           aria-label="Ekub progress"
         >
           {Array.from({ length: ekub.totalRounds }, (_, i) => (
@@ -71,7 +77,12 @@ export function EkubCard({ ekub }: { ekub: EkubCardData }) {
               key={i}
               className="h-1.5 flex-1 rounded-full"
               style={{
-                background: i < ekub.currentRound ? 'var(--accent)' : 'var(--border-med)',
+                background:
+                  i < over
+                    ? 'var(--accent)'
+                    : i === over && !ekub.finished
+                      ? 'color-mix(in srgb, var(--accent) 40%, var(--border-med))'
+                      : 'var(--border-med)',
               }}
             />
           ))}
