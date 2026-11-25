@@ -468,10 +468,7 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
         className="flex flex-col gap-2.5 rounded-3xl border p-4"
         style={{ borderColor: 'var(--c-red)' }}
       >
-        <p
-          className="text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-          style={{ color: 'var(--c-red)' }}
-        >
+        <p className="section-label" style={{ color: 'var(--c-red)' }}>
           Danger Zone
         </p>
 
@@ -563,10 +560,7 @@ function GroupSettings({ view, hasExpenses }: { view: GroupView; hasExpenses: bo
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="neo-raised-sm flex flex-col gap-4 rounded-3xl p-4">
-      <p
-        className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-        style={{ color: 'var(--t-dim)' }}
-      >
+      <p className="section-label" style={{ color: 'var(--t-dim)' }}>
         {title}
       </p>
       {children}

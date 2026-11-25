@@ -118,10 +118,7 @@ export default function AddExpenseSplitPage() {
 
       {draft.splitMethod === 'equal' && total > 0n && participants.length > 0 && (
         <div className="neo-raised-sm flex flex-col gap-2.5 rounded-[20px] p-4">
-          <p
-            className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-            style={{ color: 'var(--t-dim)' }}
-          >
+          <p className="section-label" style={{ color: 'var(--t-dim)' }}>
             Equal split
           </p>
           {participants.map((p) => (

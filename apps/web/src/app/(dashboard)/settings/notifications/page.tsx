@@ -159,10 +159,7 @@ export default function NotificationSettingsPage() {
       )}
 
       <section className="neo-raised-sm flex flex-col gap-3.5 rounded-3xl p-4">
-        <p
-          className="font-display text-[0.75rem] font-bold uppercase tracking-[0.06em]"
-          style={{ color: 'var(--t-dim)' }}
-        >
+        <p className="section-label" style={{ color: 'var(--t-dim)' }}>
           Notify me about
         </p>
         {TYPES.map(({ type, label, sub }) => {
